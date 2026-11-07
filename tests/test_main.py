@@ -133,6 +133,31 @@ class Flow(unittest.TestCase):
         r = self.run_(self.p.enable_game(42, ""))
         self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=version=n,b %command%")
 
+    def test_an_re_engine_game_gets_reframework_and_its_launch_option(self):
+        apps = os.path.join(self.home, ".local", "share", "Steam", "steamapps")
+        touch(os.path.join(apps, "appmanifest_2246340.acf"),
+              b'"AppState"\n{\n"appid" "2246340"\n"name" "Monster Hunter Wilds"\n"installdir" "MHWilds"\n}\n')
+        mhw = os.path.join(apps, "common", "MHWilds")
+        touch(os.path.join(mhw, "MonsterHunterWilds.exe"), b"game" * 50)
+        touch(os.path.join(mhw, "amd_fidelityfx_dx12.dll"))
+        ref = os.path.join(self.data, "ref", "dinput8.dll")
+        touch(ref, b"reframework")
+        self.run_(self.p.scan_games())
+        with mock.patch("sml_assets.fetch_reframework", return_value=ref) as fetch:
+            r = self.run_(self.p.enable_game(2246340, ""))
+        self.assertTrue(r["ok"], r)
+        fetch.assert_called_once()
+        self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dxgi=n,b;dinput8=n,b %command%")
+        self.assertTrue(os.path.isfile(os.path.join(mhw, "dinput8.dll")))
+        r = self.run_(self.p.disable_game(2246340, "WINEDLLOVERRIDES=dxgi=n,b;dinput8=n,b %command%"))
+        self.assertEqual(r["launch_options"], "")
+        self.assertEqual(sorted(os.listdir(mhw)), ["MonsterHunterWilds.exe", "amd_fidelityfx_dx12.dll"])
+
+    def test_other_games_never_download_reframework(self):
+        with mock.patch("sml_assets.fetch_reframework") as fetch:
+            self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        fetch.assert_not_called()
+
     def test_anticheat_is_refused(self):
         touch(os.path.join(self.game, "BattlEye", "BEClient_x64.dll"))
         self.run_(self.p.scan_games())

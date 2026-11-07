@@ -114,6 +114,16 @@ GAME_TIPS = {
     "enshrouded.exe": "In Enshrouded, pick DLSS as the upscaler. If DLSS isn't listed, turn the upscaler off, restart "
                       "the game, then pick DLSS.",
 }
+# Capcom RE Engine games where OptiScaler needs REFramework (hooks the engine early, past Capcom's integrity checks):
+# the "Requires REFramework" rows of OptiScaler's community Compatibility List
+# (github.com/optiscaler/OptiScaler/wiki/Compatibility-List), copied on 2026-11-07. The widget reads the live list;
+# the plugin pins it like its downloads. Plus the widget's exe rule for Dragon's Dogma 2 (its row says "Check Wiki").
+REFRAMEWORK_GAMES = ("Monster Hunter Wilds", "Onimusha: Way of the Sword", "PRAGMATA", "Resident Evil 9 Requiem",
+                     "Devil May Cry 5", "Resident Evil 2 (2019)", "Resident Evil 3 (2020)", "Resident Evil 4 (2023)",
+                     "Resident Evil 7 Biohazard", "Resident Evil 8 Village")
+REFRAMEWORK_EXES = {"dd2.exe"}
+REFRAMEWORK_TIP = "This game needs REFramework, so the plugin adds it too."
+REFRAMEWORK_CONFIG = "re2_fw_config.txt"  # the same name in every game
 NO_UPSCALER_TIP = ("No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells "
                    "OptiScaler to search for it (the game loads a little slower). Install, restart the game and turn on "
                    "FSR in its settings. FSR 1 can't be upgraded.")
@@ -204,14 +214,65 @@ def _manual_optiscaler(exe_dir):
     return os.path.isfile(os.path.join(exe_dir, "OptiScaler.ini"))
 
 
-def tips(exe_name, upscalers):
-    """The widget's game card lines: no upscaler files, DLSS/XeSS-only games, and the game's own rule."""
+_ROMAN = {"ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6", "vii": "7", "viii": "8", "ix": "9"}
+_EDITIONS = ("directors cut", "director's cut", "ultimate edition", "definitive edition", "complete edition",
+             "deluxe edition", "game of the year edition", "goty edition", "remastered", "enhanced edition",
+             "anniversary edition", "standard edition", "gold edition", "premium edition")
+
+
+def name_key(name):
+    """The widget's CompatList.Key: letters and digits only, lower case, Roman numerals II to IX as numbers."""
+    import unicodedata
+    s = re.sub(r"\b(ix|viii|vii|vi|iv|v|iii|ii)\b", lambda m: _ROMAN[m.group(0)], name.lower())
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if c.isalnum())
+
+
+def base_key(name):
+    """The widget's CompatList.BaseKey: no edition words, years in brackets or trademark signs."""
+    s = re.sub(r"\((19|20)\d\d\)", " ", name.lower().replace("’", "'"))
+    for w in _EDITIONS:
+        s = s.replace(w, " ")
+    return name_key(re.sub("[™®©]", " ", s))
+
+
+def needs_reframework(game_name, exe_name):
+    """The widget's CompatList.Find + NeedsREFramework over the pinned list: an exact or loose name match, or a store
+    name without the list's number ("Resident Evil Village") when that number is in the exe (re8.exe)."""
+    if (exe_name or "").lower() in REFRAMEWORK_EXES:
+        return True
+    key, loose = name_key(game_name or ""), base_key(game_name or "")
+    if not key:
+        return False
+    if any(key == name_key(g) for g in REFRAMEWORK_GAMES) or (len(loose) >= 4 and any(
+            loose == base_key(g) for g in REFRAMEWORK_GAMES)):
+        return True
+    if len(loose) < 6 or any(c.isdigit() for c in loose) or not exe_name:
+        return False
+    hits = [(g, re.findall(r"\b\d+\b", g)[0]) for g in REFRAMEWORK_GAMES if len(re.findall(r"\b\d+\b", g)) == 1
+            and base_key(re.sub(r"\b\d+\b", " ", g)) == loose]
+    return len(hits) == 1 and hits[0][1] in re.findall(r"\d+", os.path.splitext(exe_name)[0])
+
+
+def reframework_artifacts(exe_dir):
+    """REFramework's runtime files next to the exe: its reframework folder and *_fw_config / *_fw_log files."""
+    try:
+        names = os.listdir(exe_dir)
+    except OSError:
+        return []
+    return sorted(n for n in names if n.lower() == "reframework" or
+                  re.match(r"^(re\d*_?framework.*|[a-z0-9]+_fw_(config|log).*)\.(txt|log|json)$", n, re.I))
+
+
+def tips(exe_name, upscalers, game_name=""):
+    """The widget's game card lines: no upscaler files, DLSS/XeSS-only games, REFramework, and the game's own rule."""
     parts = []
     if not upscalers:
         parts.append(NO_UPSCALER_TIP)
     elif not any(u.startswith("FSR") for u in upscalers):
         parts.append(f"In this game, pick {' or '.join(upscalers)} in its graphics settings: if it also has an FSR "
                      "option, that one is built into the game and may not switch to FSR 4.1 Lite.")
+    if needs_reframework(game_name, exe_name):
+        parts.append(REFRAMEWORK_TIP)
     if GAME_TIPS.get((exe_name or "").lower()):
         parts.append(GAME_TIPS[(exe_name or "").lower()])
     return " ".join(parts)
@@ -345,10 +406,13 @@ def _sha(path):
     return h.hexdigest()
 
 
-def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, upscalers=None, remembered=None):
+def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, upscalers=None, remembered=None,
+            reframework=None):
     """Copies OptiScaler (OptiScaler.dll under the proxy name), the FSR 4 files into its subfolder and the settings,
-    plus the game's input settings when its upscalers are given (game_inputs).
-    Returns the manifest: created files, backed-up files, proxy name. Rolls back on failure."""
+    plus the game's input settings when its upscalers are given (game_inputs), and REFramework's dinput8.dll when its
+    path is given (the widget's AddREFramework; a dinput8.dll the game already has is left alone).
+    Returns the manifest: created files, backed-up files, proxy name, and "reframework" true when it was added.
+    Rolls back on failure."""
     proxy = proxy or pick_proxy(exe_dir, exe_name, remembered=remembered)
     if not proxy:
         raise InstallError("Every name OptiScaler can load under is already taken in this game's folder.")
@@ -363,6 +427,11 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
             plan.append((os.path.join(dirpath, f), proxy if rel.lower() == "optiscaler.dll" else rel))
     for src in fsr4_files:
         plan.append((src, os.path.join(SUBFOLDER, os.path.basename(src))))
+    if reframework and not os.path.lexists(os.path.join(exe_dir, "dinput8.dll")):
+        plan.append((reframework, "dinput8.dll"))
+        manifest["reframework"] = True
+        # REFramework's own files from before (the player's earlier REFramework) are kept at uninstall
+        manifest["reframework_preexisting"] = reframework_artifacts(exe_dir)
     try:
         os.makedirs(meta, exist_ok=True)
         for src, rel in plan:
@@ -381,6 +450,10 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
             manifest["created"].append("OptiScaler.ini")
         set_ini(ini, ini_settings(**settings) + (game_inputs(exe_dir, exe_name, upscalers) if upscalers is not None
                                                   else []))
+        if manifest.get("reframework") and REFRAMEWORK_CONFIG not in manifest["reframework_preexisting"]:
+            # REFramework opens its menu on every launch; with RememberMenuState it starts closed (Insert opens it)
+            _set_lines(os.path.join(exe_dir, REFRAMEWORK_CONFIG), {"REFrameworkConfig_RememberMenuState": "true",
+                                                                    "REFrameworkConfig_MenuOpen": "false"})
         _save(meta, manifest)
     except OSError as e:
         try:
@@ -389,6 +462,23 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
             pass
         raise InstallError(f"Couldn't copy OptiScaler into the game folder ({e.strerror or e}).") from e
     return manifest
+
+
+def _set_lines(path, values):
+    """key=value lines in a plain config file, replaced or added."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    except FileNotFoundError:
+        lines = []
+    for key, value in values.items():
+        i = next((n for n, line in enumerate(lines) if line.startswith(key + "=")), None)
+        if i is None:
+            lines.append(f"{key}={value}")
+        else:
+            lines[i] = f"{key}={value}"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def _save(meta, manifest):
@@ -410,6 +500,20 @@ def load_manifest(exe_dir):
 def uninstall(exe_dir, manifest=None):
     """Removes what install created (plus OptiScaler's log), restores backups, removes the meta folder."""
     manifest = manifest or load_manifest(exe_dir) or {"created": [], "backups": []}
+    if manifest.get("reframework"):
+        # what REFramework made while it ran (its folder, config, logs), unless the game had it before
+        keep = set(manifest.get("reframework_preexisting", []))
+        for name in reframework_artifacts(exe_dir):
+            if name in keep:
+                continue
+            path = os.path.join(exe_dir, name)
+            try:
+                if os.path.isdir(path) and not os.path.islink(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+            except OSError:
+                pass
     for rel in manifest.get("created", []) + ["OptiScaler.log"]:
         path = os.path.join(exe_dir, rel)
         try:

@@ -44,6 +44,7 @@
       "amdxcffx64",
       "amdvkffx64",
       "amd_fidelityfx",
+      "dinput8",
       "\\.exe$"
     ],
     "folder": "FSR4Lite",

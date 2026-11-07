@@ -3,11 +3,13 @@
 """The three files FSR 4.1 Lite needs, downloaded once and checked byte for byte:
 - OptiScaler, one tested nightly build from its own GitHub (a .7z: unpacked with the bundled 7-Zip, bin/7zz)
 - AMD's FSR 4.1.2 files for DirectX 12 and Vulkan, from the FSR 4.1 Lite widget's file mirror (AMD-signed,
-  unmodified). Nothing from AMD or OptiScaler ships inside the plugin."""
+  unmodified). Nothing from AMD or OptiScaler ships inside the plugin.
+Plus REFramework, downloaded only when a Capcom RE Engine game that needs it is set up (fetch_reframework)."""
 import os
 import shutil
 import subprocess
 import tempfile
+import zipfile
 
 import dk_net
 
@@ -31,6 +33,16 @@ FSR4_FILES = {
                        "sha256": "80e761f7c8c0ec8ead7b321df01911baaf917defae51388d29eaecb1d6bc58bd"},
 }
 TOTAL = OPTISCALER["size"] + sum(f["size"] for f in FSR4_FILES.values())
+# REFramework (praydog, MIT) for the RE Engine games OptiScaler needs it in (the widget's REFrameworkSource): one
+# pinned nightly, at least two weeks old. Only its dinput8.dll is used, as its release notes say for non-VR use.
+REFRAMEWORK = {
+    "build": "REFramework nightly 01433 (2026-10-21)",
+    "url": "https://github.com/praydog/REFramework-nightly/releases/download/"
+           "nightly-01433-d4611aef1d63effd3a736bdf9404ea702428017d/REFramework.zip",
+    "size": 13267029,
+    "sha256": "b3ff4f497be6f108ef494c2c02156b61b8d04f3171378ecc0dc28c218ee296b3",
+    "folder": "reframework-01433",
+}
 
 
 def package_dir(data):
@@ -52,6 +64,40 @@ def ready(data):
         except OSError:
             return False
     return True
+
+
+def reframework_path(data):
+    return os.path.join(data, REFRAMEWORK["folder"], "dinput8.dll")
+
+
+def fetch_reframework(data, cancelled=None):
+    """REFramework's dinput8.dll, downloaded and checked the first time a game needs it; its path. Raises
+    dk_net.NetError, OSError or RuntimeError with a message fit for the panel."""
+    path = reframework_path(data)
+    if os.path.isfile(path):
+        return path
+    os.makedirs(data, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=data) as tmp:
+        archive = os.path.join(tmp, "REFramework.zip")
+        dk_net.download(REFRAMEWORK["url"], archive, REFRAMEWORK["size"], REFRAMEWORK["sha256"], hosts=HOSTS,
+                        redirects=REDIRECTS, deadline=600, cancel=cancelled)
+        try:
+            with zipfile.ZipFile(archive) as z:
+                found = sorted((i for i in z.infolist() if i.filename.replace("\\", "/").split("/")[-1].lower() ==
+                                "dinput8.dll" and not i.is_dir()), key=lambda i: i.filename.count("/"))
+                if not found or found[0].flag_bits & 1 or found[0].file_size > 64 << 20:
+                    raise RuntimeError("REFramework's download has no usable dinput8.dll")
+                out = os.path.join(tmp, "dinput8.dll")
+                with z.open(found[0]) as src, open(out, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        except zipfile.BadZipFile as e:
+            raise RuntimeError(f"Couldn't unpack REFramework ({e})") from e
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        os.replace(out, path)
+    for name in os.listdir(data):  # older builds are no longer needed
+        if name.startswith("reframework-") and name != REFRAMEWORK["folder"]:
+            shutil.rmtree(os.path.join(data, name), ignore_errors=True)
+    return path
 
 
 def runnable(sevenzip, data):

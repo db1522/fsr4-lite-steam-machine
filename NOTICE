@@ -30,3 +30,6 @@ FSR 4.1 Lite 2.0 and later:
 - AMD's FSR 4 files (amdxcffx64.dll, amdvkffx64.dll) are not included. The plugin downloads AMD's signed files,
   unmodified, from https://github.com/db1522/fsr4-files at setup.
 - shim/ (LGPL-2.1+) is no longer part of the plugin as of 2.0.
+- REFramework (MIT, praydog) is not included. For the Capcom RE Engine games OptiScaler needs it in, the plugin
+  downloads a pinned build from https://github.com/praydog/REFramework-nightly, unmodified, and uses its dinput8.dll;
+  its source is at https://github.com/praydog/REFramework.

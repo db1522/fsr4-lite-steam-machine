@@ -198,6 +198,7 @@ export const Content: FC = () => {
       {infoRow("Steam Machine Life", "Runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. The same method as the FSR 4.1 Lite widget for Windows.")}
       {infoRow("OptiScaler", `${state.optiscaler}, by cdozdil and contributors (GPL-3.0). Downloaded from its own GitHub, unmodified.`)}
       {infoRow("FSR 4", "By AMD. AMD's signed FSR 4.1.2 files, unmodified, made available to the community by TheRazerMD.")}
+      {infoRow("REFramework", "By praydog (MIT). Added only to the Capcom RE Engine games OptiScaler needs it in, from its own GitHub, unmodified.")}
       {infoRow("Built on", "FSR4 Injector by Rayekkk (BSD-3-Clause): the plugin's library scan, launch options and updates.")}
       {infoRow("Source", "github.com/db1522/fsr4-lite-steam-machine · BSD-3-Clause. 7-Zip by Igor Pavlov (LGPL). Not affiliated with AMD or Valve.")}
     </PanelSection>

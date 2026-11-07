@@ -190,6 +190,84 @@ class ExeImports(unittest.TestCase):
         self.assertEqual(O.exe_imports(os.path.join(d, "missing.exe")), set())
 
 
+class REFramework(unittest.TestCase):
+    def test_games_that_need_it_are_matched_like_the_widget(self):
+        yes = [("Monster Hunter Wilds", "MonsterHunterWilds.exe"), ("RESIDENT EVIL 2", "re2.exe"),
+               ("Resident Evil 4", "re4.exe"), ("RESIDENT EVIL 7 biohazard Gold Edition", "re7.exe"),
+               ("Resident Evil Village", "re8.exe"), ("Resident Evil Requiem", "re9.exe"),
+               ("Devil May Cry 5", "DevilMayCry5.exe"), ("PRAGMATA", "PRAGMATA.exe"),
+               ("Onimusha: Way of the Sword", "Onimusha.exe"), ("Dragon's Dogma 2", "DD2.exe")]
+        no = [("Resident Evil Village", "village.exe"), ("Resident Evil 5", "re5dx9.exe"), ("Forza Horizon 5", "fh5.exe"),
+              ("Monster Hunter World", "MonsterHunterWorld.exe"), ("", "game.exe")]
+        for name, exe in yes:
+            self.assertTrue(O.needs_reframework(name, exe), name)
+        for name, exe in no:
+            self.assertFalse(O.needs_reframework(name, exe), name)
+        self.assertIn("REFramework", O.tips("re4.exe", ["DLSS", "FSR 3.1"], "Resident Evil 4"))
+
+    def setUp(self):
+        t = tempfile.mkdtemp()
+        self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
+        touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
+        self.ref = os.path.join(t, "dinput8.dll")
+        touch(self.ref, b"reframework")
+        touch(os.path.join(self.game, "re4.exe"), b"game")
+
+    def test_added_with_its_menu_closed_and_everything_it_made_removed(self):
+        touch(os.path.join(self.game, "re4_fw_log.txt"), b"the player's earlier REFramework log")
+        m = O.install(self.game, "re4.exe", self.pkg, [], {}, reframework=self.ref)
+        self.assertTrue(m["reframework"])
+        self.assertEqual(read(os.path.join(self.game, "dinput8.dll"), "rb"), b"reframework")
+        config = read(os.path.join(self.game, "re2_fw_config.txt"))
+        self.assertIn("REFrameworkConfig_MenuOpen=false", config)
+        self.assertIn("REFrameworkConfig_RememberMenuState=true", config)
+        # what REFramework makes while the game runs
+        touch(os.path.join(self.game, "reframework", "plugins", "x.dll"))
+        touch(os.path.join(self.game, "re2_framework_log.txt"))
+        O.uninstall(self.game)
+        self.assertEqual(sorted(os.listdir(self.game)), ["re4.exe", "re4_fw_log.txt"])
+
+    def test_a_dinput8_the_game_already_has_is_left_alone(self):
+        touch(os.path.join(self.game, "dinput8.dll"), b"the player's own mod")
+        m = O.install(self.game, "re4.exe", self.pkg, [], {}, reframework=self.ref)
+        self.assertNotIn("reframework", m)
+        self.assertFalse(os.path.exists(os.path.join(self.game, "re2_fw_config.txt")))
+        O.uninstall(self.game)
+        self.assertEqual(read(os.path.join(self.game, "dinput8.dll"), "rb"), b"the player's own mod")
+
+
+class REFrameworkDownload(unittest.TestCase):
+    def fake_download(self, members):
+        def download(url, dest, limit, sha256, **kw):
+            import sml_assets
+            self.assertEqual((url, limit, sha256), (sml_assets.REFRAMEWORK["url"], sml_assets.REFRAMEWORK["size"],
+                                                    sml_assets.REFRAMEWORK["sha256"]))  # only the pinned build
+            import zipfile
+            with zipfile.ZipFile(dest, "w") as z:
+                for name, data in members.items():
+                    z.writestr(name, data)
+        return download
+
+    def test_only_dinput8_is_kept_and_older_builds_go(self):
+        from unittest import mock
+        import sml_assets
+        data = tempfile.mkdtemp()
+        touch(os.path.join(data, "reframework-01000", "dinput8.dll"))
+        with mock.patch("dk_net.download", self.fake_download({"dinput8.dll": b"ref", "VR/openvr_api.dll": b"vr",
+                                                               "VR/dinput8.dll": b"vr build"})):
+            path = sml_assets.fetch_reframework(data)
+        self.assertEqual(read(path, "rb"), b"ref")
+        self.assertEqual(sorted(os.listdir(data)), [sml_assets.REFRAMEWORK["folder"]])
+        self.assertEqual(os.listdir(os.path.dirname(path)), ["dinput8.dll"])
+
+    def test_a_zip_without_dinput8_is_refused(self):
+        from unittest import mock
+        import sml_assets
+        with mock.patch("dk_net.download", self.fake_download({"readme.txt": b"no dll"})):
+            with self.assertRaises(RuntimeError):
+                sml_assets.fetch_reframework(tempfile.mkdtemp())
+
+
 class Tips(unittest.TestCase):
     def test_the_widgets_card_lines(self):
         self.assertIn("No upscaler files found", O.tips("game.exe", []))

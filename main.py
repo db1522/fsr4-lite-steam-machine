@@ -23,6 +23,7 @@ if PLUGIN_DIR not in sys.path:
     sys.path.insert(0, PLUGIN_DIR)
 
 import dk_fs  # noqa: E402
+import dk_net  # noqa: E402
 import dk_rpc  # noqa: E402
 import dk_update  # noqa: E402
 import fsr4_games  # noqa: E402  (Steam library and shortcut parsing)
@@ -63,6 +64,13 @@ def _read(path, default):
     except OSError as e:
         decky.logger.warning(f"{os.path.basename(path)} could not be read ({dk_fs.shown(e)})")
         return default
+
+
+def _with_overrides(options, manifest):
+    """Steam launch options with OptiScaler's loader name and, when REFramework was added, dinput8: Proton only loads
+    a game folder's dinput8.dll with an override, like OptiScaler's."""
+    options = sml_opti.with_override(options, manifest["proxy"])
+    return sml_opti.with_override(options, "dinput8.dll") if manifest.get("reframework") else options
 
 
 def scan_library(steam_root):
@@ -163,7 +171,7 @@ class Plugin:
         view = {k: g[k] for k in ("appid", "name", "exe_name", "upscalers", "anticheat", "nonsteam",
                                   "manual_optiscaler")}
         view["installed"] = entry is not None
-        view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"])
+        view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"], g["name"])
         view["verdict"], view["detail"] = ("", "")
         if entry:
             view["verdict"], view["detail"] = entry.get("verdict", "unplayed"), entry.get("detail", "")
@@ -244,18 +252,26 @@ class Plugin:
                                    "first.", await self._state())
             key = str(appid)
             entry = self.registry.get(key, {})
+            reframework = None
+            if sml_opti.needs_reframework(game["name"], game["exe_name"]):
+                try:
+                    reframework = await asyncio.to_thread(sml_assets.fetch_reframework, _data_dir())
+                except (dk_net.NetError, OSError, RuntimeError) as e:
+                    return dk_rpc.fail(f"Couldn't download REFramework, which this game needs ({e}). Try again.",
+                                       await self._state())
             try:
                 manifest = await asyncio.to_thread(
                     sml_opti.install, game["exe_dir"], game["exe_name"], sml_assets.package_dir(_data_dir()),
                     sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), entry.get("next_proxy"),
-                    game["upscalers"], self.loaders.get(game["exe_name"].lower()))
+                    game["upscalers"], self.loaders.get(game["exe_name"].lower()), reframework)
             except sml_opti.InstallError as e:
                 return dk_rpc.fail(str(e), await self._state())
             original = entry.get("launch_original", launch_options)
-            new = sml_opti.with_override(launch_options, manifest["proxy"])
+            new = _with_overrides(launch_options, manifest)
             self.registry[key] = {"exe_dir": game["exe_dir"], "proxy": manifest["proxy"],
                                   "tried": sorted(set(entry.get("tried", [])) | {manifest["proxy"]}),
                                   "launch_original": original, "launch_applied": new,
+                                  "reframework": bool(manifest.get("reframework")),
                                   "installed_at": time.time(), "verdict": "unplayed", "detail": ""}
             await asyncio.to_thread(self._save_registry)
             decky.logger.info(f"enabled {appid} in {game['exe_dir']} as {manifest['proxy']}")
@@ -267,10 +283,12 @@ class Plugin:
         if not entry:
             return launch_options
         await asyncio.to_thread(sml_opti.uninstall, entry["exe_dir"])
+        if entry.get("reframework"):
+            launch_options = sml_opti.without_override(launch_options, "dinput8.dll")
         restored = sml_opti.without_override(launch_options, entry["proxy"], entry.get("launch_original"))
         if keep_retry:
             self.registry[key] = {"tried": entry.get("tried", []), "launch_original": entry.get("launch_original"),
-                                  "exe_dir": entry["exe_dir"]}
+                                  "exe_dir": entry["exe_dir"], "reframework": entry.get("reframework", False)}
         else:
             del self.registry[key]
         await asyncio.to_thread(self._save_registry)
@@ -377,7 +395,7 @@ class Plugin:
                 await asyncio.to_thread(dk_fs.write_json, self.loaders_path, self.loaders)
             # OptiScaler never loaded: the game skipped that file name. Next name, like the widget's game watcher.
             if verdict == "none" and started:
-                game = self._game(appid)
+                ref = sml_assets.reframework_path(_data_dir()) if entry.get("reframework") else None
                 nxt = game and sml_opti.pick_proxy(exe_dir, game["exe_name"], entry.get("tried", []) +
                                                    [entry["proxy"]])
                 if nxt:
@@ -386,14 +404,16 @@ class Plugin:
                     try:
                         manifest = await asyncio.to_thread(
                             sml_opti.install, exe_dir, game["exe_name"], sml_assets.package_dir(_data_dir()),
-                            sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), nxt, game["upscalers"])
+                            sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), nxt, game["upscalers"],
+                            None, ref if ref and os.path.isfile(ref) else None)
                     except sml_opti.InstallError as e:
                         await asyncio.to_thread(self._save_registry)
                         return dk_rpc.ok(managed=True, verdict="none", detail=str(e), launch_options=restored)
-                    new = sml_opti.with_override(restored, manifest["proxy"])
+                    new = _with_overrides(restored, manifest)
                     self.registry[key] = {"exe_dir": exe_dir, "proxy": manifest["proxy"],
                                           "tried": sorted(set(self.registry[key].get("tried", [])) |
                                                           {manifest["proxy"]}),
+                                          "reframework": bool(manifest.get("reframework")),
                                           "launch_original": entry.get("launch_original"), "launch_applied": new,
                                           "installed_at": time.time(), "verdict": "unplayed",
                                           "detail": f"Trying {manifest['proxy']}. Play once more."}
