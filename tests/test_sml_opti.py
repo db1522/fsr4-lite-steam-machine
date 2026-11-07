@@ -338,6 +338,25 @@ class RealExe(unittest.TestCase):
         os.symlink(os.path.join(self.root, "steam"), os.path.join(self.proc, "105", "cwd"))
         self.assertEqual(O.running_exe(self.root, self.proc), (self.real, 5000))
 
+    def test_a_game_started_with_a_path_through_its_launchers_folder(self):
+        # the launcher in steam\ starts the game as steam\..\ProjectPBZ\...: tidied, and the game is found
+        self.process(101, "S:\\steamapps\\common\\PBZ\\steam\\PBZ.exe", mb=304, graphics=True)
+        self.process(102, "S:\\steamapps\\common\\PBZ\\steam\\..\\ProjectPBZ\\Binaries\\Win64\\PBZ.exe", mb=6100,
+                     graphics=True)
+        self.assertEqual(O.running_exe(self.root, self.proc), (self.real, 6100))
+        self.process(103, "S:\\steamapps\\common\\PBZ\\steam\\..\\..\\..\\evil.exe", mb=9000, graphics=True)
+        self.assertEqual(O.running_exe(self.root, self.proc), (self.real, 6100))  # leaving the folder: refused
+
+    def test_the_report_lists_every_windows_program_and_exe(self):
+        self.process(101, "S:\\steamapps\\common\\PBZ\\steam\\PBZ.exe", mb=304, graphics=True)
+        self.process(102, "C:\\windows\\system32\\services.exe", mb=10)
+        self.process(103, "/usr/bin/bash")
+        progs = O.windows_programs(self.proc)
+        self.assertEqual([(p["pid"], p["exe"], p["mb"], p["graphics"]) for p in progs],
+                         [(101, "S:\\steamapps\\common\\PBZ\\steam\\PBZ.exe", 304, True)])
+        self.assertEqual([p for p, _mb in O.game_exes(self.root)],
+                         ["ProjectPBZ/Binaries/Win64/8za_v2.exe", "ProjectPBZ/Binaries/Win64/PBZ.exe", "steam/PBZ.exe"])
+
     def test_the_report_sees_every_process(self):
         self.process(101, "S:\\steamapps\\common\\PBZ\\steam\\PBZ.exe", mb=180, graphics=True)
         self.process(102, "S:\\steamapps\\common\\PBZ\\ProjectPBZ\\Binaries\\Win64\\8za_v2.exe", mb=40)

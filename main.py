@@ -131,6 +131,7 @@ class Plugin:
             self.exes, self._watchers = {}, {}
             self.launchers = {}  # str(appid) -> exes OptiScaler showed never draw, never picked again
             self.seen = {}  # appid -> the game's processes the last watch saw, for the support report
+            self.programs = {}  # appid -> every Windows program running at the last watch, for the support report
             self.settings = dict(DEFAULT_SETTINGS)
             self.registry = {}  # str(appid) -> {exe_dir, proxy, tried, launch_original, launch_applied, installed_at}
             self.loaders = {}
@@ -298,6 +299,7 @@ class Plugin:
                 seen = await asyncio.to_thread(sml_opti.running_processes, game["install_dir"])
                 if seen:
                     self.seen[appid] = seen  # for the support report
+                self.programs[appid] = await asyncio.to_thread(sml_opti.windows_programs)
                 path, mb = sml_opti.pick_game(seen)
                 if path and mb >= sml_opti.GAME_MEMORY_MB and mb > best:
                     best = mb
@@ -386,6 +388,7 @@ class Plugin:
                 seen = await asyncio.to_thread(sml_opti.running_processes, game["install_dir"])
                 if seen:
                     self.seen[appid] = seen
+                self.programs[appid] = await asyncio.to_thread(sml_opti.windows_programs)
                 path, mb = sml_opti.pick_game(seen)
                 starting = time.time() - self.sessions[appid] < 90
                 if path and (mb >= sml_opti.GAME_MEMORY_MB or not starting):
@@ -648,7 +651,22 @@ class Plugin:
                 f"Launch options set: {entry.get('launch_applied', '')}",
                 "Processes from the game folder at the last check (first two minutes of a session):",
                 *([f"  {rel(p['path'])}: {p['mb']} MB, graphics {'loaded' if p['graphics'] else 'not loaded'}"
-                   for p in seen] or ["  (none seen since the plugin loaded)"])]
+                   for p in seen] or ["  (none seen since the plugin loaded)"]),
+                "", "== Windows programs running ==",
+                "At the last check in the game's first two minutes:",
+                *self._programs_lines(self.programs.get(appid)),
+                "Now, as this report was saved:",
+                *self._programs_lines(sml_opti.windows_programs()),
+                "", "== Every .exe in the game folder ==",
+                *([f"  {p} ({mb:.1f} MB)" for p, mb in sml_opti.game_exes(root)] if root and os.path.isdir(root)
+                  else ["  (game folder not found)"])]
+
+    @staticmethod
+    def _programs_lines(programs):
+        if programs is None:
+            return ["  (no check yet since the plugin loaded)"]
+        return [f"  {p['exe']}  [{p['mb']} MB, graphics {'loaded' if p['graphics'] else 'not loaded'}, "
+                f"started in {p['cwd']}]" for p in programs] or ["  (none)"]
 
     def _report_other_logs(self, appid, exe_dir):
         """Every other OptiScaler.log in the game folder (a launcher's, an older setup's), newest first."""

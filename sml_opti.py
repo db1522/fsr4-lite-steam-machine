@@ -10,6 +10,7 @@ import functools
 import hashlib
 import json
 import os
+import posixpath
 import re
 import shutil
 
@@ -815,6 +816,49 @@ def running_exe(install_dir, proc="/proc"):
     return pick_game(running_processes(install_dir, proc))
 
 
+def windows_programs(proc="/proc"):
+    """Every running Windows program, for the support report: how it was started (its .exe argument as given), its
+    working folder, memory and whether graphics are loaded. Shows how a game was really started when the plugin's
+    matching misses it."""
+    out = []
+    try:
+        pids = sorted((p for p in os.listdir(proc) if p.isdigit()), key=int)
+    except OSError:
+        return out
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, pid, "cmdline"), "rb") as f:
+                args = [a.decode("utf-8", "replace") for a in f.read(64 * 1024).split(b"\0")]
+        except OSError:
+            continue
+        exe = next((a for a in args if a.lower().endswith(".exe")), None)
+        if not exe or os.path.basename(exe.replace("\\", "/")).lower() in ("steam.exe", "services.exe", "winedevice.exe",
+                                                                          "plugplay.exe", "svchost.exe", "explorer.exe",
+                                                                          "rpcss.exe", "tabtip.exe", "conhost.exe"):
+            continue
+        try:
+            cwd = os.readlink(os.path.join(proc, pid, "cwd"))
+        except OSError:
+            cwd = "?"
+        out.append({"pid": int(pid), "exe": exe[:300], "cwd": cwd[:300], "mb": _memory_mb(proc, pid),
+                    "graphics": _rendering(proc, pid)})
+    return out
+
+
+def game_exes(install_dir):
+    """Every .exe in the game folder with its size in MB, for the support report."""
+    found = []
+    for d, _dirs, files in _walk(install_dir):
+        for f in files:
+            if f.lower().endswith(".exe"):
+                p = os.path.join(d, f)
+                try:
+                    found.append((os.path.relpath(p, install_dir).replace(os.sep, "/"), os.path.getsize(p) / 2 ** 20))
+                except OSError:
+                    pass
+    return sorted(found)
+
+
 def pick_game(processes):
     """(exe, memory in MB) of the process from running_processes that is the game: graphics loaded, most memory."""
     drawing = [p for p in processes if p["graphics"]]
@@ -854,7 +898,12 @@ def running_processes(install_dir, proc="/proc"):
             at = low.find(marker)
             if at < 0:
                 continue
-            path = _resolve(install_dir, text[at + len(marker):])
+            # "..\" steps that stay inside the game folder are tidied first: a launcher can start the game as
+            # S:\...\PBZ\steam\..\ProjectPBZ\Binaries\Win64\PBZ.exe. A path that leaves the folder stays refused.
+            rel = posixpath.normpath(text[at + len(marker):])
+            if rel == ".." or rel.startswith("../"):
+                continue
+            path = _resolve(install_dir, rel)
             if path and _is_game_exe(os.path.basename(path)):
                 mb, graphics = _memory_mb(proc, pid), _rendering(proc, pid)
                 old = found.get(path)

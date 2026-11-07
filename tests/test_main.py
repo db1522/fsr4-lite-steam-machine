@@ -306,6 +306,9 @@ class Flow(unittest.TestCase):
         with open(self.run_(self.p.save_report(4115450))["saved"], encoding="utf-8") as f:
             text = f.read()
         self.assertIn("Ruled out as launchers: steam/PBZ.exe", text)
+        self.assertIn("== Windows programs running ==", text)
+        self.assertIn("== Every .exe in the game folder ==", text)
+        self.assertIn("  steam/PBZ.exe (", text)
         self.assertIn("-- steam/OptiScaler.log", text)
         self.assertIn("the launcher's own log line", text)
 
