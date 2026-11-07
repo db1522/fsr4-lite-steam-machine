@@ -101,9 +101,7 @@ It stays off for:
 
 - Online games with anti-cheat (Easy Anti-Cheat, BattlEye and others). Adding DLLs to them can get you banned, so the plugin won't install there.
 - Games that already have OptiScaler from another install. Remove that one first.
-- Games without FSR, DLSS or XeSS. OptiScaler needs an upscaler to take over.
-
-Played something? [Send a game report](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=game_report.yml) and it goes into the table above.
+- Games with only FSR 1, or no upscaler at all. OptiScaler needs FSR 2 or newer, DLSS or XeSS to take over. A game that builds FSR 2 or 3 in without separate files can still be set up from Now playing.
 
 ## Troubleshooting
 
