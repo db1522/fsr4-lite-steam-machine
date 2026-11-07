@@ -2,6 +2,19 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.5] - 2026-11-07
+
+### 🔧 Changed
+- **Games:** set up next to the exe the game really runs, like the Windows widget. While a game starts, the plugin
+  finds its exe among the running programs and remembers it, with OptiScaler's log as the backup.
+
+### 🐛 Fixed
+- **Games:** Phantom Blade Zero runs platform/steam/PBZ.exe, not the exe in its Unreal folder, so FSR 4 never loaded
+  there. A game set up next to the wrong exe moves to the right one when you quit: play once more. A game where Lite
+  already runs is left as it is.
+- **Status:** when OptiScaler can't load AMD's FSR 4 file, the game shows that it ran FSR 3 and why, instead of FSR 4
+  loaded.
+
 ## [2.2.4] - 2026-11-07
 
 REFramework for the Capcom games that need it, as in the Windows widget.
