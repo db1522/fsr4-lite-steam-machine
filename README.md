@@ -28,7 +28,7 @@ Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, 
 
 In Payday 3, FSR 3 on GE-Proton11-1 also lands at about 60 FPS. So Lite matches FSR 3's frame rate while looking clearly better than FSR 3 and close to full FSR 4.1.
 
-Control works too. OptiScaler unlocks the game's DLSS option on the Steam Machine, and the plugin turns it into FSR 4.1.2 Lite.
+Control and Palworld work too. Palworld only ships DLSS, so there's no FSR in it at all. OptiScaler unlocks the DLSS option on the Steam Machine, and the plugin turns it into FSR 4.1.2 Lite.
 
 Xbox Series X|S games are getting the same FSR 4.1.2 Lite model. Microsoft's [Xbox GDK FSR sample](https://github.com/microsoft/Xbox-GDK-Samples/tree/main/Samples/Graphics/AMD_FSR) switches between Full and Lite, and on Series X at 4K the Lite upscaling pass takes 2.75 ms against 3.86 ms for Full. That's the model this plugin runs.
 
