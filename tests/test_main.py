@@ -203,6 +203,30 @@ class Flow(unittest.TestCase):
         self.assertTrue(self.run_(self.p.enable_game(4115450, ""))["ok"])
         self.assertTrue(os.path.isfile(os.path.join(root, "platform", "steam", "dxgi.dll")))
 
+    def test_fsr4_files_go_where_optiscaler_looks_for_them(self):
+        # Phantom Blade Zero as it is: PBZ.exe next to 8za_v2.exe, but Steam starts it in platform/steam, where
+        # OptiScaler (loaded fine from Binaries/Win64) looks for AMD's FSR 4 file
+        root = self.pbz()
+        win64, steam = os.path.join(root, "ProjectPBZ", "Binaries", "Win64"), os.path.join(root, "platform", "steam")
+        os.remove(os.path.join(steam, "PBZ.exe"))
+        touch(os.path.join(win64, "PBZ.exe"), b"game" * 3000)
+        self.run_(self.p.scan_games())
+        r = self.run_(self.p.enable_game(4115450, ""))
+        self.assertEqual(self.p._game(4115450)["exe_dir"], win64)
+        self.run_(self.p.session_started(4115450))
+        touch(os.path.join(win64, "OptiScaler.log"),
+              b"Setting DllPath to S:\\steamapps\\common\\PBZ\\platform\\steam\nCheckQuirks Game's Exe: PBZ.exe\n"
+              b"LoadDriverDll Failed to load amdxcffx64.dll\nRender Resolution: 1280x720, Display Resolution 3840x2160\n")
+        r = self.run_(self.p.session_ended(4115450, r["launch_options"]))
+        self.assertEqual((r["verdict"], r["retry"]), ("unplayed", "dxgi.dll"))
+        self.assertIn("platform/steam", r["detail"])
+        self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dxgi=n,b %command%")
+        for name in ("amdxcffx64.dll", "amdvkffx64.dll"):
+            self.assertTrue(os.path.isfile(os.path.join(steam, "OptiScaler", name)))
+        self.assertTrue(os.path.isfile(os.path.join(win64, "dxgi.dll")))  # the setup itself stays put
+        self.run_(self.p.disable_game(4115450, r["launch_options"]))
+        self.assertEqual(os.listdir(steam), [])
+
     def test_a_working_setup_never_moves(self):
         self.pbz()
         self.run_(self.p.enable_game(4115450, ""))

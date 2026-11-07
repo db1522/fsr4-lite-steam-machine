@@ -476,6 +476,18 @@ class Plugin:
             if verdict != "none" and exe_key and self.loaders.get(exe_key) != entry["proxy"]:
                 self.loaders[exe_key] = entry["proxy"]  # OptiScaler loaded under this name: remember it
                 await asyncio.to_thread(dk_fs.write_json, self.loaders_path, self.loaders)
+            # OptiScaler loaded but looked for AMD's FSR 4 file in another folder (its DllPath, the folder Steam starts
+            # some games in): the files go there too, and the next session can run Lite
+            if detail == sml_opti.NO_FSR4_FILE and game:
+                target = sml_opti.local_dir(game["install_dir"], sml_opti.logged_dll_dir(log))
+                if target and os.path.normpath(target) != os.path.normpath(exe_dir) and await asyncio.to_thread(
+                        sml_opti.add_fsr4_copy, exe_dir, target, sml_assets.fsr4_paths(_data_dir())):
+                    where = os.path.relpath(target, game["install_dir"]).replace(os.sep, "/")
+                    detail = f"OptiScaler looks for AMD's FSR 4 file in {where}, so it's there now too. Play once more."
+                    entry["verdict"], entry["detail"] = "unplayed", detail
+                    result.update(verdict="unplayed", detail=detail, retry=entry["proxy"],
+                                  launch_options=launch_options)
+                    decky.logger.info(f"{appid}: FSR 4 files added to {target}")
             # OptiScaler never loaded: the game skipped that file name. Next name, like the widget's game watcher.
             if verdict == "none" and started:
                 ref = sml_assets.reframework_path(_data_dir()) if entry.get("reframework") else None

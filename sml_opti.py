@@ -572,6 +572,13 @@ def uninstall(exe_dir, manifest=None):
                     os.remove(path)
             except OSError:
                 pass
+    for path in manifest.get("extra", []):  # FSR 4 files put where OptiScaler looked for them (add_fsr4_copy)
+        try:
+            if os.path.isfile(path) or os.path.islink(path):
+                os.remove(path)
+            os.rmdir(os.path.dirname(path))  # the OptiScaler subfolder, when nothing else is in it
+        except OSError:
+            pass
     for rel in manifest.get("created", []) + ["OptiScaler.log"]:
         path = os.path.join(exe_dir, rel)
         try:
@@ -668,8 +675,8 @@ def log_time(exe_dir):
 
 
 RES = re.compile(r"(\d{3,5})\s*x\s*(\d{3,5})")
-NO_FSR4_FILE = ("OptiScaler couldn't load AMD's FSR 4 file, so the game ran FSR 3. Usually the game runs from another "
-                "folder than the one set up; the plugin moves it there when you quit.")
+NO_FSR4_FILE = ("OptiScaler couldn't load AMD's FSR 4 file, so the game ran FSR 3. When you quit, the plugin puts it "
+                "where OptiScaler looks for it.")
 
 
 def logged_exe(log):
@@ -684,7 +691,47 @@ def find_exe(install_dir, name):
     return hits[0] if len(hits) == 1 else None
 
 
-def _resolve(root, rel):
+def logged_dll_dir(log):
+    """The folder OptiScaler looks for AMD's FSR 4 file in (its OptiScaler subfolder), as a Windows path from
+    "Setting DllPath to S:\\steamapps\\common\\PBZ\\platform\\steam", or "". Under Proton it can be the folder Steam
+    starts the game in rather than the exe's (Phantom Blade Zero: platform\\steam, exe in ProjectPBZ\\Binaries\\Win64)."""
+    found = re.findall(r"Setting DllPath to\s+(\S.*?)\s*$", log, re.M)
+    return found[-1] if found else ""
+
+
+def local_dir(install_dir, win_path):
+    """A Windows path inside the game's folder ("S:\\steamapps\\common\\PBZ\\platform\\steam") as the folder on this
+    machine, matched from steamapps/common/<game folder>/ down in any letter case; None when outside or absent."""
+    marker = "/steamapps/common/" + os.path.basename(install_dir.rstrip("/\\")).lower()
+    text = win_path.replace("\\", "/").rstrip("/")
+    at = text.lower().find(marker)
+    if at < 0 or text.lower()[at + len(marker):at + len(marker) + 1] not in ("", "/"):
+        return None
+    return _resolve(install_dir, text[at + len(marker):], want_dir=True)
+
+
+def add_fsr4_copy(exe_dir, target_dir, fsr4_files):
+    """AMD's FSR 4 files in target_dir's OptiScaler subfolder too, for a game where OptiScaler looks there. Recorded
+    in the manifest ("extra") so uninstall removes them; a file already there that isn't ours is left alone. True when
+    anything was added."""
+    manifest = load_manifest(exe_dir)
+    if not manifest:
+        return False
+    extra, added = manifest.setdefault("extra", []), False
+    for src in fsr4_files:
+        dst = os.path.join(target_dir, SUBFOLDER, os.path.basename(src))
+        if os.path.lexists(dst):
+            continue
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(src, dst)
+        extra.append(dst)
+        added = True
+    if added:
+        _save(os.path.join(exe_dir, META), manifest)
+    return added
+
+
+def _resolve(root, rel, want_dir=False):
     """root joined with a path from Windows, matching each folder and file name in any letter case; None if absent."""
     path = root
     for part in [p for p in rel.split("/") if p not in ("", ".")]:
@@ -697,7 +744,7 @@ def _resolve(root, rel):
         if match is None:
             return None
         path = os.path.join(path, match)
-    return path if os.path.isfile(path) else None
+    return path if (os.path.isdir(path) if want_dir else os.path.isfile(path)) else None
 
 
 def running_exe(install_dir, proc="/proc"):

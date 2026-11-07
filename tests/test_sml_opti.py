@@ -308,6 +308,32 @@ class RealExe(unittest.TestCase):
         self.assertEqual(O.find_exe(self.root, "pbz.EXE"), self.real)
         self.assertIsNone(O.find_exe(self.root, "missing.exe"))
 
+    def test_the_folder_optiscaler_looks_in(self):
+        log = "[13:43:42.161952] [I] Setting DllPath to S:\\steamapps\\common\\PBZ\\Platform\\steam\n"
+        self.assertEqual(O.logged_dll_dir(log), "S:\\steamapps\\common\\PBZ\\Platform\\steam")
+        self.assertEqual(O.local_dir(self.root, O.logged_dll_dir(log)), os.path.join(self.root, "platform", "steam"))
+        self.assertEqual(O.local_dir(self.root, "S:\\steamapps\\common\\PBZ"), self.root)
+        self.assertIsNone(O.local_dir(self.root, "S:\\steamapps\\common\\PBZ2\\x"))  # another game
+        self.assertIsNone(O.local_dir(self.root, "S:\\steamapps\\common\\PBZ\\missing"))
+        self.assertIsNone(O.local_dir(self.root, "S:\\steamapps\\common\\PBZ\\..\\..\\x"))
+        self.assertEqual(O.logged_dll_dir("no such line"), "")
+
+    def test_fsr4_files_where_optiscaler_looks_go_at_uninstall(self):
+        exe_dir = os.path.join(self.root, "ProjectPBZ", "Binaries", "Win64")
+        t = tempfile.mkdtemp()
+        pkg, amd = os.path.join(t, "pkg"), os.path.join(t, "amdxcffx64.dll")
+        touch(os.path.join(pkg, "OptiScaler.dll"), b"opti")
+        touch(amd, b"amd")
+        O.install(exe_dir, "8za_v2.exe", pkg, [amd], {})
+        steam = os.path.join(self.root, "platform", "steam")
+        before = sorted(os.listdir(steam))
+        self.assertTrue(O.add_fsr4_copy(exe_dir, steam, [amd]))
+        self.assertEqual(read(os.path.join(steam, "OptiScaler", "amdxcffx64.dll"), "rb"), b"amd")
+        self.assertFalse(O.add_fsr4_copy(exe_dir, steam, [amd]))  # already there
+        O.uninstall(exe_dir)
+        self.assertEqual(sorted(os.listdir(steam)), before)
+        self.assertFalse(O.add_fsr4_copy(exe_dir, steam, [amd]))  # nothing installed: nothing added
+
     def test_a_missing_fsr4_file_is_fsr3_not_fsr4(self):
         log = ("CheckQuirks Game's Exe: PBZ.exe\n`anonymous-namespace'::LoadDriverDll Failed to load amdxcffx64.dll\n"
                "IFeature::SetInitParameters Render Resolution: 1280x720, Display Resolution 3840x2160\n")
