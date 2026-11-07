@@ -2,6 +2,18 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.14] - 2026-11-07
+
+### 🔧 Changed
+- **Look:** Now playing says less before you install: one line on what to pick in the game's settings, from the
+  upscalers it ships ("pick DLSS, not its own FSR").
+- **Look:** updates live on the About page, now About and updates. When a new version is out, its card still shows
+  at the top of the menu.
+
+### 🐛 Fixed
+- **Look:** the status line at the top sits on one line, without a box.
+- **Look:** shorter rows that don't wrap: "10 more games", and one line under Uninstall from all games.
+
 ## [2.2.13] - 2026-11-07
 
 A calmer, cleaner menu.
