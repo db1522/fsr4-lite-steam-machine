@@ -26,7 +26,7 @@ Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, 
 | Kingdom Come: Deliverance II | CryEngine | 10+ FPS |
 | Cyberpunk 2077 | REDengine 4 | 20+ FPS |
 | Dying Light: The Beast | C-Engine | 21 → 34 FPS (+13) |
-| Resident Evil Requiem | RE Engine | about +20 FPS |
+| Resident Evil Requiem | RE Engine | 47 → 67 FPS (+20) |
 
 Xbox Series X|S games are getting the same FSR 4.1.2 Lite model. Microsoft's [Xbox GDK FSR sample](https://github.com/microsoft/Xbox-GDK-Samples/tree/main/Samples/Graphics/AMD_FSR) switches between Full and Lite, and on Series X at 4K the Lite upscaling pass takes 2.75 ms against 3.86 ms for Full. That's the model this plugin runs.
 
