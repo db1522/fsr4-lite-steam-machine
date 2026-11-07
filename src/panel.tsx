@@ -35,6 +35,15 @@ export const closeUpdates = () => { updates?.dispose(); updates = null; autoChec
 // Once per plugin load, the first time the menu opens: a quiet check, so a new version shows on the main page.
 let autoChecked = false;
 
+const GAMES_OPEN = "fsr4lite.gamesOpen";
+/** Whether Your games is open: kept in the browser's storage, open when nothing is saved or storage isn't there. */
+const readGamesOpen = (): boolean => {
+  try { return window.localStorage?.getItem(GAMES_OPEN) !== "0"; } catch { return true; }
+};
+const writeGamesOpen = (open: boolean) => {
+  try { window.localStorage?.setItem(GAMES_OPEN, open ? "1" : "0"); } catch { /* the choice just isn't kept */ }
+};
+
 const failure = (text?: string): ReactNode => text ? <div style={{ color: colors.error }}>{text}</div> : null;
 
 /** In the library list: games with upscaler files, and any game set up. Games without them (many build FSR in) are
@@ -93,6 +102,9 @@ export const Content: FC = () => {
     return () => { stop = true; window.clearInterval(t); };
   }, [visible, runningAppid, state?.games.filter(g => g.installed).length]);
   const flip = (k: string) => setOpen(o => ({ ...o, [k]: !o[k] }));
+  // Your games opens and closes from its heading; the choice is kept for the next time the menu opens.
+  const [gamesOpen, setGamesOpen] = useState(readGamesOpen());
+  const toggleGames = () => setGamesOpen(v => { writeGamesOpen(!v); return !v; });
   const setState = useCallback((s: State) => { lastState = s; setStateRaw(s); }, []);
 
   const take = <R extends StateResult>(r: R, key?: string | number): R => {
@@ -342,28 +354,35 @@ export const Content: FC = () => {
 
       <PanelSection><PanelSectionRow>{gameCard()}</PanelSectionRow></PanelSection>
 
-      <div className="sml-hdr">
-        <span>Your games</span>
-        <span className={`sml-badge ${activeCount ? "good" : ""}`}>{installed.length} set up{activeCount ? ` · ${activeCount} active` : ""}</span>
-      </div>
-      <div className="sml-hdrsub">{!state.scanned || scanning ? "Scanning your library…"
-        : !library.length ? "No games with FSR, DLSS or XeSS found. Start one and use Now playing above."
-        : installed.length ? "Turn a game off to put its files back." : "None set up yet. Turn one on, or start a game and use Now playing."}</div>
       <PanelSection>
-        {installed.map(g => <Fragment key={g.appid}>
+        <PanelSectionRow>
+          <Field focusable highlightOnFocus onActivate={toggleGames} className="sml-hdrrow"
+            label={<span className="sml-hdr inrow">
+              <span>Your games</span>
+              <span className={`sml-badge ${activeCount ? "good" : ""}`}>{installed.length} set up{activeCount ? ` · ${activeCount} active` : ""}</span>
+            </span>}
+            description={!state.scanned || scanning ? "Scanning your library…"
+              : !library.length ? "No games with FSR, DLSS or XeSS found. Start one and use Now playing above."
+              : !gamesOpen ? `${library.length} compatible game${library.length === 1 ? "" : "s"}. Press to show.`
+              : installed.length ? "Turn a game off to put its files back." : "None set up yet. Turn one on, or start a game and use Now playing."}
+            childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
+            <span className="sml-chev" style={{ transform: gamesOpen ? "rotate(90deg)" : "none" }}>›</span>
+          </Field>
+        </PanelSectionRow>
+        {gamesOpen && installed.map(g => <Fragment key={g.appid}>
           {gameRow(g)}
           <PanelSectionRow>
             <ActionButton onClick={() => { setCheckId(g.appid); navigate("check"); }}>Check setup: {g.name}</ActionButton>
           </PanelSectionRow>
         </Fragment>)}
-        {library.length > installed.length && <PanelSectionRow>
+        {gamesOpen && library.length > installed.length && <PanelSectionRow>
           <Field focusable highlightOnFocus onActivate={() => flip("games")}
             label={`${open.games ? "Hide" : "Show"} ${library.length - installed.length} more compatible game${library.length - installed.length === 1 ? "" : "s"}`}
             childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
             <span style={{ display: "inline-block", transform: open.games ? "rotate(90deg)" : "none", transition: "transform .15s" }}>›</span>
           </Field>
         </PanelSectionRow>}
-        {open.games && library.filter(g => !g.installed).map(g => gameRow(g))}
+        {gamesOpen && open.games && library.filter(g => !g.installed).map(g => gameRow(g))}
       </PanelSection>
 
       <div className="sml-sect">Options</div>

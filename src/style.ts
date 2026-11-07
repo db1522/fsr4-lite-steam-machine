@@ -115,6 +115,9 @@ export const CSS = `
 .sml-hdr .sml-badge { margin-left: auto; font-family: inherit; font-size: 13px; padding: 3px 9px; border-radius: 99px; }
 .sml-hdrsub { padding: 0 14px 6px 26px; font-size: 13px; color: var(--soft); line-height: 1.35; }
 .sml-dot.set { background: var(--accent); box-shadow: 0 0 0 3px rgba(27,154,255,.14); }
+.sml-hdr.inrow { padding: 0; width: 100%; }
+.sml-hdr.inrow .sml-badge { margin-left: 4px; }
+.sml-chev { display: inline-block; font-size: 24px; line-height: 1; color: var(--soft); transition: transform .15s; }
 `;
 
 /** Steam's own controls in the panel (toggles, list rows, the Library buttons) in Steam Machine Life's blue. Their class

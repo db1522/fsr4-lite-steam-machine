@@ -133,10 +133,25 @@ test('a game with anti-cheat gets no install button', async () => {
 test('set-up games are always listed under Your games, with what their last session showed', async () => {
   const h = panel(undefined);
   const tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'B', installed: true, verdict: 'none' }] }));
-  assert.match(strings(tree), /Your games/);
+  assert.ok(all(tree).some(n => n.type === 'Field' && JSON.stringify(n.props.label ?? '').includes('Your games')));
   assert.ok(!all(tree).some(n => n.type === 'Field' && /more compatible/.test(String(n.props.label))), 'nothing else to show');
   const chips = all(tree).filter(n => n.type === 'span' && /sml-badge/.test(n.props?.className ?? '')).map(n => [].concat(n.props.children).join(''));
   assert.ok(chips.includes('Active') && chips.includes('Needs fix'), chips.join(','));
+});
+
+test('Your games opens and closes from its heading', async () => {
+  const h = panel(undefined);
+  let tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }] }));
+  const heading = t => all(t).find(n => n.type === 'Field' && n.props.className === 'sml-hdrrow');
+  const listed = t => all(t).some(n => n.type === 'ToggleField' && JSON.stringify(n.props.label).includes('Cyberpunk 2077'));
+  assert.match(JSON.stringify(heading(tree).props.label), /Your games.*\[1," set up"," · 1 active"\]/);
+  assert.ok(listed(tree), 'open at first');
+  heading(tree).props.onActivate();
+  tree = h.render();
+  assert.ok(!listed(tree), 'closed after pressing the heading');
+  assert.match(String(heading(tree).props.description), /1 compatible game\. Press to show\./);
+  heading(tree).props.onActivate();
+  assert.ok(listed(h.render()), 'open again');
 });
 
 test('Check setup explains the setup in plain words', () => {
