@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """FSR 4.1 Lite's OptiScaler method (sml_opti): game analysis, install and exact uninstall, settings, launch options,
 and reading a session from OptiScaler.log."""
+import json
 import os
 import tempfile
 import unittest
@@ -311,6 +312,50 @@ class RealExe(unittest.TestCase):
         log = ("CheckQuirks Game's Exe: PBZ.exe\n`anonymous-namespace'::LoadDriverDll Failed to load amdxcffx64.dll\n"
                "IFeature::SetInitParameters Render Resolution: 1280x720, Display Resolution 3840x2160\n")
         self.assertEqual(O.verdict(log), ("fsr3", O.NO_FSR4_FILE))
+
+
+class CompatList(unittest.TestCase):
+    SAMPLE = (
+        "# Compatibility List\n\nSome text.\n\n"
+        "| Game | Compatibility | Upscaler <br>Inputs | OptiPatcher <br>Support | Notes | Images |\n"
+        "| ---- | :-----------: | :-----------------: | :---: | ----- | :----: |\n"
+        "| [Cyberpunk 2077](Cyberpunk-2077) | ✅ | DLSS, FSR3, FSR3.1/4, XeSS |  | Notes | [1](https://x) |\n"
+        "| Gears of War: Reloaded | ❌ |  |  | Crashes |  |\n"
+        "| [Some Game](Some-Game) | ✅ ❌ | DLSS |  | Depends |  |\n"
+        "| Minecraft RTX | ➖ | `DLSS` |  |  |  |\n"
+        "| [Resident Evil 8 Village](Resident-Evil-8-Village) | ✅ | DLSS, FSR2 |  | Requires REFramework |  |\n"
+        "\n## Another section\n| not | a | row | in | the | table |\n")
+
+    def test_the_release_script_reads_the_table_like_the_widget(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("compat_script", os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "compat.py"))
+        script = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(script)
+        self.assertEqual(script.parse(self.SAMPLE), [
+            ["Cyberpunk 2077", "working", ["DLSS", "FSR3", "FSR3.1/4", "XeSS"]],
+            ["Gears of War: Reloaded", "not_working", []], ["Some Game", "mixed", ["DLSS"]],
+            ["Minecraft RTX", "partial", ["DLSS"]], ["Resident Evil 8 Village", "working", ["DLSS", "FSR2"]]])
+
+    def test_the_card_line(self):
+        path = os.path.join(tempfile.mkdtemp(), "compat.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"games": [["Cyberpunk 2077", "working", ["DLSS", "FSR3.1/4", "XeSS"]],
+                                 ["Gears of War: Reloaded", "not_working", []], ["Some Game", "mixed", ["DLSS"]],
+                                 ["Resident Evil 8 Village", "working", ["DLSS", "FSR2"]], ["Bare", "working", []]]}, f)
+        self.assertEqual(O.compat_text("Cyberpunk 2077", "Cyberpunk2077.exe", path), "Works with: DLSS, FSR3.1/4, XeSS")
+        self.assertIn("not working", O.compat_text("Gears of War: Reloaded", "gears.exe", path))
+        self.assertIn("mixed reports", O.compat_text("Some Game", "g.exe", path))
+        self.assertEqual(O.compat_text("Resident Evil Village", "re8.exe", path), "Works with: DLSS, FSR2")
+        self.assertEqual(O.compat_text("Resident Evil Village", "village.exe", path), "")
+        self.assertEqual(O.compat_text("Bare", "b.exe", path), "")
+        self.assertEqual(O.compat_text("Not Listed", "n.exe", path), "")
+        self.assertEqual(O.compat_text("Cyberpunk 2077", "x.exe", os.path.join(path + ".missing")), "")
+
+    def test_the_shipped_snapshot(self):
+        self.assertTrue(os.path.isfile(O.COMPAT_PATH), "run python scripts/compat.py")
+        self.assertIn("FSR3.1/4", O.compat_text("Cyberpunk 2077", "Cyberpunk2077.exe"))
+        self.assertTrue(O.compat_text("PAYDAY 3", "PAYDAY3-Win64-Shipping.exe").startswith("Works with:"))
 
 
 class Tips(unittest.TestCase):

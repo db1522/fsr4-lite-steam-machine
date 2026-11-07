@@ -260,6 +260,7 @@ export const Content: FC = () => {
         </div>}
         <div className={`sml-note${now?.status === "inactive" ? " bad" : ""}`}>{note}</div>
         {!blocked && current.tip && <div className="sml-note">{current.tip}</div>}
+        {current.compat && <div className={`sml-note${current.compat.startsWith("OptiScaler community") ? " bad" : ""}`}>{current.compat}</div>}
         {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}
       </div>
     </div>;

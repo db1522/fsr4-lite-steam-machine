@@ -6,6 +6,7 @@ the INT8 Lite model, frame generation stays off, and OptiScaler's log tells whet
 
 Everything here is plain file work on the game's folder, recorded in a manifest so an uninstall puts back exactly
 what was there."""
+import functools
 import hashlib
 import json
 import os
@@ -235,22 +236,79 @@ def base_key(name):
     return name_key(re.sub("[™®©]", " ", s))
 
 
-def needs_reframework(game_name, exe_name):
-    """The widget's CompatList.Find + NeedsREFramework over the pinned list: an exact or loose name match, or a store
-    name without the list's number ("Resident Evil Village") when that number is in the exe (re8.exe)."""
-    if (exe_name or "").lower() in REFRAMEWORK_EXES:
-        return True
-    key, loose = name_key(game_name or ""), base_key(game_name or "")
+@functools.lru_cache(maxsize=4)
+def _name_index(names):
+    """Lookup tables for find_name, built once per list: exact keys, loose keys, and names with exactly one number
+    keyed without it ("Resident Evil 9 Requiem" -> "residentevilrequiem", "9")."""
+    exact, loose, no_number = {}, {}, {}
+    for n in names:
+        exact.setdefault(name_key(n), n)
+        b = base_key(n)
+        if len(b) >= 4:
+            loose.setdefault(b, n)
+        numbers = re.findall(r"\b\d+\b", n)
+        if len(numbers) == 1:
+            k = base_key(re.sub(r"\b\d+\b", " ", n))
+            if len(k) >= 6:
+                no_number.setdefault(k, []).append((n, numbers[0]))
+    return exact, loose, no_number
+
+
+def find_name(names, game_name, exe_name=None):
+    """The widget's CompatList.Find over a tuple of list names: an exact or loose name match, or a store name without
+    the list's number ("Resident Evil Village") when that number is in the exe (re8.exe), so "Forza Horizon 5" never
+    finds "Forza Horizon 6". The list's name, or None."""
+    key = name_key(game_name or "")
     if not key:
-        return False
-    if any(key == name_key(g) for g in REFRAMEWORK_GAMES) or (len(loose) >= 4 and any(
-            loose == base_key(g) for g in REFRAMEWORK_GAMES)):
-        return True
-    if len(loose) < 6 or any(c.isdigit() for c in loose) or not exe_name:
-        return False
-    hits = [(g, re.findall(r"\b\d+\b", g)[0]) for g in REFRAMEWORK_GAMES if len(re.findall(r"\b\d+\b", g)) == 1
-            and base_key(re.sub(r"\b\d+\b", " ", g)) == loose]
-    return len(hits) == 1 and hits[0][1] in re.findall(r"\d+", os.path.splitext(exe_name)[0])
+        return None
+    exact, loose, no_number = _name_index(names)
+    if key in exact:
+        return exact[key]
+    b = base_key(game_name)
+    if len(b) >= 4 and b in loose:
+        return loose[b]
+    if not exe_name or len(b) < 6 or any(c.isdigit() for c in b) or len(no_number.get(b, [])) != 1:
+        return None
+    name, number = no_number[b][0]
+    return name if number in re.findall(r"\d+", os.path.splitext(exe_name)[0]) else None
+
+
+def needs_reframework(game_name, exe_name):
+    """The widget's CompatList.NeedsREFramework over the pinned REFramework games, or the exe rule."""
+    return (exe_name or "").lower() in REFRAMEWORK_EXES or find_name(REFRAMEWORK_GAMES, game_name, exe_name) is not None
+
+
+# ---- OptiScaler's community Compatibility List: the snapshot in compat.json (scripts/compat.py, each release) ----
+
+COMPAT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "compat.json")
+
+
+@functools.lru_cache(maxsize=1)
+def _compat(path=COMPAT_PATH):
+    """{list name: (status, inputs)} and the names as a tuple; empty when the file is missing or unreadable."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            games = json.load(f).get("games", [])
+        table = {g[0]: (g[1], tuple(g[2])) for g in games
+                 if isinstance(g, list) and len(g) == 3 and isinstance(g[0], str) and isinstance(g[2], list)}
+    except (OSError, ValueError, AttributeError, TypeError):
+        table = {}
+    return table, tuple(table)
+
+
+def compat_text(game_name, exe_name, path=COMPAT_PATH):
+    """The widget's card line from the Compatibility List: a warning for "not working" or "mixed", else the upscaler
+    inputs the community found working; "" for a game the list doesn't have."""
+    table, names = _compat(path)
+    name = find_name(names, game_name, exe_name) if names else None
+    if not name:
+        return ""
+    state, inputs = table[name]
+    if state == "not_working":
+        return "OptiScaler community: not working in this game."
+    if state == "mixed":
+        return "OptiScaler community: mixed reports for this game."
+    return "Works with: " + ", ".join(inputs) if inputs else ""
 
 
 def reframework_artifacts(exe_dir):

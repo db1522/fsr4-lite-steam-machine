@@ -79,6 +79,16 @@ test('a game without upscaler files installs from Now playing but stays out of t
   assert.ok(!all(tree).some(n => n.type === 'ToggleField' && /Phantom Blade Zero/.test(strings({ props: { children: n.props.label } }))));
 });
 
+test('the Now playing card shows what the OptiScaler community found', async () => {
+  const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
+  let tree = await open(h, state({ games: [{ ...game, compat: 'Works with: DLSS, FSR3, FSR3.1/4, XeSS' }] }));
+  assert.match(strings(tree), /Works with: DLSS, FSR3, FSR3\.1\/4, XeSS/);
+  tree = await open(panel({ appid: '1091500', display_name: 'Cyberpunk 2077' }),
+    state({ games: [{ ...game, compat: 'OptiScaler community: not working in this game.' }] }));
+  assert.ok(all(tree).some(n => n.type === 'div' && /sml-note bad/.test(n.props?.className ?? '') &&
+    [].concat(n.props.children).join('').includes('not working')));
+});
+
 test('the running game shows its live status: Restart the game, then Active', async () => {
   const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
   await open(h, state({ games: [{ ...game, installed: true, verdict: 'unplayed', proxy: 'dxgi.dll' }] }));

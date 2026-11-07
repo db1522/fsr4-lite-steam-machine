@@ -33,6 +33,7 @@
       "plugin.json",
       "package.json",
       "README.md",
+      "compat.json",
       "CHANGELOG.md",
       "LICENSE",
       "NOTICE",

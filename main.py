@@ -183,6 +183,7 @@ class Plugin:
                                   "manual_optiscaler")}
         view["installed"] = entry is not None
         view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"], g["name"])
+        view["compat"] = sml_opti.compat_text(g["name"], g["exe_name"])
         view["verdict"], view["detail"] = ("", "")
         if entry:
             view["verdict"], view["detail"] = entry.get("verdict", "unplayed"), entry.get("detail", "")
