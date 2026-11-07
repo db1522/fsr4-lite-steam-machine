@@ -46,8 +46,8 @@ Up close, at 100% of the 4K output. Click either image for full size.
 
 ## What you get
 
-- A Now playing card. Open the plugin in a game and you see the game with its artwork, which upscalers it ships, and one button to install or uninstall.
-- One list of every game with FSR, DLSS or XeSS, each with a chip for what its last session showed: Active, Pick an upscaler, Needs fix or Not played yet.
+- A Now playing card. Open the plugin in a game and you see the game, which upscalers it ships, and one button to install or uninstall. It sets the game up next to the program that's really running, the same way the Windows widget does.
+- Your games: every game you set up, each with a chip for what its last session showed (Active, Pick an upscaler, Needs fix or Not played yet) and a switch to turn it off. The rest of your games with FSR, DLSS or XeSS are listed underneath.
 - Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
 - It sorts itself out. If OptiScaler doesn't load in a game, the plugin sets it up under the next file name OptiScaler can load as and asks for one more session.
 - Check setup, a page per game that checks the files, the launch option, Proton and the last session, with a Fix setup button and a report you can save to Downloads.
@@ -74,7 +74,7 @@ Coming from version 1? The plugin shows a **Clean up** card for games version 1 
 
 ## Using it
 
-1. Start the game, open the plugin and press **Install FSR 4.1 Lite** on the Now playing card. Or turn games on in the **Games** list.
+1. Start the game and wait for its menu. Open the plugin and press **Install FSR 4.1 Lite** on the Now playing card. I set games up this way only, with the game running, so the plugin sees exactly which program is the game.
 2. Restart the game. In its graphics settings, pick FSR, DLSS or XeSS as the upscaler, whichever it offers. OptiScaler swaps it for FSR 4.1 Lite.
 3. Play. With **Notify when active** on, a notification tells you when Lite is running, and the game's chip turns green: **Active**.
 
@@ -82,7 +82,7 @@ If a notification says the plugin is trying another file name, play once more. T
 
 ## Which games work
 
-The plugin's **Games** list shows every installed game with FSR, DLSS or XeSS. As a rule, if the game lets you pick one of those upscalers, FSR 4.1 Lite can take it over.
+The plugin's **Your games** section lists every installed game with FSR, DLSS or XeSS. As a rule, if the game lets you pick one of those upscalers, FSR 4.1 Lite can take it over.
 
 [PCGamingWiki's upscaling list](https://www.pcgamingwiki.com/wiki/List_of_games_that_support_high-fidelity_upscaling) shows which upscalers a game ships.
 

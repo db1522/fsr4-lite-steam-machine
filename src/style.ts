@@ -117,6 +117,7 @@ export const CSS = `
 .sml-dot.set { background: var(--accent); box-shadow: 0 0 0 3px rgba(27,154,255,.14); }
 .sml-hdr.inrow { padding: 0; width: 100%; }
 .sml-hdr.inrow .sml-badge { margin-left: 4px; }
+.sml-rowhint { margin-top: 4px; font-size: 12px; color: var(--soft); }
 .sml-chev { display: inline-block; font-size: 24px; line-height: 1; color: var(--soft); transition: transform .15s; }
 `;
 

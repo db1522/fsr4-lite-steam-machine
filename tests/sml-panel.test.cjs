@@ -80,7 +80,8 @@ test('a game without upscaler files installs from Now playing but stays out of t
   const more = all(tree).find(n => n.type === 'Field' && /Show 1 more compatible game$/.test(String(n.props.label)));
   assert.ok(more);
   more.props.onActivate();
-  const rows = all(h.render()).filter(n => n.type === 'ToggleField').map(n => JSON.stringify(n.props.label));
+  const rows = all(h.render()).filter(n => (n.type === 'ToggleField' || n.type === 'Field') && /sml-gamerow/.test(JSON.stringify(n.props.label)))
+    .map(n => JSON.stringify(n.props.label));
   assert.ok(rows.some(r => r.includes('Cyberpunk 2077')) && !rows.some(r => r.includes('Phantom Blade Zero')), rows.join());
 });
 
@@ -165,6 +166,47 @@ test('Your games opens and closes from its heading', async () => {
   assert.match(String(heading(tree).props.description), /1 compatible game\. Press to show\./);
   heading(tree).props.onActivate();
   assert.ok(listed(h.render()), 'open again');
+});
+
+test('games are set up from Now playing only; the list can only turn a game off', async () => {
+  const h = panel(undefined);
+  let tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'Other Game' }] }));
+  assert.ok(!dialogButton(tree, 'Install in all') && !all(tree).some(n => /Install in all/.test(String(n.props?.children ?? ''))));
+  all(tree).find(n => n.type === 'Field' && /Show 1 more compatible game/.test(String(n.props.label))).props.onActivate();
+  tree = h.render();
+  const other = all(tree).find(n => JSON.stringify(n.props?.label ?? '').includes('Other Game'));
+  assert.equal(other.type, 'Field', 'no switch for a game that is not set up');
+  assert.match(JSON.stringify(other.props.description), /Start the game, then press Install on Now playing\./);
+  const setUp = all(tree).find(n => n.type === 'ToggleField' && JSON.stringify(n.props.label).includes('Cyberpunk 2077'));
+  setUp.props.onChange(true);  // "on" does nothing
+  await settle();
+  assert.ok(!h.calls.some(c => c.name === 'enable_game'));
+  setUp.props.onChange(false);  // "off" uninstalls
+  await settle(); await settle();
+  assert.ok(h.calls.some(c => c.name === 'disable_game'));
+});
+
+test('opening the menu goes back to the top: first control focused, every scrolled container at 0', () => {
+  const ts = require('typescript'), fs = require('node:fs'), vm = require('node:vm');
+  const src = fs.readFileSync(require('node:path').join(__dirname, '../src/steamx.ts'), 'utf8');
+  const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const mod = { exports: {} };
+  vm.runInNewContext(js, { module: mod, exports: mod.exports });
+  const focused = [];
+  const button = { focus: o => focused.push(o) };
+  const qam = { scrollTop: 640, parentElement: null };
+  const panel = { scrollTop: 0, parentElement: qam };
+  const root = { scrollTop: 0, parentElement: panel, querySelector: () => button };
+  mod.exports.toTop(root);
+  assert.equal(JSON.stringify(focused), '[{"preventScroll":true}]');
+  assert.equal(qam.scrollTop, 0);
+  mod.exports.toTop(null);  // nothing to do, no throw
+  mod.exports.toTop({ parentElement: null, querySelector: () => { throw new Error('old engine'); } });
+});
+
+test('the panel resets to its main page when the menu opens', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../src/panel.tsx'), 'utf8');
+  assert.match(src, /if \(!visible\) return;\s*setPage\(null\);[\s\S]{0,120}toTop\(rootRef\.current\)/);
 });
 
 test('Check setup explains the setup in plain words', () => {

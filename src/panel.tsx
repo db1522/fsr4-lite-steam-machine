@@ -7,12 +7,12 @@
 // game in one list, then options, library tools and About.
 import { useQuickAccessVisible } from "@decky/api";
 import { DialogButton, DropdownItem, Field, Focusable, PanelSection, PanelSectionRow, Router, ToggleField } from "@decky/ui";
-import { FC, Fragment, ReactNode, useCallback, useEffect, useState } from "react";
+import { FC, Fragment, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { INSTALL_HINT, UpdateController, UpdateSection } from "./about";
 import { CSS, steamCss } from "./style";
 import { CheckPage } from "./check";
 import { canInstallUpdates, installUpdate } from "./installer";
-import { keepInView, onFocusReveal } from "./steamx";
+import { keepInView, onFocusReveal, toTop } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, downloadAssets, downloadProgress, enableGame, Game,
   getState, Live, liveStatus, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
@@ -105,6 +105,14 @@ export const Content: FC = () => {
     const t = window.setInterval(tick, 3000);
     return () => { stop = true; window.clearInterval(t); };
   }, [visible, runningAppid, state?.games.filter(g => g.installed).length]);
+  // Every time the Quick Access Menu opens, the plugin starts at the top of its main page.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!visible) return;
+    setPage(null);
+    const t = window.setTimeout(() => toTop(rootRef.current), 0);
+    return () => window.clearTimeout(t);
+  }, [visible]);
   const flip = (k: string) => setOpen(o => ({ ...o, [k]: !o[k] }));
   // Your games opens and closes from its heading; the choice is kept for the next time the menu opens.
   const [gamesOpen, setGamesOpen] = useState(readGamesOpen());
@@ -157,15 +165,16 @@ export const Content: FC = () => {
     await apply(game, on);
     setBusy(null);
   };
-  const applyAll = async (on: boolean) => {
+  /** Every set-up game put back as it was (setting games up happens one at a time, on Now playing). */
+  const uninstallAll = async () => {
     if (busy !== null || !state) return;
-    const list = state.games.filter(g => on ? listed(g) && !g.installed && !g.anticheat && !g.manual_optiscaler : g.installed);
+    const list = state.games.filter(g => g.installed);
     setBusy(-1);
     let n = 0;
-    for (const g of list) { setBulk(`${++n} of ${list.length}`); await apply(g, on); }
+    for (const g of list) { setBulk(`${++n} of ${list.length}`); await apply(g, false); }
     setBulk("");
     setBusy(null);
-    notify(NAME, on ? `Set up in ${n} game${n === 1 ? "" : "s"}.` : `Removed from ${n} game${n === 1 ? "" : "s"}.`);
+    notify(NAME, `Removed from ${n} game${n === 1 ? "" : "s"}.`);
   };
   const cleanLegacy = async () => {
     if (busy !== null || !state) return;
@@ -185,7 +194,7 @@ export const Content: FC = () => {
   };
   const navigate = (next: "about" | "check" | null) => setPage(next);
 
-  if (!state) return <div className="sml-root"><style>{CSS + steamCss()}</style>
+  if (!state) return <div className="sml-root" ref={rootRef}><style>{CSS + steamCss()}</style>
     {statusPlaceholder({ title: NAME, label: "Starting…", error, onRetry: refresh })}
     {error && <UpdateSection controller={updater()} version={__PLUGIN_VERSION__} />}
   </div>;
@@ -282,6 +291,20 @@ export const Content: FC = () => {
 
   const gameRow = (g: Game) => {
     const [tone, label] = chipFor(g);
+    // Setting a game up happens on Now playing, with the game running (the plugin then sees which program is the
+    // game, as the widget does). In this list a game can only be turned off; the others say how to set them up.
+    if (!g.installed) return <PanelSectionRow key={`r${g.appid}`}>
+      <Field focusable label={<span className="sml-gamerow"><span className="sml-dot" /><span>{g.name}</span></span>}
+        description={<>
+          <span className="sml-chips">
+            {g.upscalers.map(u => <span key={u} className="sml-badge">{u}</span>)}
+            {g.nonsteam && <span className="sml-badge">Non-Steam</span>}
+            {g.anticheat && <span className="sml-badge bad">Blocked: {g.anticheat}</span>}
+          </span>
+          <div className="sml-rowhint">{g.anticheat ? "Anti-cheat: installs are blocked."
+            : "Start the game, then press Install on Now playing."}</div>
+        </>} />
+    </PanelSectionRow>;
     return <PanelSectionRow key={`r${g.appid}`}>
       <ToggleField label={<span className="sml-gamerow">
           <span className={`sml-dot ${g.installed ? tone || "set" : ""}`} />
@@ -296,14 +319,13 @@ export const Content: FC = () => {
           </span>
           {failure(failed[g.appid])}
         </>}
-        checked={g.installed}
-        disabled={!g.installed && (!state.assets_ready || !!g.anticheat || g.manual_optiscaler)}
-        onChange={on => toggle(g, on)} />
+        checked
+        onChange={on => { if (!on) toggle(g, false); }} />
     </PanelSectionRow>;
   };
 
   return (
-    <div className="sml-root" onFocus={onFocusReveal}>
+    <div className="sml-root" ref={rootRef} onFocus={onFocusReveal}>
       <style>{CSS + steamCss()}</style>
       <div className="sml-top">
         <div className="sml-mark"><span>4.1</span></div>
@@ -368,7 +390,8 @@ export const Content: FC = () => {
             description={!state.scanned || scanning ? "Scanning your library…"
               : !library.length ? "No games with FSR, DLSS or XeSS found. Start one and use Now playing above."
               : !gamesOpen ? `${library.length} compatible game${library.length === 1 ? "" : "s"}. Press to show.`
-              : installed.length ? "Turn a game off to put its files back." : "None set up yet. Turn one on, or start a game and use Now playing."}
+              : installed.length ? "Turn a game off to put its files back. To add one, start it and use Now playing."
+              : "None set up yet. Start a game, then press Install on Now playing."}
             childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
             <span className="sml-chev" style={{ transform: gamesOpen ? "rotate(90deg)" : "none" }}>›</span>
           </Field>
@@ -420,13 +443,8 @@ export const Content: FC = () => {
         <PanelSectionRow>
           <ActionButton onClick={rescan}>{scanning ? "Scanning…" : "Rescan library"}</ActionButton>
         </PanelSectionRow>
-        {library.length > 0 && <PanelSectionRow>
-          <ActionButton onClick={() => applyAll(true)} description="Skips games with anti-cheat, which stay blocked.">
-            {busy === -1 && bulk ? `Setting up… ${bulk}` : "Install in all compatible games"}
-          </ActionButton>
-        </PanelSectionRow>}
         {installed.length > 0 && <PanelSectionRow>
-          <ActionButton onClick={() => applyAll(false)} description="Puts every game back as it was. Do this before removing the plugin.">
+          <ActionButton onClick={uninstallAll} description="Puts every game back as it was. Do this before removing the plugin.">
             {busy === -1 && bulk ? `Removing… ${bulk}` : "Uninstall from all games"}
           </ActionButton>
         </PanelSectionRow>}

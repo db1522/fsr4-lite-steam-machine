@@ -42,5 +42,18 @@ export const revealIfHidden = (el: Element | null | undefined) => {
   } catch { /* older engines: Steam's own scroll applies */ }
 };
 export const keepInView = (e: Event) => revealIfHidden((e.currentTarget ?? e.target) as Element | null);
+
+/** Back to the top of the panel when the Quick Access Menu opens: the focus moves to the panel's first control (Steam
+ *  would put it back where it was left, scrolling down again), then every scrolled container around the panel goes
+ *  back to the top. */
+export const toTop = (root: HTMLElement | null | undefined) => {
+  try {
+    if (!root) return;
+    root.querySelector<HTMLElement>("button, [tabindex]:not([tabindex='-1'])")?.focus({ preventScroll: true });
+    for (let el: HTMLElement | null = root; el; el = el.parentElement) {
+      if (el.scrollTop) el.scrollTop = 0;
+    }
+  } catch { /* older engines: Steam's own scroll applies */ }
+};
 /** For a page's root: every focus inside it, whichever control it lands on. */
 export const onFocusReveal = (e: { target: EventTarget }) => revealIfHidden(e.target as Element);
