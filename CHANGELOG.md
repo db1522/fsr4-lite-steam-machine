@@ -2,6 +2,21 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.12] - 2026-11-07
+
+Phantom Blade Zero, checked on my own Steam Machine while it ran.
+
+### 🔧 Changed
+- **Check setup:** the saved report also lists every Windows program running (how it was started, its memory and
+  whether it draws) and every .exe in the game's folder.
+
+### 🐛 Fixed
+- **Games:** a game its launcher starts through the launcher's own folder is found. Phantom Blade Zero's launcher
+  (steam/PBZ.exe) starts the game as steam\..\platform\steam\PBZ.exe, and the plugin never recognised that path, so it
+  only ever saw the launcher.
+- **Games:** when the game isn't running, the plugin picks a far bigger exe over an Unreal folder that only holds tools.
+  Phantom Blade Zero's game is its 476 MB platform/steam/PBZ.exe, not the 5 MB tool in ProjectPBZ/Binaries/Win64.
+
 ## [2.2.11] - 2026-11-07
 
 ### 🐛 Fixed
