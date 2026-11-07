@@ -14,6 +14,8 @@ FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in yo
 
 It does it one way for every game, the same way the FSR 4.1 Lite widget for Windows does: OptiScaler goes next to the game, takes over the game's upscaler and runs FSR 4.1 Lite in its place. You press one button per game, and turning it off puts every file and launch option back as it was. No terminal.
 
+The full guide, with how I tested and what to pick in each game, is on Steam Machine Life: [FSR 4.1.2 Lite on the Steam Machine](https://steammachinelife.com/fsr-4-1-2-lite-steam-machine/).
+
 ## Results
 
 Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, on my own Steam Machine.
