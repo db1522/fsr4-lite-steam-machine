@@ -19,7 +19,7 @@ import {
   StateResult,
 } from "./api";
 import { errorText } from "./result";
-import { ActionButton, colors, infoRow, notify, PageHeader, SectionLink, statusPlaceholder } from "./ui";
+import { colors, infoRow, notify, PageHeader, statusPlaceholder } from "./ui";
 
 const NAME = "FSR 4.1 Lite";
 const OVERLAY_SIZES: Array<[string, string]> = [["small", "Small"], ["medium", "Medium"], ["large", "Large"],
@@ -237,22 +237,22 @@ export const Content: FC = () => {
   const activeCount = state.games.filter(g => g.installed && g.verdict === "lite").length;
 
   const gameCard = () => {
-    // No artwork (not every game has it, and each image is a load): a header tinted by the game's status instead.
-    const art = (title: string, pill: [string, string] | null) =>
-      <div className={`sml-nowhead ${pill?.[0] ?? ""}`}>
-        <div className="sml-nowlabel">
-          <span>Now playing</span>
-          {pill && <div className={`sml-live ${pill[0]}`}><span className={`sml-dot ${pill[0]}${pill[0] === "good" ? " live" : ""}`} />{pill[1]}</div>}
-        </div>
-        <div className="sml-nowtitle">{title}</div>
-      </div>;
+    // One calm card: what's playing, its status, one button. No artwork (not every game has it, and each image is a
+    // load); the card's edge takes the status colour instead.
+    const head = (title: string, pill: [string, string] | null, dim = false) => <>
+      <div className="sml-nowtop">
+        <span className="sml-eyebrow">Now playing</span>
+        {pill && <div className={`sml-live ${pill[0]}`}><span className={`sml-dot ${pill[0]}${pill[0] === "good" ? " live" : ""}`} />{pill[1]}</div>}
+      </div>
+      <div className={`sml-nowtitle${dim ? " dim" : ""}`}>{title}</div>
+    </>;
     if (!running) return <div className="sml-now">
-      {art("No game running", null)}
-      <div className="sml-body"><div className="sml-note" style={{ marginTop: 0 }}>Start a game, then open this menu to set up FSR 4.1 Lite in it with one button.</div></div>
+      {head("No game running", null, true)}
+      <div className="sml-note">Start a game, then open this menu to set it up.</div>
     </div>;
     if (!current) return <div className="sml-now">
-      {art(running.display_name, ["", "Not found"])}
-      <div className="sml-body"><div className="sml-note" style={{ marginTop: 0 }}>The scan didn't find this game's files. If you installed or updated it recently, rescan your library below.</div></div>
+      {head(running.display_name, ["", "Not found"])}
+      <div className="sml-note">The scan didn't find this game's files. If you installed or updated it recently, rescan your library under More.</div>
     </div>;
     const now = live && live.appid === current.appid ? live : null;
     const blocked = (!!current.anticheat && !current.installed) || (current.manual_optiscaler && !current.installed);
@@ -264,59 +264,52 @@ export const Content: FC = () => {
       : current.installed && now?.detail ? now.detail
       : current.installed && current.detail ? current.detail
       : "Takes effect when you restart the game. In its settings, pick FSR, DLSS or XeSS as the upscaler.";
-    return <div className="sml-now">
-      {art(current.name, pill && pill[1] ? pill : null)}
-      <div className="sml-body">
-        <div className="sml-meta">
-          {current.upscalers.map(u => <span key={u} className="sml-badge">{u}</span>)}
-          {!current.upscalers.length && <span className="sml-badge warn">No upscaler files</span>}
-          {current.installed && current.proxy && <span className="sml-badge">Loads as {current.proxy}</span>}
-          {current.anticheat && <span className="sml-badge bad">Blocked: {current.anticheat}</span>}
-        </div>
-        {!blocked && <DialogButton onGamepadFocus={keepInView} className={`sml-primary${current.installed ? " quiet" : ""}`}
-          disabled={!current.installed && !state.assets_ready} onClick={() => toggle(current, !current.installed)}>
-          {busy === current.appid ? "Working…" : current.installed ? "Uninstall FSR 4.1 Lite" : "Install FSR 4.1 Lite"}
-        </DialogButton>}
-        {current.installed && <div style={{ marginTop: 8 }}>
-          <DialogButton onGamepadFocus={keepInView} className="sml-primary quiet"
-            onClick={() => { setCheckId(current.appid); navigate("check"); }}>Check setup</DialogButton>
-        </div>}
-        <div className={`sml-note${now?.status === "inactive" ? " bad" : ""}`}>{note}</div>
-        {!blocked && current.tip && <div className="sml-note">{current.tip}</div>}
-        {current.compat && <div className={`sml-note${current.compat.startsWith("OptiScaler community") ? " bad" : ""}`}>{current.compat}</div>}
-        {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}
-      </div>
+    const meta = [
+      ...(current.upscalers.length ? current.upscalers : ["No upscaler files"]),
+      ...(current.installed && current.proxy ? [`loads as ${current.proxy}`] : []),
+    ].join(" · ");
+    return <div className={`sml-now ${pill?.[0] ?? ""}`}>
+      {head(current.name, pill && pill[1] ? pill : null)}
+      <div className="sml-nowmeta">{current.anticheat ? `Blocked: ${current.anticheat}` : meta}</div>
+      {!blocked && <DialogButton onGamepadFocus={keepInView} className={`sml-primary${current.installed ? " quiet" : ""}`}
+        disabled={!current.installed && !state.assets_ready} onClick={() => toggle(current, !current.installed)}>
+        {busy === current.appid ? "Working…" : current.installed ? "Uninstall FSR 4.1 Lite" : "Install FSR 4.1 Lite"}
+      </DialogButton>}
+      {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}
+      <div className={`sml-note${now?.status === "inactive" ? " bad" : ""}`}>{note}</div>
+      {!blocked && current.tip && <div className="sml-note soft">{current.tip}</div>}
+      {current.compat && <div className={`sml-note soft${current.compat.startsWith("OptiScaler community") ? " bad" : ""}`}>{current.compat}</div>}
+      {current.installed && <DialogButton onGamepadFocus={keepInView} className="sml-textbtn"
+        onClick={() => { setCheckId(current.appid); navigate("check"); }}>Check setup ›</DialogButton>}
     </div>;
   };
+
+  /** A slim row with an arrow: a link or an action (no big button). */
+  const linkRow = (label: string, onActivate: () => void, description?: string, tone = "") =>
+    <PanelSectionRow key={label}>
+      <Field focusable highlightOnFocus onActivate={onActivate} className="sml-linkrow"
+        label={<span className={`sml-linklabel ${tone}`}>{label}</span>} description={description}
+        childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
+        <span className="sml-chev">›</span>
+      </Field>
+    </PanelSectionRow>;
 
   const gameRow = (g: Game) => {
     const [tone, label] = chipFor(g);
     // Setting a game up happens on Now playing, with the game running (the plugin then sees which program is the
     // game, as the widget does). In this list a game can only be turned off; the others say how to set them up.
+    const extra = [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");
     if (!g.installed) return <PanelSectionRow key={`r${g.appid}`}>
-      <Field focusable label={<span className="sml-gamerow"><span className="sml-dot" /><span>{g.name}</span></span>}
-        description={<>
-          <span className="sml-chips">
-            {g.upscalers.map(u => <span key={u} className="sml-badge">{u}</span>)}
-            {g.nonsteam && <span className="sml-badge">Non-Steam</span>}
-            {g.anticheat && <span className="sml-badge bad">Blocked: {g.anticheat}</span>}
-          </span>
-          <div className="sml-rowhint">{g.anticheat ? "Anti-cheat: installs are blocked."
-            : "Start the game, then press Install on Now playing."}</div>
-        </>} />
+      <Field focusable className="sml-gameoff" label={<span className="sml-gamerow"><span className="sml-dot" /><span>{g.name}</span></span>}
+        description={<span className={`sml-gamesub${g.anticheat ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}` : extra}</span>} />
     </PanelSectionRow>;
     return <PanelSectionRow key={`r${g.appid}`}>
       <ToggleField label={<span className="sml-gamerow">
-          <span className={`sml-dot ${g.installed ? tone || "set" : ""}`} />
+          <span className={`sml-dot ${tone || "set"}`} />
           <span>{g.name}</span>
         </span>}
         description={<>
-          <span className="sml-chips">
-            {g.installed && <span className={`sml-badge ${tone}`}>{label}</span>}
-            {g.upscalers.map(u => <span key={u} className="sml-badge">{u}</span>)}
-            {g.nonsteam && <span className="sml-badge">Non-Steam</span>}
-            {g.anticheat && <span className="sml-badge bad">Blocked: {g.anticheat}</span>}
-          </span>
+          <span className="sml-gamesub"><span className={`sml-state ${tone}`}>{label}</span>{extra && ` · ${extra}`}</span>
           {failure(failed[g.appid])}
         </>}
         checked
@@ -327,19 +320,12 @@ export const Content: FC = () => {
   return (
     <div className="sml-root" ref={rootRef} onFocus={onFocusReveal}>
       <style>{CSS + steamCss()}</style>
-      <div className="sml-top">
-        <div className="sml-mark"><span>4.1</span></div>
-        <div>
-          <div className="sml-title">FSR 4.1 <b>Lite</b></div>
-          <div className="sml-sub">by Steam Machine Life</div>
-        </div>
-        <div className="sml-pillver">v{state.version}</div>
-      </div>
-      <div className="sml-stats">
-        <div className="sml-stat"><b>{installed.length}</b><span>Set up</span></div>
-        <div className="sml-stat"><b className={activeCount ? "good" : ""}>{activeCount}</b><span>Active</span></div>
-        <div className="sml-stat"><b style={{ color: state.assets_ready ? undefined : "var(--warn)" }}>{state.assets_ready ? "Ready" : "Setup"}</b>
-          <span>{state.assets_ready ? "OptiScaler v10" : "Download needed"}</span></div>
+      {/* Decky's title already names the plugin: one quiet status line instead of a second header */}
+      <div className="sml-status">
+        <span className={`sml-dot ${state.assets_ready ? "good" : "warn"}`} />
+        <span>{state.assets_ready ? "FSR 4.1.2 Lite ready" : "Setup needed"}</span>
+        {activeCount > 0 && <span className="sml-statusn">· {activeCount} active</span>}
+        <span className="sml-ver">v{state.version}</span>
       </div>
 
       {updState.check?.update_available && updState.check.latest_version && <PanelSection><PanelSectionRow><div className="sml-card">
@@ -385,13 +371,12 @@ export const Content: FC = () => {
           <Field focusable highlightOnFocus onActivate={toggleGames} className="sml-hdrrow"
             label={<span className="sml-hdr inrow">
               <span>Your games</span>
-              <span className={`sml-badge ${activeCount ? "good" : ""}`}>{installed.length} set up{activeCount ? ` · ${activeCount} active` : ""}</span>
+              <span className={`sml-count ${activeCount ? "good" : ""}`}>{installed.length} set up{activeCount ? ` · ${activeCount} active` : ""}</span>
             </span>}
             description={!state.scanned || scanning ? "Scanning your library…"
-              : !library.length ? "No games with FSR, DLSS or XeSS found. Start one and use Now playing above."
-              : !gamesOpen ? `${library.length} compatible game${library.length === 1 ? "" : "s"}. Press to show.`
-              : installed.length ? "Turn a game off to put its files back. To add one, start it and use Now playing."
-              : "None set up yet. Start a game, then press Install on Now playing."}
+              : !library.length ? "No games with FSR, DLSS or XeSS found."
+              : !gamesOpen ? `${library.length} compatible game${library.length === 1 ? "" : "s"}`
+              : installed.length ? undefined : "None set up yet. Start a game to set it up."}
             childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
             <span className="sml-chev" style={{ transform: gamesOpen ? "rotate(90deg)" : "none" }}>›</span>
           </Field>
@@ -399,31 +384,35 @@ export const Content: FC = () => {
         {gamesOpen && installed.map(g => <Fragment key={g.appid}>
           {gameRow(g)}
           <PanelSectionRow>
-            <ActionButton onClick={() => { setCheckId(g.appid); navigate("check"); }}>Check setup: {g.name}</ActionButton>
+            <Field focusable highlightOnFocus className="sml-sublink" onActivate={() => { setCheckId(g.appid); navigate("check"); }}
+              label={<span className="sml-sublabel">Check setup</span>} childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
+              <span className="sml-chev">›</span>
+            </Field>
           </PanelSectionRow>
         </Fragment>)}
         {gamesOpen && library.length > installed.length && <PanelSectionRow>
-          <Field focusable highlightOnFocus onActivate={() => flip("games")}
+          <Field focusable highlightOnFocus onActivate={() => flip("games")} className="sml-morerow"
             label={`${open.games ? "Hide" : "Show"} ${library.length - installed.length} more compatible game${library.length - installed.length === 1 ? "" : "s"}`}
+            description={open.games ? "Start one of them to set it up." : undefined}
             childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
-            <span style={{ display: "inline-block", transform: open.games ? "rotate(90deg)" : "none", transition: "transform .15s" }}>›</span>
+            <span className="sml-chev" style={{ transform: open.games ? "rotate(90deg)" : "none" }}>›</span>
           </Field>
         </PanelSectionRow>}
         {gamesOpen && open.games && library.filter(g => !g.installed).map(g => gameRow(g))}
       </PanelSection>
 
-      <div className="sml-sect">Options</div>
+      <div className="sml-sect">Settings</div>
       <PanelSection>
         <PanelSectionRow>
-          <ToggleField label="Notify when active" description="A notification in the game as soon as FSR 4.1 Lite is running."
+          <ToggleField label="Notify when active" description="When FSR 4.1 Lite starts in a game."
             checked={settings.session_toast} onChange={async on => take(await setSetting("session_toast", on))} />
         </PanelSectionRow>
         <PanelSectionRow>
-          <ToggleField label="Show FPS and resolution" description="OptiScaler's overlay: the upscaler in use and render → output resolution."
+          <ToggleField label="Show FPS and resolution" description="OptiScaler's overlay in every game."
             checked={settings.overlay} onChange={async on => take(await setSetting("overlay", on))} />
         </PanelSectionRow>
         {settings.overlay && <PanelSectionRow>
-          <DropdownItem label="Overlay size" description="Sized for your TV. Takes effect the next time a game starts."
+          <DropdownItem label="Overlay size" description="Sized for your TV."
             rgOptions={OVERLAY_SIZES.map(([data, label]) => ({ data, label }))} selectedOption={settings.overlay_size}
             onChange={async o => take(await setSetting("overlay_size", o.data as string))} />
         </PanelSectionRow>}
@@ -433,32 +422,21 @@ export const Content: FC = () => {
             onChange={async o => take(await setSetting("overlay_pos", o.data as string))} />
         </PanelSectionRow>}
         <PanelSectionRow>
-          <ToggleField label="Show AMD's watermark" description="AMD's label of the FSR 4 model in use. For checks and screenshots."
+          <ToggleField label="Show AMD's watermark" description="For checks and screenshots."
             checked={settings.watermark} onChange={async on => take(await setSetting("watermark", on))} />
         </PanelSectionRow>
       </PanelSection>
 
-      <div className="sml-sect">Library</div>
+      <div className="sml-sect">More</div>
       <PanelSection>
-        <PanelSectionRow>
-          <ActionButton onClick={rescan}>{scanning ? "Scanning…" : "Rescan library"}</ActionButton>
-        </PanelSectionRow>
-        {installed.length > 0 && <PanelSectionRow>
-          <ActionButton onClick={uninstallAll} description="Puts every game back as it was. Do this before removing the plugin.">
-            {busy === -1 && bulk ? `Removing… ${bulk}` : "Uninstall from all games"}
-          </ActionButton>
-        </PanelSectionRow>}
+        {linkRow(scanning ? "Scanning…" : "Rescan library", rescan)}
+        {installed.length > 0 && linkRow(busy === -1 && bulk ? `Removing… ${bulk}` : "Uninstall from all games", uninstallAll,
+          "Puts every game back. Do this before removing the plugin.", "danger")}
+        {linkRow("About", () => navigate("about"), "Credits and licenses")}
       </PanelSection>
-
-      <div className="sml-sect">Updates</div>
       <UpdateSection controller={upd} version={state.version} home={state.home}
         install={`${INSTALL_HINT} Your games stay set up.`}
         onInstall={canInstallUpdates() ? d => installUpdate(d.path ?? "", d.version ?? "", d.sha256 ?? "") : undefined} />
-
-      <PanelSection>
-        <SectionLink title="About" description="Credits and licenses"
-          icon={<><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10h.01" /></>} onOpen={() => navigate("about")} />
-      </PanelSection>
     </div>
   );
 };

@@ -118,6 +118,46 @@ export const CSS = `
 .sml-hdr.inrow { padding: 0; width: 100%; }
 .sml-hdr.inrow .sml-badge { margin-left: 4px; }
 .sml-rowhint { margin-top: 4px; font-size: 12px; color: var(--soft); }
+/* ---- 2.2.13: premium minimal. Quiet labels, one status line, one calm card, slim rows; colour only where it means something ---- */
+.sml-status { display: flex; align-items: center; gap: 8px; margin: 2px 16px 14px; font-size: 13px; color: var(--soft); }
+.sml-status .sml-dot { width: 8px; height: 8px; box-shadow: none; }
+.sml-statusn { color: var(--good); }
+.sml-ver { margin-left: auto; font-size: 12px; color: var(--mute); }
+.sml-root .sml-sect, .sml-hdr { display: flex; align-items: center; gap: 8px; padding: 22px 16px 6px; font-family: inherit;
+  font-weight: 600; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--soft); }
+.sml-root .sml-sect::before, .sml-hdr::before { content: none; display: none; }
+.sml-hdr.inrow { padding: 0; width: 100%; }
+.sml-count { margin-left: auto; padding-right: 4px; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--mute); }
+.sml-count.good { color: var(--good); }
+.sml-now { position: relative; margin: 0 0 6px; padding: 14px 16px 14px 18px; border-radius: 14px; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border: 1px solid var(--line); box-shadow: none; }
+.sml-now::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--mute); }
+.sml-now.good::before { background: var(--good); }
+.sml-now.warn::before { background: var(--warn); }
+.sml-now.bad::before { background: var(--bad); }
+.sml-nowtop { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.sml-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.sml-now .sml-live { position: static; backdrop-filter: none; padding: 3px 10px 3px 8px; font-size: 12px; background: rgba(255,255,255,.04); }
+.sml-now .sml-nowtitle { margin: 6px 0 0; font-family: var(--display); font-weight: 700; font-size: 25px; line-height: 1.05; color: #fff; word-break: break-word; }
+.sml-now .sml-nowtitle.dim { color: var(--text); font-size: 21px; }
+.sml-nowmeta { margin: 4px 0 14px; font-size: 13px; color: var(--soft); }
+.sml-now .sml-note { margin-top: 10px; font-size: 13px; }
+.sml-note.soft { color: var(--mute); font-size: 12px; margin-top: 6px; }
+.sml-root .sml-textbtn { display: inline-block !important; margin-top: 10px !important; width: auto !important; min-width: 0 !important;
+  min-height: 0 !important; padding: 4px 8px 4px 0 !important; background: none !important; border: none !important; box-shadow: none !important;
+  color: var(--accent) !important; font-size: 14px !important; font-weight: 600 !important; text-align: left !important; }
+.sml-root .sml-textbtn.gpfocus, .sml-root .sml-textbtn:focus, .sml-root .sml-textbtn:hover { color: #fff !important; text-decoration: underline; }
+.sml-gamesub { font-size: 12.5px; color: var(--soft); }
+.sml-gamesub.bad { color: var(--bad); }
+.sml-state { font-weight: 600; color: var(--soft); }
+.sml-state.good { color: var(--good); }
+.sml-state.warn { color: var(--warn); }
+.sml-state.bad { color: var(--bad); }
+.sml-gameoff .sml-gamerow { color: var(--soft); }
+.sml-sublabel { padding-left: 19px; font-size: 13px; font-weight: 600; color: var(--accent); }
+.sml-linklabel { font-size: 15px; }
+.sml-linklabel.danger { color: var(--bad); }
+.sml-chev { display: inline-block; font-size: 22px; line-height: 1; color: var(--mute); transition: transform .15s; }
 .sml-chev { display: inline-block; font-size: 24px; line-height: 1; color: var(--soft); transition: transform .15s; }
 `;
 

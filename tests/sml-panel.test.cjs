@@ -96,7 +96,7 @@ test('the Now playing card shows what the OptiScaler community found', async () 
   assert.match(strings(tree), /Works with: DLSS, FSR3, FSR3\.1\/4, XeSS/);
   tree = await open(panel({ appid: '1091500', display_name: 'Cyberpunk 2077' }),
     state({ games: [{ ...game, compat: 'OptiScaler community: not working in this game.' }] }));
-  assert.ok(all(tree).some(n => n.type === 'div' && /sml-note bad/.test(n.props?.className ?? '') &&
+  assert.ok(all(tree).some(n => n.type === 'div' && /sml-note\b.*\bbad\b/.test(n.props?.className ?? '') &&
     [].concat(n.props.children).join('').includes('not working')));
 });
 
@@ -149,7 +149,7 @@ test('set-up games are always listed under Your games, with what their last sess
   const tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'B', installed: true, verdict: 'none' }] }));
   assert.ok(all(tree).some(n => n.type === 'Field' && JSON.stringify(n.props.label ?? '').includes('Your games')));
   assert.ok(!all(tree).some(n => n.type === 'Field' && /more compatible/.test(String(n.props.label))), 'nothing else to show');
-  const chips = all(tree).filter(n => n.type === 'span' && /sml-badge/.test(n.props?.className ?? '')).map(n => [].concat(n.props.children).join(''));
+  const chips = all(tree).filter(n => n.type === 'span' && /sml-state/.test(n.props?.className ?? '')).map(n => [].concat(n.props.children).join(''));
   assert.ok(chips.includes('Active') && chips.includes('Needs fix'), chips.join(','));
 });
 
@@ -163,7 +163,7 @@ test('Your games opens and closes from its heading', async () => {
   heading(tree).props.onActivate();
   tree = h.render();
   assert.ok(!listed(tree), 'closed after pressing the heading');
-  assert.match(String(heading(tree).props.description), /1 compatible game\. Press to show\./);
+  assert.equal(String(heading(tree).props.description), '1 compatible game');
   heading(tree).props.onActivate();
   assert.ok(listed(h.render()), 'open again');
 });
@@ -176,7 +176,8 @@ test('games are set up from Now playing only; the list can only turn a game off'
   tree = h.render();
   const other = all(tree).find(n => JSON.stringify(n.props?.label ?? '').includes('Other Game'));
   assert.equal(other.type, 'Field', 'no switch for a game that is not set up');
-  assert.match(JSON.stringify(other.props.description), /Start the game, then press Install on Now playing\./);
+  assert.match(JSON.stringify(other.props.description), /DLSS · FSR 3\.1/);
+  assert.ok(all(tree).some(n => n.type === 'Field' && n.props.description === 'Start one of them to set it up.'));
   const setUp = all(tree).find(n => n.type === 'ToggleField' && JSON.stringify(n.props.label).includes('Cyberpunk 2077'));
   setUp.props.onChange(true);  // "on" does nothing
   await settle();
