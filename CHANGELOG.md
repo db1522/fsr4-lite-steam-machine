@@ -2,6 +2,17 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.4] - 2026-11-07
+
+REFramework for the Capcom games that need it, as in the Windows widget.
+
+### ✨ Added
+- **REFramework:** Monster Hunter Wilds, Onimusha: Way of the Sword, PRAGMATA, Devil May Cry 5, Dragon's Dogma 2 and
+  Resident Evil 2, 3, 4, 7, Village and Requiem get REFramework next to OptiScaler, which OptiScaler needs in these
+  games. It's downloaded the first time you set one up (a pinned build, checked against its SHA-256), starts with its
+  menu closed, and comes out with everything it made when you turn the game off. A dinput8.dll the game already has
+  is left alone.
+
 ## [2.2.3] - 2026-11-07
 
 More games found and set up, with the Windows widget's game logic.
