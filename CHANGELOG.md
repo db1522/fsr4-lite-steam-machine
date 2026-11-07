@@ -2,6 +2,14 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.6] - 2026-11-07
+
+### ✨ Added
+- **Games:** the Now playing card shows what the OptiScaler community found for the game, as in the Windows widget:
+  the upscalers that work ("Works with: DLSS, FSR3.1/4, XeSS"), or a warning when the community marks it not working
+  or mixed. It comes from OptiScaler's Compatibility List, 676 games, taken with each release, so nothing is
+  downloaded while you play.
+
 ## [2.2.5] - 2026-11-07
 
 ### 🔧 Changed
