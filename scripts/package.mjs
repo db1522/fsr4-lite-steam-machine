@@ -24,7 +24,7 @@
  *   "### 🐛 Fixed", "### 🗑️ Removed", in that order, each at most once; no other "###"/"####" headings; inside a
  *   category the entries of one area stand together.
  * - Versions agree: plugin.json, package.json, package-lock.json (root and packages[""]), the newest CHANGELOG
- *   release section, and on a CI tag build the tag, with no [Unreleased] section above it; package and lockfile
+ *   release section, and on a CI tag build the tag (X.Y.Z or vX.Y.Z), with no [Unreleased] section above it; package and lockfile
  *   have the same name and licence; the shipped @decky/api is the version the lockfile pins; with "decky.flags"
  *   given, plugin.json's flags must be exactly those.
  * - Payload: regular files and folders only (a symlink, FIFO or device anywhere is refused); never node_modules,
@@ -291,7 +291,7 @@ function main(args) {
   const released = sections.find(s => /^\d+\.\d+\.\d+$/.test(s));
   if (released !== version) fail(`version mismatch: plugin.json=${version}, newest CHANGELOG release=${released}`);
   if (process.env.GITHUB_REF_TYPE === "tag") {
-    if (process.env.GITHUB_REF_NAME !== version) fail(`version mismatch: tag=${process.env.GITHUB_REF_NAME} plugin.json=${version}`);
+    if (![version, `v${version}`].includes(process.env.GITHUB_REF_NAME)) fail(`version mismatch: tag=${process.env.GITHUB_REF_NAME} plugin.json=${version}`);
     if (sections[0] !== version) fail(`a tag build needs CHANGELOG's top section to be [${version}], not [${sections[0]}]`);
   }
   if (!existsSync(join(repoRoot, "dist", "index.js"))) fail("dist/index.js is missing - run `npm run build` first");
