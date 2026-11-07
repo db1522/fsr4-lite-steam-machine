@@ -2,6 +2,19 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.8] - 2026-11-07
+
+A cleaner menu, and notifications that say what's running.
+
+### 🔧 Changed
+- **Look:** no game artwork. Not every game has it, and the menu opens faster without it. The Now playing card has a
+  header tinted by the game's status instead: green when active, amber when it needs you, red when blocked.
+- **Look:** Your games is a heading you can't scroll past, with how many games are set up and active. The games you
+  set up are always listed with a status dot; the rest of your compatible games sit behind one Show more row.
+- **Notifications:** when FSR 4.1 Lite starts, however late in the session, the notification says what runs, for
+  example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160 (Ultra Performance)". A game still without Lite after 90
+  seconds gets one note saying why.
+
 ## [2.2.7] - 2026-11-07
 
 ### 🐛 Fixed
