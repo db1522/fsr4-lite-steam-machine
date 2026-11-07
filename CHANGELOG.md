@@ -6,7 +6,7 @@ All notable changes to FSR4 Injector, newest first.
 
 ### 🐛 Fixed
 - **Games:** Phantom Blade Zero fell back to FSR 3. OptiScaler loaded there but looked for AMD's FSR 4 file in the
-  folder Steam starts the game in (platform/steam), not next to the exe, so the game fell back to FSR 3. After a
+  folder Steam starts the game in (platform/steam), not next to the exe. After a
   session like that, the plugin puts the file where OptiScaler looks and asks you to play once more. Turning the game
   off removes it again.
 
