@@ -143,7 +143,7 @@ Updates install from inside the plugin.
 
 ## [1.8.0] - 2026-11-07
 
-FSR 4.1 Lite gets its own home: github.com/db1522/fsr4-lite.
+FSR 4.1 Lite gets its own home: github.com/db1522/fsr4-lite-steam-machine.
 
 ### ✨ Added
 - **Updates:** About → Check for updates is back, now from this repository's releases.

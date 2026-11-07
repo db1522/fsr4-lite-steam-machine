@@ -29,7 +29,7 @@ import fsr4_games  # noqa: E402  (Steam library and shortcut parsing)
 import sml_assets  # noqa: E402
 import sml_opti  # noqa: E402
 
-REPOSITORY = "db1522/fsr4-lite"
+REPOSITORY = "db1522/fsr4-lite-steam-machine"
 SEVENZIP = os.path.join(PLUGIN_DIR, "bin", "7zz")
 try:
     with open(os.path.join(PLUGIN_DIR, "plugin.json"), encoding="utf-8") as _f:

@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/db1522/fsr4-lite/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/db1522/fsr4-lite?style=for-the-badge&label=release&color=1b9aff&labelColor=0d1117"></a>
-  <a href="https://github.com/db1522/fsr4-lite/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite/total?style=for-the-badge&color=1b9aff&labelColor=0d1117"></a>
+  <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/db1522/fsr4-lite-steam-machine?style=for-the-badge&label=release&color=1b9aff&labelColor=0d1117"></a>
+  <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite-steam-machine/total?style=for-the-badge&color=1b9aff&labelColor=0d1117"></a>
   <img alt="Steam Machine" src="https://img.shields.io/badge/Steam_Machine-RDNA_3-1b9aff?style=for-the-badge&labelColor=0d1117">
   <img alt="Requires Decky Loader" src="https://img.shields.io/badge/requires-Decky_Loader-8fa3bc?style=for-the-badge&labelColor=0d1117">
 </p>
@@ -51,7 +51,7 @@ The plugin downloads about 205 MB once: OptiScaler from its own GitHub, and AMD'
 
 ## Install
 
-1. Download `FSR4Lite-<version>.zip` from the [latest release](https://github.com/db1522/fsr4-lite/releases/latest). Use the browser in Desktop Mode, or copy the file to the Steam Machine's Downloads folder from another PC.
+1. Download `FSR4Lite-<version>.zip` from the [latest release](https://github.com/db1522/fsr4-lite-steam-machine/releases/latest). Use the browser in Desktop Mode, or copy the file to the Steam Machine's Downloads folder from another PC.
 2. In Gaming Mode, open the Quick Access Menu, then **Decky → Settings**, and turn on **Developer mode** under General.
 3. Open **Developer → Install Plugin from ZIP** and pick the file.
 4. Open **FSR 4.1 Lite** in Decky and press **Accept and download**.
@@ -80,7 +80,7 @@ It stays off for:
 - Games that already have OptiScaler from another install. Remove that one first.
 - Games without FSR, DLSS or XeSS. OptiScaler needs an upscaler to take over.
 
-Played something? [Send a game report](https://github.com/db1522/fsr4-lite/issues/new?template=game_report.yml) and it goes into the table above.
+Played something? [Send a game report](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=game_report.yml) and it goes into the table above.
 
 ## Troubleshooting
 
@@ -93,7 +93,7 @@ Start with **Check setup** for the game. Each line says what's wrong and what to
 | Files missing, or Launch option missing | A game update or Steam's file check removed them. Press **Fix setup**. |
 | FSR 4 can't run here | Save a report and open an issue with it. |
 
-Still stuck? Press **Save report to Downloads** in Check setup and [open an issue](https://github.com/db1522/fsr4-lite/issues/new?template=bug_report.yml) with the file.
+Still stuck? Press **Save report to Downloads** in Check setup and [open an issue](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=bug_report.yml) with the file.
 
 ## Uninstall
 
