@@ -36,6 +36,24 @@ class Analyze(unittest.TestCase):
         self.assertEqual(a["upscalers"], ["DLSS", "FSR 3.1"])
         self.assertEqual(a["anticheat"], "")
 
+    def test_upscalers_deep_in_unreal_plugins_folders_are_found(self):
+        # UE5 games keep DLSS, Streamline and FSR plugin DLLs deep inside Plugins folders (Phantom Blade Zero),
+        # deeper than the general search goes: the widget's GameAnalyzer looks 7 folders into any Plugins folder
+        # within 3 levels of the game folder.
+        win64 = os.path.join(self.root, "Game", "Binaries", "Win64")
+        touch(os.path.join(win64, "Game-Win64-Shipping.exe"))
+        deep = ("Binaries", "ThirdParty", "Win64")
+        touch(os.path.join(self.root, "Engine", "Plugins", "Marketplace", "Nvidia", "DLSS", "Source", *deep,
+                           "nvngx_dlss.dll"))
+        touch(os.path.join(self.root, "Game", "Plugins", "Runtime", "AMD", "FSR3", "Source", *deep,
+                           "amd_fidelityfx_dx12.dll"))
+        self.assertEqual(O.analyze(self.root)["upscalers"], ["DLSS", "FSR 3.1"])
+
+    def test_the_deep_search_stays_inside_plugins_folders(self):
+        touch(os.path.join(self.root, "game.exe"))
+        touch(os.path.join(self.root, *"abcdefghi", "nvngx_dlss.dll"))  # 9 folders down, not under Plugins
+        self.assertEqual(O.analyze(self.root)["upscalers"], [])
+
     def test_anticheat_is_found(self):
         touch(os.path.join(self.root, "game.exe"))
         touch(os.path.join(self.root, "EasyAntiCheat", "EasyAntiCheat_x64.dll"))

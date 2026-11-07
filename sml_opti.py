@@ -99,6 +99,10 @@ NOT_GAME_EXE = ("crashreport", "crashhandler", "crashpad", "unrealcefsubprocess"
 SKIP_DIRS = {"_commonredist", "__redist", "redist", "redistributables", "directx", "support", "prerequisites",
              "optiscaler", ".fsr4lite", "paks", "movies", "content"}
 MAX_DEPTH = 8
+# Unreal keeps DLSS, Streamline and FSR plugin DLLs deep in Plugins folders, e.g.
+# Engine/Plugins/Marketplace/Nvidia/DLSS/Source/Binaries/ThirdParty/Win64 (Phantom Blade Zero). Like the widget's
+# GameAnalyzer: a Plugins folder within 3 levels of the game folder is searched 7 folders further down.
+PLUGINS_DIR, PLUGINS_WITHIN, PLUGINS_DEPTH = "plugins", 3, 7
 
 # Games the OptiScaler community has a setup for: the loader name they need (the widget's GameRules)
 LOADER_RULES = {"rdr2.exe": "winmm.dll", "enshrouded.exe": "winmm.dll"}
@@ -114,15 +118,21 @@ DX12_FSR4, VK_FSR4 = "amdxcffx64.dll", "amdvkffx64.dll"
 def _walk(root):
     base = root.rstrip(os.sep).count(os.sep)
     seen = set()
+    limits = {}  # folder -> how deep (from root) the search may go below it, raised inside Unreal's Plugins folders
     for dirpath, dirs, files in os.walk(root, followlinks=True):
         real = os.path.realpath(dirpath)
         if real in seen:
             dirs[:] = []
             continue
         seen.add(real)
+        depth = dirpath.count(os.sep) - base
+        limit = limits.pop(dirpath, MAX_DEPTH)
         dirs[:] = [d for d in dirs if d.lower() not in SKIP_DIRS]
-        if dirpath.count(os.sep) - base >= MAX_DEPTH:
+        if depth >= limit:
             dirs[:] = []
+        for d in dirs:
+            deeper = depth + 1 + PLUGINS_DEPTH if d.lower() == PLUGINS_DIR and depth + 1 <= PLUGINS_WITHIN else 0
+            limits[os.path.join(dirpath, d)] = max(limit, deeper)
         yield dirpath, dirs, files
 
 
