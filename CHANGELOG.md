@@ -2,6 +2,13 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.11] - 2026-11-07
+
+### 🐛 Fixed
+- **Install:** when an install can't go ahead, the game shows why instead of "Unknown error".
+- **Install:** pressing Install while a game is open only asks you to wait when a small program like a launcher is
+  clearly what's running. Otherwise it sets the game up right away.
+
 ## [2.2.10] - 2026-11-07
 
 Set up the way the Windows widget does it: in the game you're playing.
