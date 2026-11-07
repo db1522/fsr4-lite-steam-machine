@@ -51,6 +51,9 @@ class Flow(unittest.TestCase):
         self.loop.run_until_complete(self.p._scan_task)
 
     def tearDown(self):
+        for task in list(self.p._watchers.values()):
+            task.cancel()
+        self.loop.run_until_complete(asyncio.sleep(0))
         self.loop.close()
         for p in self.patches:
             p.stop()
@@ -157,6 +160,58 @@ class Flow(unittest.TestCase):
         with mock.patch("sml_assets.fetch_reframework") as fetch:
             self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
         fetch.assert_not_called()
+
+    def pbz(self):
+        apps = os.path.join(self.home, ".local", "share", "Steam", "steamapps")
+        touch(os.path.join(apps, "appmanifest_4115450.acf"),
+              b'"AppState"\n{\n"appid" "4115450"\n"name" "Phantom Blade Zero"\n"installdir" "PBZ"\n}\n')
+        root = os.path.join(apps, "common", "PBZ")
+        touch(os.path.join(root, "platform", "steam", "PBZ.exe"), b"game" * 1000)
+        touch(os.path.join(root, "ProjectPBZ", "Binaries", "Win64", "8za_v2.exe"), b"tool" * 2000)
+        touch(os.path.join(root, "ProjectPBZ", "Plugins", "FSR", "Source", "signedbin", "amd_fidelityfx_dx12.dll"))
+        self.run_(self.p.scan_games())
+        return root
+
+    def test_a_setup_next_to_the_wrong_exe_moves_to_the_one_the_game_runs(self):
+        root = self.pbz()
+        wrong, real = (os.path.join(root, "ProjectPBZ", "Binaries", "Win64"), os.path.join(root, "platform", "steam"))
+        self.assertEqual(self.p._game(4115450)["exe_dir"], wrong)  # the folder guess
+        r = self.run_(self.p.enable_game(4115450, ""))
+        self.assertTrue(os.path.isfile(os.path.join(wrong, "dxgi.dll")))
+        # OptiScaler loaded from there, but the game runs PBZ.exe and found no FSR 4 file next to it
+        self.run_(self.p.session_started(4115450))
+        touch(os.path.join(wrong, "OptiScaler.log"), b"CheckQuirks Game's Exe: PBZ.exe\n"
+                                                     b"LoadDriverDll Failed to load amdxcffx64.dll\n")
+        r = self.run_(self.p.session_ended(4115450, r["launch_options"]))
+        self.assertEqual(r["retry"], "dxgi.dll")
+        self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dxgi=n,b %command%")
+        self.assertIn("PBZ.exe", r["detail"])
+        self.assertTrue(os.path.isfile(os.path.join(real, "dxgi.dll")))
+        self.assertTrue(os.path.isfile(os.path.join(real, "OptiScaler", "amdxcffx64.dll")))
+        self.assertEqual(sorted(os.listdir(wrong)), ["8za_v2.exe"])
+        self.assertEqual(self.p.exes, {"4115450": "platform/steam/PBZ.exe"})
+        self.run_(self.p.scan_games())  # remembered across scans
+        self.assertEqual(self.p._game(4115450)["exe_dir"], real)
+
+    def test_the_running_exe_is_used_for_a_first_setup(self):
+        root = self.pbz()
+        real = os.path.join(root, "platform", "steam", "PBZ.exe")
+        with mock.patch("sml_opti.running_exe", return_value=real), mock.patch("asyncio.sleep", return_value=None):
+            self.run_(self.p.session_started(4115450))
+            self.run_(self.p._watchers[4115450])
+        self.assertEqual(self.p._game(4115450)["exe_name"], "PBZ.exe")
+        self.assertTrue(self.run_(self.p.enable_game(4115450, ""))["ok"])
+        self.assertTrue(os.path.isfile(os.path.join(root, "platform", "steam", "dxgi.dll")))
+
+    def test_a_working_setup_never_moves(self):
+        self.pbz()
+        self.run_(self.p.enable_game(4115450, ""))
+        wrong = self.p._game(4115450)["exe_dir"]
+        self.run_(self.p.session_started(4115450))
+        touch(os.path.join(wrong, "OptiScaler.log"), b"CheckQuirks Game's Exe: PBZ.exe\nffxProvider_FSR4Lite_Int8\n")
+        r = self.run_(self.p.session_ended(4115450, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+        self.assertEqual(r["verdict"], "lite")
+        self.assertNotIn("retry", r)
 
     def test_anticheat_is_refused(self):
         touch(os.path.join(self.game, "BattlEye", "BEClient_x64.dll"))

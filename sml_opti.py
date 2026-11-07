@@ -610,13 +610,78 @@ def log_time(exe_dir):
 
 
 RES = re.compile(r"(\d{3,5})\s*x\s*(\d{3,5})")
+NO_FSR4_FILE = ("OptiScaler couldn't load AMD's FSR 4 file, so the game ran FSR 3. Usually the game runs from another "
+                "folder than the one set up; the plugin moves it there when you quit.")
+
+
+def logged_exe(log):
+    """The exe OptiScaler says it runs in ("CheckQuirks Game's Exe: PBZ.exe"), or ""."""
+    found = re.findall(r"Game's Exe:\s*(\S.*?\.exe)\s*$", log, re.I | re.M)
+    return found[-1].strip() if found else ""
+
+
+def find_exe(install_dir, name):
+    """The one file called name (any letter case) in the game folder, or None when there's none or several."""
+    hits = [os.path.join(d, f) for d, _dirs, files in _walk(install_dir) for f in files if f.lower() == name.lower()]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _resolve(root, rel):
+    """root joined with a path from Windows, matching each folder and file name in any letter case; None if absent."""
+    path = root
+    for part in [p for p in rel.split("/") if p not in ("", ".")]:
+        if part == "..":
+            return None
+        try:
+            match = next((n for n in os.listdir(path) if n.lower() == part.lower()), None)
+        except OSError:
+            return None
+        if match is None:
+            return None
+        path = os.path.join(path, match)
+    return path if os.path.isfile(path) else None
+
+
+def running_exe(install_dir, proc="/proc"):
+    """The exe a running game really runs, found in its process list (the widget installs next to the running game's
+    own exe, ForegroundGame): Proton starts it with its Windows path ("S:\\steamapps\\common\\PBZ\\platform\\steam\\
+    PBZ.exe", the drive letter depending on the library), so a path is matched from steamapps/common/<game folder>/
+    down. With a launcher and the game both running, the largest exe is the game, as in the widget's exe pick."""
+    marker = "/steamapps/common/" + os.path.basename(install_dir.rstrip("/\\")).lower() + "/"
+    hits = set()
+    try:
+        pids = [p for p in os.listdir(proc) if p.isdigit()]
+    except OSError:
+        return None
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, pid, "cmdline"), "rb") as f:
+                args = f.read(64 * 1024).split(b"\0")
+        except OSError:
+            continue
+        for arg in args:
+            text = arg.decode("utf-8", "replace").replace("\\", "/")
+            low = text.lower()
+            at = low.find(marker)
+            if at < 0 or not low.endswith(".exe"):
+                continue
+            path = _resolve(install_dir, text[at + len(marker):])
+            if path and _is_game_exe(os.path.basename(path)):
+                hits.add(path)
+
+    def size(p):
+        try:
+            return os.path.getsize(p)
+        except OSError:
+            return 0
+    return max(sorted(hits), key=size) if hits else None
 
 
 def verdict(log):
     """(verdict, detail) from one session's OptiScaler.log:
     lite: the Lite model was hooked; fsr4: FSR 4 loaded but Lite wasn't confirmed; fsr3: the upscaler ran without
-    FSR 4; unsupported: OptiScaler says FSR 4 can't run; waiting: OptiScaler ran but the game's upscaler didn't start;
-    none: no log (OptiScaler didn't load)."""
+    FSR 4 (also when OptiScaler couldn't load AMD's FSR 4 file); unsupported: OptiScaler says FSR 4 can't run;
+    waiting: OptiScaler ran but the game's upscaler didn't start; none: no log (OptiScaler didn't load)."""
     if not log:
         return "none", "OptiScaler didn't load. The game may need a different loader name; play once more."
     if "ffxProvider_FSR4Lite_Int8" in log:
@@ -624,6 +689,8 @@ def verdict(log):
     if "can't run any FSR 4 model" in log or "doesn't support FSR 4" in log:
         return "unsupported", "OptiScaler reports FSR 4 can't run here."
     low = log.lower()
+    if f"failed to load {DX12_FSR4}" in low or f"failed to load {VK_FSR4}" in low:
+        return "fsr3", NO_FSR4_FILE
     if DX12_FSR4 in low or VK_FSR4 in low:
         return "fsr4", "FSR 4 loaded, but the log doesn't show the Lite model."
     if re.search(r"(render|output|display).{0,40}\d{3,5}\s*x\s*\d{3,5}", low):

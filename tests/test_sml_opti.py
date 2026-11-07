@@ -268,6 +268,51 @@ class REFrameworkDownload(unittest.TestCase):
                 sml_assets.fetch_reframework(tempfile.mkdtemp())
 
 
+class RealExe(unittest.TestCase):
+    """Phantom Blade Zero: an Unreal folder, but Steam runs platform/steam/PBZ.exe, not Binaries/Win64/8za_v2.exe."""
+    def setUp(self):
+        t = tempfile.mkdtemp()
+        self.root = os.path.join(t, "steamapps", "common", "PBZ")
+        self.real = os.path.join(self.root, "platform", "steam", "PBZ.exe")
+        touch(self.real, b"game" * 1000)
+        touch(os.path.join(self.root, "PBZLauncher.exe"), b"small")
+        touch(os.path.join(self.root, "ProjectPBZ", "Binaries", "Win64", "8za_v2.exe"), b"tool" * 2000)
+        self.proc = os.path.join(t, "proc")
+
+    def process(self, pid, *args):
+        touch(os.path.join(self.proc, str(pid), "cmdline"), b"\0".join(a.encode() for a in args) + b"\0")
+
+    def test_the_folder_guess_is_the_wrong_exe(self):
+        self.assertEqual(O.analyze(self.root)["exe_name"], "8za_v2.exe")
+
+    def test_the_running_exe_is_found_in_the_process_list(self):
+        self.process(100, "/usr/bin/python3", "/proton", "waitforexitandrun",
+                     "/home/deck/.local/share/Steam/steamapps/common/PBZ/PBZLauncher.exe")
+        self.process(101, "S:\\steamapps\\common\\PBZ\\PLATFORM\\steam\\PBZ.exe", "-dx12")  # any letter case
+        self.process(102, "C:\\windows\\system32\\steam.exe")
+        self.process(103, "Z:\\other\\steamapps\\common\\Other Game\\game.exe")
+        os.makedirs(os.path.join(self.proc, "self"))
+        self.assertEqual(O.running_exe(self.root, self.proc), self.real)  # the game, not the small launcher
+
+    def test_nothing_running_or_no_proc(self):
+        os.makedirs(self.proc)
+        self.assertIsNone(O.running_exe(self.root, self.proc))
+        self.assertIsNone(O.running_exe(self.root, os.path.join(self.proc, "missing")))
+        self.process(1, "S:\\steamapps\\common\\PBZ\\..\\..\\evil.exe")
+        self.assertIsNone(O.running_exe(self.root, self.proc))
+
+    def test_optiscalers_log_names_the_exe(self):
+        log = "[13:25:07.284454] [I] CheckQuirks Game's Exe: PBZ.exe\n[13:25:07.284461] [I] CheckQuirks Game Name: x\n"
+        self.assertEqual(O.logged_exe(log), "PBZ.exe")
+        self.assertEqual(O.find_exe(self.root, "pbz.EXE"), self.real)
+        self.assertIsNone(O.find_exe(self.root, "missing.exe"))
+
+    def test_a_missing_fsr4_file_is_fsr3_not_fsr4(self):
+        log = ("CheckQuirks Game's Exe: PBZ.exe\n`anonymous-namespace'::LoadDriverDll Failed to load amdxcffx64.dll\n"
+               "IFeature::SetInitParameters Render Resolution: 1280x720, Display Resolution 3840x2160\n")
+        self.assertEqual(O.verdict(log), ("fsr3", O.NO_FSR4_FILE))
+
+
 class Tips(unittest.TestCase):
     def test_the_widgets_card_lines(self):
         self.assertIn("No upscaler files found", O.tips("game.exe", []))

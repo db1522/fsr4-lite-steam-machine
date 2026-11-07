@@ -73,10 +73,11 @@ def _with_overrides(options, manifest):
     return sml_opti.with_override(options, "dinput8.dll") if manifest.get("reframework") else options
 
 
-def scan_library(steam_root):
+def scan_library(steam_root, exes=None):
     """Every Steam game and non-Steam shortcut with a game exe. Games without upscaler files stay in the scan, like
     in the widget (many build FSR 2 or 3 in, which OptiScaler can search for); the panel offers them only while they
-    run, not in the library list."""
+    run, not in the library list. exes: str(appid) -> the exe the game was seen running (relative to its folder),
+    used instead of the folder guess."""
     games = []
     for lib in fsr4_games.libraries(steam_root):
         apps = os.path.join(lib, "steamapps")
@@ -97,17 +98,20 @@ def scan_library(steam_root):
                 continue
             root = os.path.join(apps, "common", installdir[0])
             if os.path.isdir(root):
-                games.append((int(appid[0]), title[0] if title else installdir[0], root, None))
+                seen = (exes or {}).get(appid[0])
+                exe = os.path.join(root, *seen.split("/")) if seen else None
+                exe = exe if exe and os.path.isfile(exe) else None
+                games.append((int(appid[0]), title[0] if title else installdir[0], root, exe, False))
     for appid, name, exe in fsr4_games.shortcuts(steam_root):
         root = os.path.dirname(exe)
         if os.path.isdir(root):
-            games.append((appid, name, root, exe))
+            games.append((appid, name, root, exe, True))
     out = []
-    for appid, name, root, exe in games:
+    for appid, name, root, exe, nonsteam in games:
         info = sml_opti.analyze(root, exe)
         if not info:
             continue
-        out.append({"appid": appid, "name": name, "install_dir": root, "nonsteam": exe is not None, **info})
+        out.append({"appid": appid, "name": name, "install_dir": root, "nonsteam": nonsteam, **info})
     out.sort(key=lambda g: g["name"].lower())
     return out
 
@@ -121,6 +125,10 @@ class Plugin:
             # exe name (lower case) -> the loader name OptiScaler last loaded under in that game (the widget's
             # LoaderMemory), so setting a game up again starts with the name that worked
             self.loaders_path = os.path.join(settings_dir, "loaders.json")
+            # str(appid) -> the exe the game was seen running, relative to its folder (the widget installs next to
+            # the running game's exe; folder layouts like Phantom Blade Zero's platform/steam/PBZ.exe fool a guess)
+            self.exes_path = os.path.join(settings_dir, "exes.json")
+            self.exes, self._watchers = {}, {}
             self.settings = dict(DEFAULT_SETTINGS)
             self.registry = {}  # str(appid) -> {exe_dir, proxy, tried, launch_original, launch_applied, installed_at}
             self.loaders = {}
@@ -142,6 +150,9 @@ class Plugin:
             self.registry = {k: v for k, v in reg.items() if isinstance(v, dict) and isinstance(v.get("exe_dir"), str)}
             loaders = await asyncio.to_thread(_read, self.loaders_path, {})
             self.loaders = {k: v for k, v in loaders.items() if v in sml_opti.PROXY_NAMES}
+            exes = await asyncio.to_thread(_read, self.exes_path, {})
+            self.exes = {k: v for k, v in exes.items() if isinstance(v, str) and v.lower().endswith(".exe")
+                         and not os.path.isabs(v) and ".." not in v.split("/")}
             try:
                 os.chmod(SEVENZIP, 0o755)
             except OSError:
@@ -192,7 +203,7 @@ class Plugin:
 
     @rpc
     async def scan_games(self) -> dict:
-        self.games = await asyncio.to_thread(scan_library, _steam_root())
+        self.games = await asyncio.to_thread(scan_library, _steam_root(), dict(self.exes))
         self.scanned = True
         return dk_rpc.ok(await self._state())
 
@@ -231,6 +242,72 @@ class Plugin:
 
     def _game(self, appid):
         return next((g for g in self.games if g["appid"] == appid), None)
+
+    async def _use_exe(self, appid, path):
+        """The game runs path: remember it and point the game at it (scans and the next setup use it)."""
+        game = self._game(appid)
+        if not game or game["nonsteam"] or os.path.join(game["exe_dir"], game["exe_name"]) == path:
+            return
+        info = await asyncio.to_thread(sml_opti.analyze, game["install_dir"], path)
+        if not info:
+            return
+        game.update(info)
+        self.exes[str(appid)] = os.path.relpath(path, game["install_dir"]).replace(os.sep, "/")
+        await asyncio.to_thread(dk_fs.write_json, self.exes_path, self.exes)
+        decky.logger.info(f"{appid} runs {self.exes[str(appid)]}")
+
+    async def _watch_exe(self, appid, started):
+        """While a game starts: find the exe it really runs in the process list, for up to two minutes."""
+        try:
+            for _ in range(24):
+                await asyncio.sleep(5)
+                game = self._game(appid)
+                if self.sessions.get(appid) != started or not game or game["nonsteam"]:
+                    return
+                path = await asyncio.to_thread(sml_opti.running_exe, game["install_dir"])
+                if path:
+                    await self._use_exe(appid, path)
+                    return
+        finally:
+            self._watchers.pop(appid, None)
+
+    async def _move_to_real_exe(self, appid, entry, launch_options):
+        """A game set up next to an exe it doesn't run (seen running, or named in OptiScaler's log): the setup moves
+        next to the exe it does run. The result for session_ended, or None when nothing moved."""
+        game = self._game(appid)
+        if not game or game["nonsteam"]:
+            return None
+        log = await asyncio.to_thread(sml_opti.read_log, entry["exe_dir"])
+        if "ffxProvider_FSR4Lite_Int8" in log:
+            return None  # Lite runs from where it is: never move a working setup
+        logged = sml_opti.logged_exe(log)
+        if logged and logged.lower() != game["exe_name"].lower():
+            path = await asyncio.to_thread(sml_opti.find_exe, game["install_dir"], logged)
+            if path:
+                await self._use_exe(appid, path)
+        if os.path.normpath(game["exe_dir"]) == os.path.normpath(entry["exe_dir"]):
+            return None
+        key, proxy = str(appid), entry["proxy"]
+        restored = await self._disable(appid, launch_options, keep_retry=True)
+        ref = sml_assets.reframework_path(_data_dir())
+        try:
+            manifest = await asyncio.to_thread(
+                sml_opti.install, game["exe_dir"], game["exe_name"], sml_assets.package_dir(_data_dir()),
+                sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), proxy, game["upscalers"], None,
+                ref if entry.get("reframework") and os.path.isfile(ref) else None)
+        except sml_opti.InstallError as e:
+            await asyncio.to_thread(self._save_registry)
+            return {"managed": True, "verdict": "none", "detail": str(e), "launch_options": restored}
+        new = _with_overrides(restored, manifest)
+        detail = f"Moved next to {game['exe_name']}, the exe the game really runs. Play once more."
+        self.registry[key] = {"exe_dir": game["exe_dir"], "proxy": manifest["proxy"], "tried": [manifest["proxy"]],
+                              "launch_original": entry.get("launch_original"), "launch_applied": new,
+                              "reframework": bool(manifest.get("reframework")), "installed_at": time.time(),
+                              "verdict": "unplayed", "detail": detail}
+        await asyncio.to_thread(self._save_registry)
+        decky.logger.info(f"moved {appid} from {entry['exe_dir']} to {game['exe_dir']}")
+        return {"managed": True, "verdict": "unplayed", "retry": manifest["proxy"], "launch_options": new,
+                "detail": detail}
 
     def _settings_for_ini(self, height=None):
         return {"watermark": self.settings["watermark"], "overlay": self.settings["overlay"],
@@ -325,6 +402,8 @@ class Plugin:
     async def session_started(self, appid: int) -> dict:
         # Every game's start is kept: setting a game up while it runs needs a restart, and the panel says so.
         self.sessions[appid] = time.time()
+        if appid not in self._watchers:
+            self._watchers[appid] = asyncio.create_task(self._watch_exe(appid, self.sessions[appid]))
         return dk_rpc.ok(managed=str(appid) in self.registry)
 
     @rpc
@@ -375,6 +454,9 @@ class Plugin:
             started = self.sessions.pop(appid, None)
             if not entry or not entry.get("proxy"):
                 return dk_rpc.ok(managed=False)
+            moved = await self._move_to_real_exe(appid, entry, launch_options)
+            if moved:
+                return dk_rpc.ok(**moved)
             if started and entry.get("installed_at", 0) > started:
                 # set up during this session: OptiScaler couldn't load yet, so nothing is judged
                 return dk_rpc.ok(managed=True, verdict="unplayed", detail="Set up during this session.")
