@@ -28,8 +28,6 @@ Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, 
 
 In Payday 3, FSR 3 on GE-Proton11-1 also lands at about 60 FPS. So Lite matches FSR 3's frame rate while looking clearly better than FSR 3 and close to full FSR 4.1.
 
-Control and Palworld work too. Palworld only ships DLSS, so there's no FSR in it at all. OptiScaler unlocks the DLSS option on the Steam Machine, and the plugin turns it into FSR 4.1.2 Lite.
-
 Xbox Series X|S games are getting the same FSR 4.1.2 Lite model. Microsoft's [Xbox GDK FSR sample](https://github.com/microsoft/Xbox-GDK-Samples/tree/main/Samples/Graphics/AMD_FSR) switches between Full and Lite, and on Series X at 4K the Lite upscaling pass takes 2.75 ms against 3.86 ms for Full. That's the model this plugin runs.
 
 <p align="center">
@@ -44,8 +42,20 @@ Up close, at 100% of the 4K output. Click either image for full size.
 
 <sub>Single-frame captures from the same street. The stock shot has a busier sidewalk, so treat the exact gap as a guide. Matched 60-second runs are coming with the full write-up on Steam Machine Life.</sub>
 
+## DLSS games run FSR 4.1.2 Lite too
+
+This is the part I'm most excited about. A lot of games only offer DLSS, and on an AMD Steam Machine that option is normally greyed out or missing. With the plugin set up, OptiScaler unlocks the game's DLSS option, the game hands its frames to "DLSS", and the plugin runs FSR 4.1.2 Lite in its place. You get AMD's newest upscaler in games that never shipped FSR at all.
+
+| Game | Upscalers the game ships | Pick in its settings | What runs |
+|---|---|---|---|
+| Palworld | DLSS only | DLSS | FSR 4.1.2 Lite |
+| Control | DLSS only | DLSS | FSR 4.1.2 Lite |
+
+Both tested on my own Steam Machine. Set the game up from Now playing, restart it, then pick DLSS in its graphics settings. The notification tells you when it's running, for example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160". Played a DLSS game that works? [Send a game report](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=game_report.yml) and it goes in this table.
+
 ## What you get
 
+- DLSS games on FSR 4.1.2 Lite. Games that only offer DLSS get their DLSS option unlocked and run Lite instead.
 - A Now playing card. Open the plugin in a game and you see the game, which upscalers it ships, and one button to install or uninstall. It sets the game up next to the program that's really running, the same way the Windows widget does.
 - Your games: every game you set up, each with a chip for what its last session showed (Active, Pick an upscaler, Needs fix or Not played yet) and a switch to turn it off. The rest of your games with FSR, DLSS or XeSS are listed underneath.
 - Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
