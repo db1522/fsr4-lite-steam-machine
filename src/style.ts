@@ -158,6 +158,7 @@ export const CSS = `
 .sml-sublabel { padding-left: 19px; font-size: 13px; font-weight: 600; color: var(--accent); }
 .sml-linklabel { font-size: 15px; }
 .sml-linklabel.danger { color: var(--bad); }
+.sml-linklabel.kofi { color: #ff7a75; }
 .sml-chev { display: inline-block; font-size: 22px; line-height: 1; color: var(--mute); transition: transform .15s; }
 .sml-chev { display: inline-block; font-size: 24px; line-height: 1; color: var(--soft); transition: transform .15s; }
 `;

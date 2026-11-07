@@ -192,7 +192,10 @@ test('opening the menu goes back to the top: first control focused, every scroll
   const src = fs.readFileSync(require('node:path').join(__dirname, '../src/steamx.ts'), 'utf8');
   const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  vm.runInNewContext(js, { module: mod, exports: mod.exports });
+  const opened = [];
+  vm.runInNewContext(js, { module: mod, exports: mod.exports, require: () => ({ Navigation: { NavigateToExternalWeb: u => opened.push(u) } }) });
+  assert.equal(mod.exports.openWeb('https://ko-fi.com/steammachinelife'), true);
+  assert.equal(JSON.stringify(opened), '["https://ko-fi.com/steammachinelife"]');
   const focused = [];
   const button = { focus: o => focused.push(o) };
   const qam = { scrollTop: 640, parentElement: null };

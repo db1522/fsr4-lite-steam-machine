@@ -12,7 +12,7 @@ import { INSTALL_HINT, UpdateController, UpdateSection } from "./about";
 import { CSS, steamCss } from "./style";
 import { CheckPage } from "./check";
 import { canInstallUpdates, installUpdate } from "./installer";
-import { keepInView, onFocusReveal, toTop } from "./steamx";
+import { keepInView, onFocusReveal, openWeb, toTop } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, downloadAssets, downloadProgress, enableGame, Game,
   getState, Live, liveStatus, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
@@ -22,6 +22,7 @@ import { errorText } from "./result";
 import { colors, infoRow, notify, PageHeader, statusPlaceholder } from "./ui";
 
 const NAME = "FSR 4.1 Lite";
+const KOFI = "https://ko-fi.com/steammachinelife";
 const OVERLAY_SIZES: Array<[string, string]> = [["small", "Small"], ["medium", "Medium"], ["large", "Large"],
   ["xlarge", "Extra large"], ["huge", "Huge"]];
 const OVERLAY_CORNERS: Array<[string, string]> = [["topleft", "Top left"], ["topright", "Top right"],
@@ -229,6 +230,16 @@ export const Content: FC = () => {
     <UpdateSection controller={upd} version={state.version} home={state.home}
       install={`${INSTALL_HINT} Your games stay set up.`}
       onInstall={canInstallUpdates() ? d => installUpdate(d.path ?? "", d.version ?? "", d.sha256 ?? "") : undefined} />
+    <PanelSection>
+      <PanelSectionRow>
+        <Field focusable highlightOnFocus className="sml-linkrow" onActivate={() => openWeb(KOFI)}
+          label={<span className="sml-linklabel kofi">Support Steam Machine Life</span>}
+          description="Buy me a coffee on Ko-fi: ko-fi.com/steammachinelife"
+          childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
+          <span className="sml-chev">›</span>
+        </Field>
+      </PanelSectionRow>
+    </PanelSection>
     <PanelSection title={`${NAME} ${state.version}`}>
       {infoRow("Steam Machine Life", "Runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. The same method as the FSR 4.1 Lite widget for Windows.")}
       {infoRow("OptiScaler", `${state.optiscaler}, by cdozdil and contributors (GPL-3.0). Downloaded from its own GitHub, unmodified.`)}

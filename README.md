@@ -7,6 +7,7 @@
   <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite-steam-machine/total?style=for-the-badge&color=1b9aff&labelColor=0d1117"></a>
   <img alt="Steam Machine" src="https://img.shields.io/badge/Steam_Machine-RDNA_3-1b9aff?style=for-the-badge&labelColor=0d1117">
   <img alt="Requires Decky Loader" src="https://img.shields.io/badge/requires-Decky_Loader-8fa3bc?style=for-the-badge&labelColor=0d1117">
+  <a href="https://ko-fi.com/steammachinelife"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=for-the-badge&logo=kofi&logoColor=white&labelColor=0d1117"></a>
 </p>
 
 FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. Lite is the smaller ML upscaler AMD built for handheld chips. On the Steam Machine it costs about as much as FSR 3 and looks close to full FSR 4.1, which is the trade I've wanted since I started testing this hardware.
@@ -125,6 +126,10 @@ Press **Uninstall from all games** in the plugin first. That puts every game bac
 For each game, the plugin finds the folder of the real game exe (for Unreal games, the `-Shipping.exe` under `Binaries/Win64`), copies OptiScaler there under a file name the game loads (`dxgi.dll` first), puts AMD's FSR 4.1.2 files in OptiScaler's own folder next to it, and adds `WINEDLLOVERRIDES=dxgi=n,b` to the launch options so Proton loads it. OptiScaler's settings are the Windows widget's: the game's upscaler goes through FidelityFX, FSR 4 support is forced to INT8 Lite and the Lite model is picked, frame generation stays off, and OptiScaler logs each session.
 
 Anything an install would replace is backed up first and put back on uninstall. AMD's files and OptiScaler are never modified, Proton isn't touched, and nothing is installed outside the game's folder.
+
+## Support
+
+FSR 4.1 Lite is free, and so are the settings guides on [Steam Machine Life](https://steammachinelife.com). If the plugin gave you frames back, you can buy me a coffee on [Ko-fi](https://ko-fi.com/steammachinelife). It keeps the testing going.
 
 ## Building from source
 

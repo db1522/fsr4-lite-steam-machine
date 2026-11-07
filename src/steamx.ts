@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Steam Machine Life: Steam client helpers the panel uses for artwork and Proton. Every call is guarded: Steam builds
 // differ, and a missing call falls back to the plain behaviour instead of breaking the panel.
+import { Navigation } from "@decky/ui";
 
 /** The game's wide library hero image, or "" when there is none. Steam serves its own cache at steamloopback.host. */
 export const heroImage = (appid: number): string => {
@@ -15,6 +16,16 @@ export const heroImage = (appid: number): string => {
 /** The game's small library header image for list rows, or "" for non-Steam games (no Steam artwork cache). */
 export const capsuleImage = (appid: number): string =>
   appid < 2 ** 31 ? `https://steamloopback.host/assets/${appid}/header.jpg` : "";
+
+/** Opens a web page in Steam's browser (Gaming Mode's own overlay browser). False when this Steam can't. */
+export const openWeb = (url: string): boolean => {
+  try {
+    Navigation.NavigateToExternalWeb(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /** Whether this Steam can switch a game's compatibility tool from a plugin. */
 export const canSetProton = () => typeof SteamClient?.Apps?.SpecifyCompatTool === "function";
