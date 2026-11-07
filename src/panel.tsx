@@ -102,6 +102,11 @@ export const livePill = (live: Live | undefined): [string, string] | null => {
   }
 };
 
+/** A game's chip in Your games: while it runs, what the Now playing card shows (the saved verdict only changes when
+ * the game quits, so a game set up this session would still say "Not played yet" while running Lite). */
+export const rowChip = (g: Game, live: { appid: number; status: Live } | null): [string, string] =>
+  (g.installed && live?.appid === g.appid ? livePill(live.status) : null) ?? chipFor(g);
+
 export const Content: FC = () => {
   const visible = useQuickAccessVisible();
   const [state, setStateRaw] = useState<State | null>(lastState);
@@ -330,7 +335,7 @@ export const Content: FC = () => {
     </PanelSectionRow>;
 
   const gameRow = (g: Game) => {
-    const [tone, label] = chipFor(g);
+    const [tone, label] = rowChip(g, running && live?.appid === Number(running.appid) ? live : null);
     // Setting a game up happens on Now playing, with the game running (the plugin then sees which program is the
     // game, as the widget does). In this list a game can only be turned off; the others say how to set them up.
     const extra = [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");

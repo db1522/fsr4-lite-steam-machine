@@ -126,6 +126,17 @@ test('the running game shows its live status: Restart needed, then Active', asyn
   assert.match(strings(tree), /Restart the game\./);
 });
 
+test('a game set up this session shows Active in Your games while Lite runs, not "Not played yet"', async () => {
+  const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
+  await open(h, state({ games: [{ ...game, installed: true, verdict: 'unplayed', proxy: 'dxgi.dll' },
+    { ...game, appid: 2, name: 'B', installed: true, verdict: 'unplayed' }] }));
+  for (const c of h.calls.filter(c => c.name === 'live_status' && !c.settled))
+    h.respond('live_status', { ok: true, status: 'active', detail: 'FSR 4.1 Lite is running.' });
+  await settle();
+  const chips = all(h.render()).filter(n => n.type === 'span' && /sml-state/.test(n.props?.className ?? '')).map(n => [].concat(n.props.children).join(''));
+  assert.deepEqual(chips.sort(), ['Active', 'Not played yet'], 'the running game is live, the other keeps its last session');
+});
+
 test('a newer version on GitHub shows on the main page, not only in About', async () => {
   const h = panel(undefined);
   await open(h);
