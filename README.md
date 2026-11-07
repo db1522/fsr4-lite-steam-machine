@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="FSR 4.1 Lite by Steam Machine Life" width="100%">
+  <img src="assets/banner@2x.png" alt="FSR 4.1 Lite by Steam Machine Life" width="100%">
 </p>
 
 <p align="center">
