@@ -12,7 +12,7 @@ import { INSTALL_HINT, UpdateController, UpdateSection } from "./about";
 import { CSS, steamCss } from "./style";
 import { CheckPage } from "./check";
 import { canInstallUpdates, installUpdate } from "./installer";
-import { capsuleImage, heroImage, keepInView, onFocusReveal } from "./steamx";
+import { keepInView, onFocusReveal } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, downloadAssets, downloadProgress, enableGame, Game,
   getState, Live, liveStatus, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
@@ -78,8 +78,6 @@ export const Content: FC = () => {
   const [page, setPage] = useState<"about" | "check" | null>(null);
   const [checkId, setCheckId] = useState<number | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [heroFailed, setHeroFailed] = useState<number | null>(null);
-  const [thumbFailed, setThumbFailed] = useState<Record<number, boolean>>({});
   const [live, setLive] = useState<{ appid: number; status: Live; detail: string } | null>(null);
   const runningAppid = Number(Router.MainRunningApp?.appid ?? NaN);
   // The running game's status, every few seconds while the menu is open: Active, Restart the game, Not active.
@@ -214,21 +212,21 @@ export const Content: FC = () => {
   const activeCount = state.games.filter(g => g.installed && g.verdict === "lite").length;
 
   const gameCard = () => {
-    const art = (appid: number | null, title: string, pill: [string, string] | null) => {
-      const hero = appid !== null && heroFailed !== appid ? heroImage(appid) : "";
-      return <div className="sml-art">
-        {hero && <img src={hero} alt="" onError={() => setHeroFailed(appid)} />}
-        <div className="sml-artlabel">Now playing</div>
-        {pill && <div className={`sml-live ${pill[0]}`}><span className={`sml-dot ${pill[0]}${pill[0] === "good" ? " live" : ""}`} />{pill[1]}</div>}
-        <div className="sml-arttitle">{title}</div>
+    // No artwork (not every game has it, and each image is a load): a header tinted by the game's status instead.
+    const art = (title: string, pill: [string, string] | null) =>
+      <div className={`sml-nowhead ${pill?.[0] ?? ""}`}>
+        <div className="sml-nowlabel">
+          <span>Now playing</span>
+          {pill && <div className={`sml-live ${pill[0]}`}><span className={`sml-dot ${pill[0]}${pill[0] === "good" ? " live" : ""}`} />{pill[1]}</div>}
+        </div>
+        <div className="sml-nowtitle">{title}</div>
       </div>;
-    };
     if (!running) return <div className="sml-now">
-      {art(null, "No game running", null)}
+      {art("No game running", null)}
       <div className="sml-body"><div className="sml-note" style={{ marginTop: 0 }}>Start a game, then open this menu to set up FSR 4.1 Lite in it with one button.</div></div>
     </div>;
     if (!current) return <div className="sml-now">
-      {art(Number(running.appid), running.display_name, ["", "Not found"])}
+      {art(running.display_name, ["", "Not found"])}
       <div className="sml-body"><div className="sml-note" style={{ marginTop: 0 }}>The scan didn't find this game's files. If you installed or updated it recently, rescan your library below.</div></div>
     </div>;
     const now = live && live.appid === current.appid ? live : null;
@@ -242,7 +240,7 @@ export const Content: FC = () => {
       : current.installed && current.detail ? current.detail
       : "Takes effect when you restart the game. In its settings, pick FSR, DLSS or XeSS as the upscaler.";
     return <div className="sml-now">
-      {art(current.appid, current.name, pill && pill[1] ? pill : null)}
+      {art(current.name, pill && pill[1] ? pill : null)}
       <div className="sml-body">
         <div className="sml-meta">
           {current.upscalers.map(u => <span key={u} className="sml-badge">{u}</span>)}
@@ -268,11 +266,9 @@ export const Content: FC = () => {
 
   const gameRow = (g: Game) => {
     const [tone, label] = chipFor(g);
-    const thumb = thumbFailed[g.appid] ? "" : capsuleImage(g.appid);
     return <PanelSectionRow key={`r${g.appid}`}>
       <ToggleField label={<span className="sml-gamerow">
-          {thumb ? <img className="sml-thumb" src={thumb} alt="" onError={() => setThumbFailed(f => ({ ...f, [g.appid]: true }))} />
-            : <span className="sml-thumb blank" />}
+          <span className={`sml-dot ${g.installed ? tone || "set" : ""}`} />
           <span>{g.name}</span>
         </span>}
         description={<>
@@ -346,22 +342,28 @@ export const Content: FC = () => {
 
       <PanelSection><PanelSectionRow>{gameCard()}</PanelSectionRow></PanelSection>
 
+      <div className="sml-hdr">
+        <span>Your games</span>
+        <span className={`sml-badge ${activeCount ? "good" : ""}`}>{installed.length} set up{activeCount ? ` · ${activeCount} active` : ""}</span>
+      </div>
+      <div className="sml-hdrsub">{!state.scanned || scanning ? "Scanning your library…"
+        : !library.length ? "No games with FSR, DLSS or XeSS found. Start one and use Now playing above."
+        : installed.length ? "Turn a game off to put its files back." : "None set up yet. Turn one on, or start a game and use Now playing."}</div>
       <PanelSection>
-        <PanelSectionRow>
+        {installed.map(g => <Fragment key={g.appid}>
+          {gameRow(g)}
+          <PanelSectionRow>
+            <ActionButton onClick={() => { setCheckId(g.appid); navigate("check"); }}>Check setup: {g.name}</ActionButton>
+          </PanelSectionRow>
+        </Fragment>)}
+        {library.length > installed.length && <PanelSectionRow>
           <Field focusable highlightOnFocus onActivate={() => flip("games")}
-            label={`Games: ${installed.length} of ${library.length} set up`}
-            description={!state.scanned || scanning ? "Scanning your library…"
-              : library.length ? "Games with FSR, DLSS or XeSS. Turn one off to restore its files." : "No compatible games found."}
+            label={`${open.games ? "Hide" : "Show"} ${library.length - installed.length} more compatible game${library.length - installed.length === 1 ? "" : "s"}`}
             childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
             <span style={{ display: "inline-block", transform: open.games ? "rotate(90deg)" : "none", transition: "transform .15s" }}>›</span>
           </Field>
-        </PanelSectionRow>
-        {open.games && library.map(g => <Fragment key={g.appid}>
-          {gameRow(g)}
-          {g.installed && <PanelSectionRow>
-            <ActionButton onClick={() => { setCheckId(g.appid); navigate("check"); }}>Check setup: {g.name}</ActionButton>
-          </PanelSectionRow>}
-        </Fragment>)}
+        </PanelSectionRow>}
+        {open.games && library.filter(g => !g.installed).map(g => gameRow(g))}
       </PanelSection>
 
       <div className="sml-sect">Options</div>

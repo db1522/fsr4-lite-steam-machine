@@ -237,6 +237,21 @@ class Flow(unittest.TestCase):
         self.assertEqual(r["verdict"], "lite")
         self.assertNotIn("retry", r)
 
+    def test_session_check_says_what_runs_and_why_not_yet(self):
+        self.run_(self.p.enable_game(42, ""))
+        self.run_(self.p.session_started(42))
+        self.p.registry["42"]["installed_at"] = time.time() - 600  # set up before this session
+        self.p.sessions[42] = time.time() - 200  # 3 min 20 s into the session
+        touch(os.path.join(self.game, "OptiScaler.log"), b"OptiScaler loaded\n")
+        r = self.run_(self.p.session_check(42))
+        self.assertFalse(r["lite"])
+        self.assertIn("Pick an upscaler", r["hint"])
+        touch(os.path.join(self.game, "OptiScaler.log"), b"NVSDK_NGX_D3D12_CreateFeature\nRender Resolution: 1280x720, "
+                                                         b"Display Resolution 2560x1440\nffxProvider_FSR4Lite_Int8\n")
+        r = self.run_(self.p.session_check(42))
+        self.assertEqual((r["lite"], r["minutes"]), (True, 3))
+        self.assertEqual(r["summary"], "DLSS → FSR 4.1.2 Lite, 1280×720 → 2560×1440 (Performance)")
+
     def test_anticheat_is_refused(self):
         touch(os.path.join(self.game, "BattlEye", "BEClient_x64.dll"))
         self.run_(self.p.scan_games())

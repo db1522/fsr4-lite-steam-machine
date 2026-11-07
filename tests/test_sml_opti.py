@@ -384,6 +384,19 @@ class CompatList(unittest.TestCase):
         self.assertTrue(O.compat_text("PAYDAY 3", "PAYDAY3-Win64-Shipping.exe").startswith("Works with:"))
 
 
+class Summary(unittest.TestCase):
+    def test_what_runs_in_the_notification(self):
+        res = "IFeature::SetInitParameters Render Resolution: {}, Display Resolution {}, Quality: 3\n"
+        dlss = "NVSDK_NGX_D3D12_CreateFeature ...\n" + res.format("1280x720", "3840x2160")
+        self.assertEqual(O.summary(dlss), "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160 (Ultra Performance)")
+        fsr = "ffxCreateContext_Dx12 context created\n" + res.format("1920x1080", "3840x2160") + res.format("2560x1440", "3840x2160")
+        self.assertEqual(O.summary(fsr), "FSR → FSR 4.1.2 Lite, 2560×1440 → 3840×2160 (Quality)")  # the last one
+        xess = "hk_xessD3D12CreateContext\n" + res.format("2259x1271", "3840x2160")
+        self.assertEqual(O.summary(xess), "XeSS → FSR 4.1.2 Lite, 2259×1271 → 3840×2160 (Balanced)")
+        self.assertEqual(O.summary(res.format("1000x500", "3840x2160")), "FSR 4.1.2 Lite, 1000×500 → 3840×2160 (3.84x)")
+        self.assertEqual(O.summary(""), "FSR 4.1.2 Lite")
+
+
 class Tips(unittest.TestCase):
     def test_the_widgets_card_lines(self):
         self.assertIn("No upscaler files found", O.tips("game.exe", []))

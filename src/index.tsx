@@ -21,13 +21,22 @@ const Fsr4Icon = () => (
 const NAME = "FSR 4.1 Lite";
 
 export default definePlugin(() => {
-  // While a game we set up runs, OptiScaler's log is read every few seconds until it shows the Lite model.
+  // While a game we set up runs, OptiScaler's log is read every few seconds until it shows the Lite model, however
+  // late that is (a game that starts its upscaler in the first level, or after a settings change). The notification
+  // says what runs; a game still without Lite after 90 seconds gets one note saying why.
   const watching = new Map<number, number | undefined>();
-  const unwatch = (appid: number) => { window.clearTimeout(watching.get(appid)); watching.delete(appid); };
+  const hinted = new Set<number>();
+  const unwatch = (appid: number) => { window.clearTimeout(watching.get(appid)); watching.delete(appid); hinted.delete(appid); };
   const check = (appid: number, name: string) => watching.set(appid, window.setTimeout(async () => {
     const res = await sessionCheck(appid);
     if (!watching.has(appid) || res.done) return void unwatch(appid);
-    if (res.lite) { unwatch(appid); notify(`${NAME} active`, `${name} is running FSR 4.1 Lite.`); return; }
+    if (res.lite) {
+      unwatch(appid);
+      const when = res.minutes ? ` (after ${res.minutes} min)` : "";
+      notify(`${NAME} active in ${name}${when}`, res.summary || `${name} is running FSR 4.1 Lite.`);
+      return;
+    }
+    if (res.hint && !hinted.has(appid)) { hinted.add(appid); notify(`${NAME} not active yet in ${name}`, res.hint); }
     check(appid, name);
   }, 5000));
 

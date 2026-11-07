@@ -75,8 +75,18 @@ test('a game without upscaler files installs from Now playing but stays out of t
   const text = strings(tree);
   assert.match(text, /No upscaler files found/);
   assert.ok(dialogButton(tree, 'Install FSR 4.1 Lite'));
-  assert.match(text, /Games: 0 of 1 set up/);
-  assert.ok(!all(tree).some(n => n.type === 'ToggleField' && /Phantom Blade Zero/.test(strings({ props: { children: n.props.label } }))));
+  assert.ok(!/Steam Machine heroes|librarycache/.test(JSON.stringify(all(tree).map(n => n.props?.src ?? ''))), 'no artwork');
+  // the one compatible game (Cyberpunk) is behind "Show 1 more", and Phantom Blade Zero isn't in the list at all
+  const more = all(tree).find(n => n.type === 'Field' && /Show 1 more compatible game$/.test(String(n.props.label)));
+  assert.ok(more);
+  more.props.onActivate();
+  const rows = all(h.render()).filter(n => n.type === 'ToggleField').map(n => JSON.stringify(n.props.label));
+  assert.ok(rows.some(r => r.includes('Cyberpunk 2077')) && !rows.some(r => r.includes('Phantom Blade Zero')), rows.join());
+});
+
+test('nothing in the panel loads game artwork', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../src/panel.tsx'), 'utf8');
+  assert.ok(!/heroImage|capsuleImage|<img/.test(src));
 });
 
 test('the Now playing card shows what the OptiScaler community found', async () => {
@@ -120,11 +130,11 @@ test('a game with anti-cheat gets no install button', async () => {
   assert.deepEqual(pills, ['Blocked']);
 });
 
-test('games show what their last session showed', async () => {
+test('set-up games are always listed under Your games, with what their last session showed', async () => {
   const h = panel(undefined);
-  let tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'B', installed: true, verdict: 'none' }] }));
-  all(tree).filter(n => n.type === 'Field' && n.props.onActivate)[0].props.onActivate();
-  tree = h.render();
+  const tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'B', installed: true, verdict: 'none' }] }));
+  assert.match(strings(tree), /Your games/);
+  assert.ok(!all(tree).some(n => n.type === 'Field' && /more compatible/.test(String(n.props.label))), 'nothing else to show');
   const chips = all(tree).filter(n => n.type === 'span' && /sml-badge/.test(n.props?.className ?? '')).map(n => [].concat(n.props.children).join(''));
   assert.ok(chips.includes('Active') && chips.includes('Needs fix'), chips.join(','));
 });
@@ -165,6 +175,41 @@ test('when OptiScaler did not load, the next loader name is saved and the player
   for (let i = 0; i < 4; i++) await settle();
   assert.deepEqual(applied.at(-1), [9, 'WINEDLLOVERRIDES=winmm=n,b %command%']);
   assert.ok(h.toasts.some(t => /one more try/.test(t.title)));
+});
+
+test('a late start gets one note why, then a precise notification when Lite runs', async () => {
+  const steam = {};
+  const h = harness({
+    globals: {
+      appStore: { GetAppOverviewByAppID: () => null },
+      SteamClient: {
+        Apps: { RegisterForAppDetails(id, fn) { Promise.resolve().then(() => fn({ strLaunchOptions: '' })); return { unregister() {} }; },
+          SetAppLaunchOptions() {} },
+        GameSessions: { RegisterForAppLifetimeNotifications(fn) { steam.lifetime = fn; return { unregister() {} }; } },
+      },
+    },
+  });
+  h.exports.default();
+  steam.lifetime({ unAppID: 870780, bRunning: true });
+  await settle();
+  h.respond('session_started', { ok: true, managed: true });
+  await settle();
+  h.respond('get_state', ok(state({ games: [{ ...game, appid: 870780, name: 'Control', installed: true }] })));
+  await settle();
+  const hint = 'OptiScaler loaded, but the game\'s upscaler didn\'t start. Pick an upscaler in its settings.';
+  for (let i = 0; i < 2; i++) {  // the same hint twice: one notification
+    h.fire(); await settle();
+    h.respond('session_check', { ok: true, lite: false, done: false, hint }); await settle();
+  }
+  h.fire(); await settle();
+  h.respond('session_check', { ok: true, lite: true, done: false, minutes: 3,
+    summary: 'DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160 (Ultra Performance)' });
+  await settle();
+  const notes = h.toasts.map(t => `${t.title} | ${t.body}`);
+  assert.deepEqual(notes, [
+    `FSR 4.1 Lite not active yet in Control | ${hint}`,
+    'FSR 4.1 Lite active in Control (after 3 min) | DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160 (Ultra Performance)',
+  ]);
 });
 
 test('an update is handed to Decky\'s own installer with its checksum, and refused without one', async () => {

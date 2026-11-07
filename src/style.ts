@@ -98,6 +98,23 @@ export const CSS = `
   box-shadow: 0 0 0 1px var(--line); }
 .sml-thumb.blank { display: inline-block; }
 .sml-group { margin: 0 0 4px; border-radius: 10px; background: var(--raised); border: 1px solid var(--line); overflow: hidden; }
+/* ---- 2.2.8: no artwork, a status-tinted Now playing header, and section headings you can't scroll past ---- */
+.sml-nowhead { position: relative; padding: 11px 14px 12px; border-bottom: 1px solid var(--line);
+  background: radial-gradient(130% 160% at 100% 0%, rgba(27,154,255,.24), rgba(27,154,255,0) 62%), linear-gradient(180deg, var(--raised2), var(--raised)); }
+.sml-nowhead.good { background: radial-gradient(130% 160% at 100% 0%, rgba(63,214,143,.22), rgba(63,214,143,0) 62%), linear-gradient(180deg, var(--raised2), var(--raised)); }
+.sml-nowhead.warn { background: radial-gradient(130% 160% at 100% 0%, rgba(245,201,107,.2), rgba(245,201,107,0) 62%), linear-gradient(180deg, var(--raised2), var(--raised)); }
+.sml-nowhead.bad { background: radial-gradient(130% 160% at 100% 0%, rgba(255,138,149,.2), rgba(255,138,149,0) 62%), linear-gradient(180deg, var(--raised2), var(--raised)); }
+.sml-nowlabel { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); }
+.sml-nowhead .sml-live { position: static; backdrop-filter: none; text-transform: none; letter-spacing: 0; }
+.sml-nowtitle { margin-top: 6px; font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.02; color: #fff; word-break: break-word; }
+.sml-root .sml-sect, .sml-hdr { display: flex; align-items: center; gap: 8px; padding: 18px 14px 4px; font-family: var(--display);
+  font-weight: 700; font-size: 20px; letter-spacing: .02em; color: #fff; }
+.sml-root .sml-sect::before, .sml-hdr::before { content: ""; width: 4px; height: 18px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+.sml-hdr { font-size: 23px; padding-top: 20px; }
+.sml-hdr .sml-badge { margin-left: auto; font-family: inherit; font-size: 13px; padding: 3px 9px; border-radius: 99px; }
+.sml-hdrsub { padding: 0 14px 6px 26px; font-size: 13px; color: var(--soft); line-height: 1.35; }
+.sml-dot.set { background: var(--accent); box-shadow: 0 0 0 3px rgba(27,154,255,.14); }
 `;
 
 /** Steam's own controls in the panel (toggles, list rows, the Library buttons) in Steam Machine Life's blue. Their class

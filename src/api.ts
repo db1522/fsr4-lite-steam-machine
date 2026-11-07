@@ -69,7 +69,9 @@ export const saveReport = rpc<[number], Result<never> & { saved?: string }>("sav
 export const sessionStarted = rpc<[number], Result<never> & { managed?: boolean }>("session_started");
 export type Live = "idle" | "off" | "restart" | "starting" | "active" | "inactive";
 export const liveStatus = rpc<[number], Result<never> & { status?: Live; detail?: string }>("live_status");
-export const sessionCheck = rpc<[number], Result<never> & { lite?: boolean; done?: boolean }>("session_check");
+export const sessionCheck = rpc<[number], Result<never> & {
+  lite?: boolean; done?: boolean; summary?: string; minutes?: number; hint?: string;
+}>("session_check");
 export const sessionEnded = rpc<[number, string], Result<never> & {
   managed?: boolean; verdict?: Verdict; detail?: string; retry?: string; launch_options?: string }>("session_ended");
 export const checkForUpdates = rpc<[], UpdateCheck>("check_for_updates");

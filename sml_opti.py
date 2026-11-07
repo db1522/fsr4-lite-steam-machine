@@ -782,6 +782,32 @@ def running_exe(install_dir, proc="/proc"):
     return max(sorted(hits), key=size) if hits else None
 
 
+MODES = ((1.0, "Native AA"), (1.5, "Quality"), (1.7, "Balanced"), (2.0, "Performance"), (3.0, "Ultra Performance"))
+
+
+def summary(log):
+    """What OptiScaler is doing, for the notification: "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160 (Ultra
+    Performance)". The game's upscaler input is named only from the calls OptiScaler logs for it (DLSS's
+    CreateFeature, the FidelityFX API's ffxCreateContext, XeSS's CreateContext); the resolutions are the last ones
+    OptiScaler set up. "" when the log has neither."""
+    if "NVSDK_NGX_D3D12_CreateFeature" in log or "NVSDK_NGX_D3D11_CreateFeature" in log:
+        source = "DLSS"
+    elif "ffxCreateContext" in log:
+        source = "FSR"
+    elif re.search(r"xessD3D1[12]CreateContext", log):
+        source = "XeSS"
+    else:
+        source = ""
+    found = re.findall(r"Render Resolution:\s*(\d+)x(\d+),\s*Display Resolution\s*(\d+)x(\d+)", log)
+    parts = [f"{source} → FSR 4.1.2 Lite" if source else "FSR 4.1.2 Lite"]
+    if found:
+        rw, rh, dw, dh = (int(v) for v in found[-1])
+        ratio = dw / rw if rw else 0
+        mode = next((m for r, m in MODES if abs(ratio - r) < 0.06), f"{ratio:.2f}x")
+        parts.append(f"{rw}×{rh} → {dw}×{dh} ({mode})")
+    return ", ".join(parts)
+
+
 def verdict(log):
     """(verdict, detail) from one session's OptiScaler.log:
     lite: the Lite model was hooked; fsr4: FSR 4 loaded but Lite wasn't confirmed; fsr3: the upscaler ran without

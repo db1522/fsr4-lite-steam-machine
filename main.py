@@ -437,15 +437,22 @@ class Plugin:
 
     @rpc
     async def session_check(self, appid: int) -> dict:
-        """While the game runs: whether this session's OptiScaler.log already shows the Lite model."""
+        """While the game runs: whether this session's OptiScaler.log already shows the Lite model, with what it runs
+        (summary: input, render and output resolution, mode), checked until it does, however late in the session.
+        hint: once the game has run 90 seconds without Lite, why (pick an upscaler, the FSR 4 file, ...)."""
         entry = self.registry.get(str(appid))
         started = self.sessions.get(appid)
         if not entry or not entry.get("proxy") or not started or entry.get("installed_at", 0) > started:
             return dk_rpc.ok(lite=False, done=True)
+        waited = time.time() - started
         if sml_opti.log_time(entry["exe_dir"]) < started - 2:
-            return dk_rpc.ok(lite=False, done=False)
+            return dk_rpc.ok(lite=False, done=False, hint="OptiScaler hasn't loaded yet. When you quit, the plugin "
+                             "tries the next loader name." if waited > 90 else "")
         log = await asyncio.to_thread(sml_opti.read_log, entry["exe_dir"])
-        return dk_rpc.ok(lite="ffxProvider_FSR4Lite_Int8" in log, done=False)
+        if "ffxProvider_FSR4Lite_Int8" in log:
+            return dk_rpc.ok(lite=True, done=False, summary=sml_opti.summary(log), minutes=int(waited // 60))
+        verdict, detail = sml_opti.verdict(log)
+        return dk_rpc.ok(lite=False, done=False, hint=detail if waited > 90 and verdict != "fsr4" else "")
 
     @rpc
     async def session_ended(self, appid: int, launch_options: str = "") -> dict:
