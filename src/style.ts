@@ -119,7 +119,8 @@ export const CSS = `
 .sml-hdr.inrow .sml-badge { margin-left: 4px; }
 .sml-rowhint { margin-top: 4px; font-size: 12px; color: var(--soft); }
 /* ---- 2.2.13: premium minimal. Quiet labels, one status line, one calm card, slim rows; colour only where it means something ---- */
-.sml-status { display: flex; align-items: center; gap: 8px; margin: 2px 16px 14px; font-size: 13px; color: var(--soft); }
+.sml-root .sml-status { display: flex; align-items: center; gap: 6px; margin: 2px 16px 14px; padding: 0; background: none; border: none;
+  border-radius: 0; font-size: 13px; color: var(--soft); white-space: nowrap; }
 .sml-status .sml-dot { width: 8px; height: 8px; box-shadow: none; }
 .sml-statusn { color: var(--good); }
 .sml-ver { margin-left: auto; font-size: 12px; color: var(--mute); }

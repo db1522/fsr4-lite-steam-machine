@@ -50,6 +50,15 @@ export const reason = (r: { error?: string }): string => r.error?.trim() || erro
 
 const failure = (text?: string): ReactNode => text ? <div style={{ color: colors.error }}>{text}</div> : null;
 
+/** Which upscaler to pick in the game, from what it ships: "DLSS, not its own FSR" when it has no FSR files (a built-in
+ *  FSR option may not switch to FSR 4.1 Lite), any of them otherwise. */
+export const pickText = (upscalers: string[]): string => {
+  const names = [...new Set(upscalers.map(u => u.startsWith("FSR") ? "FSR" : u))];
+  if (!names.length) return "FSR";
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
+  return names.includes("FSR") ? list : `${list}, not its own FSR`;
+};
+
 /** In the library list: games with upscaler files, and any game set up. Games without them (many build FSR in) are
  * offered on the Now playing card only, like the widget, which works on the game in front. */
 export const listed = (g: Game) => g.upscalers.length > 0 || g.installed;
@@ -216,7 +225,10 @@ export const Content: FC = () => {
 
   if (page === "about") return <div className="sml-root" onFocus={onFocusReveal}><style>{CSS + steamCss()}</style><Focusable
     onCancelActionDescription="Back" onCancelButton={e => { e.preventDefault(); e.stopPropagation(); navigate(null); }}>
-    <PageHeader title="About" back={NAME} onBack={() => navigate(null)} focus={visible} />
+    <PageHeader title="About and updates" back={NAME} onBack={() => navigate(null)} focus={visible} />
+    <UpdateSection controller={upd} version={state.version} home={state.home}
+      install={`${INSTALL_HINT} Your games stay set up.`}
+      onInstall={canInstallUpdates() ? d => installUpdate(d.path ?? "", d.version ?? "", d.sha256 ?? "") : undefined} />
     <PanelSection title={`${NAME} ${state.version}`}>
       {infoRow("Steam Machine Life", "Runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. The same method as the FSR 4.1 Lite widget for Windows.")}
       {infoRow("OptiScaler", `${state.optiscaler}, by cdozdil and contributors (GPL-3.0). Downloaded from its own GitHub, unmodified.`)}
@@ -263,7 +275,7 @@ export const Content: FC = () => {
       : current.manual_optiscaler && !current.installed ? "OptiScaler from another install is already in this game. Remove it first."
       : current.installed && now?.detail ? now.detail
       : current.installed && current.detail ? current.detail
-      : "Takes effect when you restart the game. In its settings, pick FSR, DLSS or XeSS as the upscaler.";
+      : `Then restart the game and pick ${pickText(current.upscalers)} in its graphics settings.`;
     const meta = [
       ...(current.upscalers.length ? current.upscalers : ["No upscaler files"]),
       ...(current.installed && current.proxy ? [`loads as ${current.proxy}`] : []),
@@ -323,7 +335,7 @@ export const Content: FC = () => {
       {/* Decky's title already names the plugin: one quiet status line instead of a second header */}
       <div className="sml-status">
         <span className={`sml-dot ${state.assets_ready ? "good" : "warn"}`} />
-        <span>{state.assets_ready ? "FSR 4.1.2 Lite ready" : "Setup needed"}</span>
+        <span>{state.assets_ready ? "Ready" : "Setup needed"}</span>
         {activeCount > 0 && <span className="sml-statusn">· {activeCount} active</span>}
         <span className="sml-ver">v{state.version}</span>
       </div>
@@ -392,7 +404,7 @@ export const Content: FC = () => {
         </Fragment>)}
         {gamesOpen && library.length > installed.length && <PanelSectionRow>
           <Field focusable highlightOnFocus onActivate={() => flip("games")} className="sml-morerow"
-            label={`${open.games ? "Hide" : "Show"} ${library.length - installed.length} more compatible game${library.length - installed.length === 1 ? "" : "s"}`}
+            label={`${open.games ? "Hide" : ""}${open.games ? " " : ""}${library.length - installed.length} more game${library.length - installed.length === 1 ? "" : "s"}`}
             description={open.games ? "Start one of them to set it up." : undefined}
             childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
             <span className="sml-chev" style={{ transform: open.games ? "rotate(90deg)" : "none" }}>›</span>
@@ -431,12 +443,9 @@ export const Content: FC = () => {
       <PanelSection>
         {linkRow(scanning ? "Scanning…" : "Rescan library", rescan)}
         {installed.length > 0 && linkRow(busy === -1 && bulk ? `Removing… ${bulk}` : "Uninstall from all games", uninstallAll,
-          "Puts every game back. Do this before removing the plugin.", "danger")}
-        {linkRow("About", () => navigate("about"), "Credits and licenses")}
+          "Puts every game back as it was.", "danger")}
+        {linkRow("About and updates", () => navigate("about"), `Version ${state.version}`)}
       </PanelSection>
-      <UpdateSection controller={upd} version={state.version} home={state.home}
-        install={`${INSTALL_HINT} Your games stay set up.`}
-        onInstall={canInstallUpdates() ? d => installUpdate(d.path ?? "", d.version ?? "", d.sha256 ?? "") : undefined} />
     </div>
   );
 };

@@ -76,8 +76,8 @@ test('a game without upscaler files installs from Now playing but stays out of t
   assert.match(text, /No upscaler files found/);
   assert.ok(dialogButton(tree, 'Install FSR 4.1 Lite'));
   assert.ok(!/Steam Machine heroes|librarycache/.test(JSON.stringify(all(tree).map(n => n.props?.src ?? ''))), 'no artwork');
-  // the one compatible game (Cyberpunk) is behind "Show 1 more", and Phantom Blade Zero isn't in the list at all
-  const more = all(tree).find(n => n.type === 'Field' && /Show 1 more compatible game$/.test(String(n.props.label)));
+  // the one compatible game (Cyberpunk) is behind "1 more game", and Phantom Blade Zero isn't in the list at all
+  const more = all(tree).find(n => n.type === 'Field' && /^1 more game$/.test(String(n.props.label)));
   assert.ok(more);
   more.props.onActivate();
   const rows = all(h.render()).filter(n => (n.type === 'ToggleField' || n.type === 'Field') && /sml-gamerow/.test(JSON.stringify(n.props.label)))
@@ -172,7 +172,7 @@ test('games are set up from Now playing only; the list can only turn a game off'
   const h = panel(undefined);
   let tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'Other Game' }] }));
   assert.ok(!dialogButton(tree, 'Install in all') && !all(tree).some(n => /Install in all/.test(String(n.props?.children ?? ''))));
-  all(tree).find(n => n.type === 'Field' && /Show 1 more compatible game/.test(String(n.props.label))).props.onActivate();
+  all(tree).find(n => n.type === 'Field' && /^1 more game$/.test(String(n.props.label))).props.onActivate();
   tree = h.render();
   const other = all(tree).find(n => JSON.stringify(n.props?.label ?? '').includes('Other Game'));
   assert.equal(other.type, 'Field', 'no switch for a game that is not set up');

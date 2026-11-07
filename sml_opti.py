@@ -335,13 +335,11 @@ def reframework_artifacts(exe_dir):
 
 
 def tips(exe_name, upscalers, game_name=""):
-    """The widget's game card lines: no upscaler files, DLSS/XeSS-only games, REFramework, and the game's own rule."""
+    """The widget's game card lines: no upscaler files, REFramework, and the game's own rule."""
     parts = []
     if not upscalers:
         parts.append(NO_UPSCALER_TIP)
-    elif not any(u.startswith("FSR") for u in upscalers):
-        parts.append(f"In this game, pick {' or '.join(upscalers)} in its graphics settings: if it also has an FSR "
-                     "option, that one is built into the game and may not switch to FSR 4.1 Lite.")
+    # DLSS/XeSS-only games: the panel's own line says "pick DLSS, not its own FSR" (pickText in panel.tsx)
     if needs_reframework(game_name, exe_name):
         parts.append(REFRAMEWORK_TIP)
     if GAME_TIPS.get((exe_name or "").lower()):

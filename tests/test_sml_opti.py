@@ -496,7 +496,7 @@ class Summary(unittest.TestCase):
 class Tips(unittest.TestCase):
     def test_the_widgets_card_lines(self):
         self.assertIn("No upscaler files found", O.tips("game.exe", []))
-        self.assertIn("pick DLSS or XeSS", O.tips("game.exe", ["DLSS", "XeSS"]))
+        self.assertEqual(O.tips("game.exe", ["DLSS", "XeSS"]), "")  # the panel says "pick DLSS or XeSS, not its own FSR"
         self.assertEqual(O.tips("game.exe", ["DLSS", "FSR 3.1"]), "")
         self.assertIn("DirectX 12", O.tips("RDR2.exe", ["FSR 2"]))
 
