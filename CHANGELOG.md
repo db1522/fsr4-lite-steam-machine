@@ -2,6 +2,13 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.2] - 2026-11-07
+
+### 🔧 Changed
+- **Updates:** the plugin's home is now github.com/db1522/fsr4-lite-steam-machine, so the Windows widget and this
+  plugin can't be mixed up. Updates, the About page and the README all point there. On 2.2.1, install this ZIP by hand
+  once from the Releases page; from here on the plugin updates itself again.
+
 ## [2.2.1] - 2026-11-07
 
 ### 🔧 Changed
