@@ -99,6 +99,19 @@ test('the Now playing card shows what the OptiScaler community found', async () 
     [].concat(n.props.children).join('').includes('not working')));
 });
 
+test('a refused install shows the backend\'s reason, not "Unknown error"', async () => {
+  const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
+  let tree = await open(h);
+  dialogButton(tree, 'Install FSR 4.1 Lite').props.onClick();
+  await settle();
+  const why = 'The game is still starting. Wait until you\'re in its menu, then press Install again.';
+  h.respond('enable_game', { ok: false, error: why, state: state() });
+  await settle(); await settle();
+  const text = strings(h.render());
+  assert.ok(text.includes(why), text.slice(-400));
+  assert.ok(!/Unknown error/.test(text));
+});
+
 test('the running game shows its live status: Restart the game, then Active', async () => {
   const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
   await open(h, state({ games: [{ ...game, installed: true, verdict: 'unplayed', proxy: 'dxgi.dll' }] }));

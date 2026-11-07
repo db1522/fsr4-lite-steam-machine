@@ -391,7 +391,9 @@ class Plugin:
                 if path and (mb >= sml_opti.GAME_MEMORY_MB or not starting):
                     await self._use_exe(appid, path)  # after 90 s a small game's own process counts too
                     game = self._game(appid)
-                elif seen and starting:
+                elif path and starting:
+                    # only something small draws yet (a launcher, a loading screen): the one case worth waiting for.
+                    # Nothing seen drawing at all (graphics can't be read): the folder guess, never a refusal.
                     return dk_rpc.fail("The game is still starting. Wait until you're in its menu, then press "
                                        "Install again.", await self._state())
             reframework = None

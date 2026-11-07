@@ -342,6 +342,15 @@ class Flow(unittest.TestCase):
             self.assertTrue(self.run_(self.p.enable_game(4115450, ""))["ok"])
         self.assertEqual(self.p.registry["4115450"]["exe_dir"], os.path.dirname(small))
 
+    def test_processes_without_graphics_never_block_an_install(self):
+        # graphics couldn't be read for anything running: no "still starting", the folder guess installs right away
+        root = self.pbz()
+        self.run_(self.p.session_started(4115450))
+        tool = os.path.join(root, "ProjectPBZ", "Binaries", "Win64", "8za_v2.exe")
+        with mock.patch("sml_opti.running_processes", return_value=[{"path": tool, "mb": 5000, "graphics": False}]):
+            r = self.run_(self.p.enable_game(4115450, ""))
+        self.assertTrue(r["ok"], r)
+
     def test_nothing_seen_running_falls_back_to_the_folder_guess(self):
         self.run_(self.p.session_started(42))
         with mock.patch("sml_opti.running_processes", return_value=[]):

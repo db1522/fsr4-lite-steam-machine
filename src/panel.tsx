@@ -44,6 +44,10 @@ const writeGamesOpen = (open: boolean) => {
   try { window.localStorage?.setItem(GAMES_OPEN, open ? "1" : "0"); } catch { /* the choice just isn't kept */ }
 };
 
+/** Why a call failed, for the panel: the backend's own reason ({ok: false, error}), which errorText alone doesn't
+ * read (it reads an error's message), so refusals came out as "Unknown error". */
+export const reason = (r: { error?: string }): string => r.error?.trim() || errorText(r);
+
 const failure = (text?: string): ReactNode => text ? <div style={{ color: colors.error }}>{text}</div> : null;
 
 /** In the library list: games with upscaler files, and any game set up. Games without them (many build FSR in) are
@@ -109,12 +113,12 @@ export const Content: FC = () => {
 
   const take = <R extends StateResult>(r: R, key?: string | number): R => {
     if (r.state) setState(r.state);
-    if (key !== undefined) setFailed(f => ({ ...f, [key]: r.ok ? "" : errorText(r) }));
+    if (key !== undefined) setFailed(f => ({ ...f, [key]: r.ok ? "" : reason(r) }));
     return r;
   };
   const refresh = useCallback(async () => {
     const r = await getState();
-    if (r.ok && r.state) { setState(r.state); setError(""); } else setError(errorText(r));
+    if (r.ok && r.state) { setState(r.state); setError(""); } else setError(reason(r));
   }, [setState]);
   useEffect(() => { if (visible) refresh(); }, [visible, refresh]);
   const upd = updater();
