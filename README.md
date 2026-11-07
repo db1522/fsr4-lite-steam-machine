@@ -1,0 +1,133 @@
+<p align="center">
+  <img src="assets/banner.png" alt="FSR 4.1 Lite by Steam Machine Life" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/db1522/fsr4-lite/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/db1522/fsr4-lite?style=for-the-badge&label=release&color=1b9aff&labelColor=0d1117"></a>
+  <a href="https://github.com/db1522/fsr4-lite/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite/total?style=for-the-badge&color=1b9aff&labelColor=0d1117"></a>
+  <img alt="Steam Machine" src="https://img.shields.io/badge/Steam_Machine-RDNA_3-1b9aff?style=for-the-badge&labelColor=0d1117">
+  <img alt="Requires Decky Loader" src="https://img.shields.io/badge/requires-Decky_Loader-8fa3bc?style=for-the-badge&labelColor=0d1117">
+</p>
+
+FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. Lite is the smaller ML upscaler AMD built for handheld chips. On the Steam Machine it costs about as much as FSR 3 and looks close to full FSR 4.1, which is the trade I've wanted since I started testing this hardware.
+
+It does it one way for every game, the same way the FSR 4.1 Lite widget for Windows does: OptiScaler goes next to the game, takes over the game's upscaler and runs FSR 4.1 Lite in its place. You press one button per game, and turning it off puts every file and launch option back as it was. No terminal.
+
+## Results
+
+Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, on my own Steam Machine. Measured with version 1, which ran the same Lite model; 2.0 numbers are coming with the full write-up.
+
+| Game | Engine | Stock FSR 4.1 → Lite |
+|---|---|---|
+| Payday 3 | Unreal Engine | 44 → 62 FPS (+18) |
+| VOID/BREAKER | Unreal Engine | 45 → 60 FPS (+15) |
+| Phantom Blade Zero | Unreal Engine | about +20 FPS |
+| Kingdom Come: Deliverance II | CryEngine | 10+ FPS |
+
+In Payday 3, FSR 3 on GE-Proton11-1 also lands at about 60 FPS. So Lite matches FSR 3's frame rate while looking clearly better than FSR 3 and close to full FSR 4.1.
+
+<p align="center">
+  <img src="assets/payday3-lite-vs-stock.jpg" alt="Payday 3 at 4K: FSR 4.1 Lite at 62 FPS next to stock FSR 4.1 at 44 FPS" width="100%">
+</p>
+
+<sub>Single-frame captures from the same street. The stock shot has a busier sidewalk, so treat the exact gap as a guide. Matched 60-second runs are coming with the full write-up on Steam Machine Life.</sub>
+
+## What you get
+
+- A Now playing card. Open the plugin in a game and you see the game with its artwork, which upscalers it ships, and one button to install or uninstall.
+- One list of every game with FSR, DLSS or XeSS, each with a chip for what its last session showed: Active, Pick an upscaler, Needs fix or Not played yet.
+- Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
+- It sorts itself out. If OptiScaler doesn't load in a game, the plugin sets it up under the next file name OptiScaler can load as and asks for one more session.
+- Check setup, a page per game that checks the files, the launch option, Proton and the last session, with a Fix setup button and a report you can save to Downloads.
+- OptiScaler's FPS and resolution overlay, and AMD's watermark, each one switch for every game.
+
+## Requirements
+
+- A Steam Machine in SteamOS Gaming Mode with [Decky Loader](https://decky.xyz)
+- A game that ships FSR 2, FSR 3.1, native FSR 4, DLSS or XeSS, in DirectX 12, DirectX 11 or Vulkan
+- Proton Experimental is what I test with; any recent Proton should work
+
+The plugin downloads about 205 MB once: OptiScaler from its own GitHub, and AMD's signed FSR 4.1.2 files. Nothing from AMD or OptiScaler is in this repository or the release.
+
+## Install
+
+1. Download `FSR4Lite-<version>.zip` from the [latest release](https://github.com/db1522/fsr4-lite/releases/latest). Use the browser in Desktop Mode, or copy the file to the Steam Machine's Downloads folder from another PC.
+2. In Gaming Mode, open the Quick Access Menu, then **Decky → Settings**, and turn on **Developer mode** under General.
+3. Open **Developer → Install Plugin from ZIP** and pick the file.
+4. Open **FSR 4.1 Lite** in Decky and press **Accept and download**.
+
+To update later, press **Update** on the card that appears at the top of the plugin when a new version is out, or use **Check for updates** in its Updates section. It downloads the new release from GitHub, checks it, and hands it to Decky, which asks you to confirm and reloads the plugin. Your games stay set up.
+
+Coming from version 1? The plugin shows a **Clean up** card for games version 1 set up. Press it first.
+
+## Using it
+
+1. Start the game, open the plugin and press **Install FSR 4.1 Lite** on the Now playing card. Or turn games on in the **Games** list.
+2. Restart the game. In its graphics settings, pick FSR, DLSS or XeSS as the upscaler, whichever it offers. OptiScaler swaps it for FSR 4.1 Lite.
+3. Play. With **Notify when active** on, a notification tells you when Lite is running, and the game's chip turns green: **Active**.
+
+If a notification says the plugin is trying another file name, play once more. That's OptiScaler finding the name this game loads it under.
+
+## Which games work
+
+The plugin's **Games** list shows every installed game with FSR, DLSS or XeSS. As a rule, if the game lets you pick one of those upscalers, FSR 4.1 Lite can take it over.
+
+[PCGamingWiki's upscaling list](https://www.pcgamingwiki.com/wiki/List_of_games_that_support_high-fidelity_upscaling) shows which upscalers a game ships.
+
+It stays off for:
+
+- Online games with anti-cheat (Easy Anti-Cheat, BattlEye and others). Adding DLLs to them can get you banned, so the plugin won't install there.
+- Games that already have OptiScaler from another install. Remove that one first.
+- Games without FSR, DLSS or XeSS. OptiScaler needs an upscaler to take over.
+
+Played something? [Send a game report](https://github.com/db1522/fsr4-lite/issues/new?template=game_report.yml) and it goes into the table above.
+
+## Troubleshooting
+
+Start with **Check setup** for the game. Each line says what's wrong and what to press.
+
+| Check setup says | What to do |
+|---|---|
+| OptiScaler didn't load | Play once more: the plugin has already set it up under the next file name. |
+| The game used FSR 3, or The upscaler didn't start | Pick FSR, DLSS or XeSS as the upscaler in the game's graphics settings, then restart the game. |
+| Files missing, or Launch option missing | A game update or Steam's file check removed them. Press **Fix setup**. |
+| FSR 4 can't run here | Save a report and open an issue with it. |
+
+Still stuck? Press **Save report to Downloads** in Check setup and [open an issue](https://github.com/db1522/fsr4-lite/issues/new?template=bug_report.yml) with the file.
+
+## Uninstall
+
+Press **Uninstall from all games** in the plugin first. That puts every game back as it was. Then remove the plugin in Decky's settings.
+
+## How it works
+
+For each game, the plugin finds the folder of the real game exe (for Unreal games, the `-Shipping.exe` under `Binaries/Win64`), copies OptiScaler there under a file name the game loads (`dxgi.dll` first), puts AMD's FSR 4.1.2 files in OptiScaler's own folder next to it, and adds `WINEDLLOVERRIDES=dxgi=n,b` to the launch options so Proton loads it. OptiScaler's settings are the Windows widget's: the game's upscaler goes through FidelityFX, FSR 4 support is forced to INT8 Lite and the Lite model is picked, frame generation stays off, and OptiScaler logs each session.
+
+Anything an install would replace is backed up first and put back on uninstall. AMD's files and OptiScaler are never modified, Proton isn't touched, and nothing is installed outside the game's folder.
+
+## Building from source
+
+Node.js 24 and Python 3.10 or newer.
+
+```
+npm ci --ignore-scripts --no-audit --no-fund
+npm run check      # types, backend and frontend tests, build, package
+```
+
+## Credits
+
+- [OptiScaler](https://github.com/optiscaler/OptiScaler) by cdozdil and contributors, which does the actual work in every game.
+- AMD for FSR 4, and TheRazerMD for making the FSR 4.1.2 files available to the community.
+- [FSR4 Injector](https://github.com/Rayekkk/FSR4Injector) by Rayekkk. Version 1 of this plugin was built on it, and its library scan, launch option handling and updater still are.
+- [7-Zip](https://www.7-zip.org) by Igor Pavlov, bundled to unpack OptiScaler.
+
+## License
+
+Plugin code is BSD-3-Clause ([LICENSE](LICENSE)). `bin/7zz` is 7-Zip under the GNU LGPL ([bin/7zz-License.txt](bin/7zz-License.txt)). OptiScaler (GPL-3.0) and AMD's files aren't included; the plugin downloads them unmodified at setup. Barlow Condensed is under the SIL Open Font License 1.1. Full details are in [NOTICE](NOTICE).
+
+Not affiliated with AMD, Valve or the OptiScaler project. The plugin places files in game folders and is provided as is, without warranty.
+
+<p align="center">
+  <a href="https://steammachinelife.com"><b>Steam Machine Life</b></a><br>
+  <sub>Tested settings, FPS benchmarks and guides for the Steam Machine</sub>
+</p>

@@ -1,0 +1,41 @@
+name: Game report
+description: Tell me how a game runs with FSR 4.1 Lite, working or not. Reports go into the compatibility table.
+labels: [game report]
+body:
+  - type: input
+    id: game
+    attributes:
+      label: Game
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Active (green chip after a session)
+        - Not active
+        - Not in the plugin's game list
+    validations:
+      required: true
+  - type: input
+    id: upscaler
+    attributes:
+      label: Upscaler picked in the game
+      placeholder: FSR 3.1, DLSS or XeSS
+  - type: input
+    id: fps
+    attributes:
+      label: FPS with Lite vs stock FSR 4.1
+      description: Same spot, same resolution and FSR preset. Turn the game off in the plugin for the stock number.
+      placeholder: 62 vs 44 at 4K, Quality
+  - type: input
+    id: proton
+    attributes:
+      label: Proton version
+      placeholder: Proton Experimental
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Image quality, crashes, anything odd.

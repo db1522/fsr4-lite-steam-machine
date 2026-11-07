@@ -1,0 +1,39 @@
+# Steam Machine Life: builds the plugin ZIP when a release is published on GitHub and attaches it to that release.
+# Publish the release by hand after testing on hardware (tag vX.Y.Z = plugin.json's version); this workflow only adds
+# FSR4Lite-X.Y.Z.zip and its .sha256, the asset name the in-app updater looks for.
+name: Release ZIP
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write  # attach the ZIP to the release
+
+jobs:
+  zip:
+    name: Build and attach the ZIP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Tag matches plugin.json
+        run: |
+          want="v$(jq -r .version plugin.json)"
+          [ "$GITHUB_REF_NAME" = "$want" ] || { echo "::error::release tag $GITHUB_REF_NAME, plugin.json says $want"; exit 1; }
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run test:frontend
+      - run: npm run build
+      - run: npm run package -- --release
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip="artifacts/FSR4Lite-$(jq -r .version plugin.json).zip"
+          gh release upload "$GITHUB_REF_NAME" "$zip" "$zip.sha256" --clobber

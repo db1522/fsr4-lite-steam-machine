@@ -1,0 +1,56 @@
+name: Something isn't working
+description: FSR 4.1 Lite didn't turn on, a game broke, or the panel misbehaves.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The quickest fix starts in the plugin: open **Check setup** for the game, press **Fix setup** if it offers it, and play once more. If it still fails, the lines below tell me exactly where.
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      placeholder: Kingdom Come Deliverance II
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: Shown on the About page.
+      placeholder: 2.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Steam Machine
+        - Other (say which below)
+    validations:
+      required: true
+  - type: textarea
+    id: check
+    attributes:
+      label: Check setup lines
+      description: Every line from Check setup, with its mark (✓, ! or ✕).
+      placeholder: |
+        ✓ OptiScaler in place
+        ✓ Launch option set
+        ✓ Proton: Proton Experimental
+        ✕ OptiScaler didn't load
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Report
+      description: In Check setup, press Save report to Downloads, then drag the fsr4lite-report file from Downloads into this box.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw instead.
+    validations:
+      required: true
