@@ -309,6 +309,45 @@ class Flow(unittest.TestCase):
         self.assertIn("-- steam/OptiScaler.log", text)
         self.assertIn("the launcher's own log line", text)
 
+    def test_installing_while_playing_uses_the_game_on_screen_like_the_widget(self):
+        root = self.pbz()
+        launcher_dir, game_dir = os.path.join(root, "steam"), os.path.join(root, "ProjectPBZ", "Binaries", "Win64")
+        touch(os.path.join(launcher_dir, "PBZ.exe"), b"launcher")
+        touch(os.path.join(game_dir, "PBZ.exe"), b"game")
+        self.run_(self.p.scan_games())
+        self.run_(self.p.session_started(4115450))
+
+        def running(*procs):
+            return mock.patch("sml_opti.running_processes", return_value=[
+                {"path": p, "mb": mb, "graphics": True} for p, mb in procs])
+        # only the launcher so far: wait, nothing installed
+        with running((os.path.join(launcher_dir, "PBZ.exe"), 180)):
+            r = self.run_(self.p.enable_game(4115450, ""))
+        self.assertFalse(r["ok"])
+        self.assertIn("still starting", r["error"])
+        self.assertNotIn("4115450", self.p.registry)
+        # the game is up: installed next to its exe straight away
+        with running((os.path.join(launcher_dir, "PBZ.exe"), 180), (os.path.join(game_dir, "PBZ.exe"), 5200)):
+            r = self.run_(self.p.enable_game(4115450, ""))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(self.p.registry["4115450"]["exe_dir"], game_dir)
+        self.assertTrue(os.path.isfile(os.path.join(game_dir, "dxgi.dll")))
+
+    def test_a_small_game_still_installs_after_starting(self):
+        root = self.pbz()
+        small = os.path.join(root, "platform", "steam", "PBZ.exe")
+        self.run_(self.p.session_started(4115450))
+        self.p.sessions[4115450] = time.time() - 300
+        with mock.patch("sml_opti.running_processes", return_value=[{"path": small, "mb": 300, "graphics": True}]):
+            self.assertTrue(self.run_(self.p.enable_game(4115450, ""))["ok"])
+        self.assertEqual(self.p.registry["4115450"]["exe_dir"], os.path.dirname(small))
+
+    def test_nothing_seen_running_falls_back_to_the_folder_guess(self):
+        self.run_(self.p.session_started(42))
+        with mock.patch("sml_opti.running_processes", return_value=[]):
+            self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        self.assertEqual(self.p.registry["42"]["exe_dir"], self.game)
+
     def test_a_short_session_never_marks_a_launcher(self):
         root = self.pbz()
         self.run_(self.p.enable_game(4115450, ""))

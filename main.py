@@ -378,6 +378,22 @@ class Plugin:
                                    "first.", await self._state())
             key = str(appid)
             entry = self.registry.get(key, {})
+            if appid in self.sessions and not game["nonsteam"]:
+                # The game is running: like the widget, set it up next to the exe that is the game right now (graphics
+                # loaded, game-sized memory), not the folder guess. Only something small running yet (a launcher, a
+                # game still starting): wait, as the widget only installs into the game on screen. Nothing seen at
+                # all: the folder guess, as before.
+                seen = await asyncio.to_thread(sml_opti.running_processes, game["install_dir"])
+                if seen:
+                    self.seen[appid] = seen
+                path, mb = sml_opti.pick_game(seen)
+                starting = time.time() - self.sessions[appid] < 90
+                if path and (mb >= sml_opti.GAME_MEMORY_MB or not starting):
+                    await self._use_exe(appid, path)  # after 90 s a small game's own process counts too
+                    game = self._game(appid)
+                elif seen and starting:
+                    return dk_rpc.fail("The game is still starting. Wait until you're in its menu, then press "
+                                       "Install again.", await self._state())
             reframework = None
             if sml_opti.needs_reframework(game["name"], game["exe_name"]):
                 try:
