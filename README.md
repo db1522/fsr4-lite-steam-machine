@@ -23,6 +23,8 @@ Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, 
 | VOID/BREAKER | Unreal Engine | 45 → 60 FPS (+15) |
 | Phantom Blade Zero | Unreal Engine | about +20 FPS |
 | Kingdom Come: Deliverance II | CryEngine | 10+ FPS |
+| Cyberpunk 2077 | REDengine 4 | 20+ FPS |
+| Dying Light: The Beast | C-Engine | 21 → 34 FPS (+13) |
 
 In Payday 3, FSR 3 on GE-Proton11-1 also lands at about 60 FPS. So Lite matches FSR 3's frame rate while looking clearly better than FSR 3 and close to full FSR 4.1.
 
