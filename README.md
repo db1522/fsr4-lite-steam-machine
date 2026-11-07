@@ -29,18 +29,6 @@ Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, 
 
 Xbox Series X|S games are getting the same FSR 4.1.2 Lite model. Microsoft's [Xbox GDK FSR sample](https://github.com/microsoft/Xbox-GDK-Samples/tree/main/Samples/Graphics/AMD_FSR) switches between Full and Lite, and on Series X at 4K the Lite upscaling pass takes 2.75 ms against 3.86 ms for Full. That's the model this plugin runs.
 
-<p align="center">
-  <a href="assets/payday3-lite-vs-stock.jpg"><img src="assets/payday3-lite-vs-stock.jpg" alt="Payday 3 at 4K: FSR 4.1 Lite at 62 FPS next to stock FSR 4.1 at 44 FPS" width="100%"></a>
-</p>
-
-Up close, at 100% of the 4K output. Click either image for full size.
-
-<p align="center">
-  <a href="assets/payday3-closeups.jpg"><img src="assets/payday3-closeups.jpg" alt="Payday 3 at 4K, 100% crops of the SCB sign, a fire escape and the street, FSR 4.1 Lite next to stock FSR 4.1" width="100%"></a>
-</p>
-
-<sub>Single-frame captures from the same street. The stock shot has a busier sidewalk, so treat the exact gap as a guide. Matched 60-second runs are coming with the full write-up on Steam Machine Life.</sub>
-
 ## DLSS, XeSS and FSR 2 games run FSR 4.1.2 Lite too
 
 This is the part I'm most excited about. A lot of games only offer DLSS, and on an AMD Steam Machine that option is normally greyed out or missing. Others are stuck on an old FSR 2. With the plugin set up, OptiScaler unlocks the game's DLSS option or takes over its FSR 2, and the plugin runs FSR 4.1.2 Lite in its place. You get AMD's newest upscaler in games that never shipped it.
