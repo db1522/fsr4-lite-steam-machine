@@ -2,6 +2,18 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.9] - 2026-11-07
+
+### 🔧 Changed
+- **Look:** Your games opens and closes from its heading, and the menu remembers which you picked.
+
+### 🐛 Fixed
+- **Games:** the plugin finds the game, not its launcher, the way the Windows widget does. Phantom Blade Zero starts a
+  small launcher first, and 2.2.5 set the game up next to that. Now only a program with graphics loaded that uses a
+  game's worth of memory counts as the game, and a setup next to the launcher moves to the game when you quit.
+- **Games:** OptiScaler always looks for AMD's FSR 4 file in its own folder. Under Proton it could look in the folder
+  Steam starts the game in instead and fall back to FSR 3. Games you already set up get this when the plugin loads.
+
 ## [2.2.8] - 2026-11-07
 
 A cleaner menu, and notifications that say what's running.
