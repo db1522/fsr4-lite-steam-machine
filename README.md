@@ -40,20 +40,21 @@ Up close, at 100% of the 4K output. Click either image for full size.
 
 <sub>Single-frame captures from the same street. The stock shot has a busier sidewalk, so treat the exact gap as a guide. Matched 60-second runs are coming with the full write-up on Steam Machine Life.</sub>
 
-## DLSS games run FSR 4.1.2 Lite too
+## DLSS and FSR 2 games run FSR 4.1.2 Lite too
 
-This is the part I'm most excited about. A lot of games only offer DLSS, and on an AMD Steam Machine that option is normally greyed out or missing. With the plugin set up, OptiScaler unlocks the game's DLSS option, the game hands its frames to "DLSS", and the plugin runs FSR 4.1.2 Lite in its place. You get AMD's newest upscaler in games that never shipped FSR at all.
+This is the part I'm most excited about. A lot of games only offer DLSS, and on an AMD Steam Machine that option is normally greyed out or missing. Others are stuck on an old FSR 2. With the plugin set up, OptiScaler unlocks the game's DLSS option or takes over its FSR 2, and the plugin runs FSR 4.1.2 Lite in its place. You get AMD's newest upscaler in games that never shipped it.
 
 | Game | Upscalers the game ships | Pick in its settings | What runs |
 |---|---|---|---|
 | Palworld | DLSS only | DLSS | FSR 4.1.2 Lite |
 | Control | DLSS only | DLSS | FSR 4.1.2 Lite |
+| Red Dead Redemption 2 | FSR 2.2, DLSS | FSR 2.2, with Graphics API set to DirectX 12 | FSR 4.1.2 Lite |
 
-Both tested on my own Steam Machine. Set the game up from Now playing, restart it, then pick DLSS in its graphics settings. The notification tells you when it's running, for example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160". Played a DLSS game that works? [Send a game report](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=game_report.yml) and it goes in this table.
+All tested on my own Steam Machine. Set the game up from Now playing, restart it, then pick the upscaler from the table in its graphics settings. The notification tells you when it's running, for example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160". Played a DLSS game that works? [Send a game report](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=game_report.yml) and it goes in this table.
 
 ## What you get
 
-- DLSS games on FSR 4.1.2 Lite. Games that only offer DLSS get their DLSS option unlocked and run Lite instead.
+- DLSS and FSR 2 games on FSR 4.1.2 Lite. Games that only offer DLSS get their DLSS option unlocked, and older FSR 2 games get taken over, and both run Lite instead.
 - A Now playing card. Open the plugin in a game and you see the game, which upscalers it ships, and one button to install or uninstall. It sets the game up next to the program that's really running, the same way the Windows widget does.
 - Your games: every game you set up, each with a chip for what its last session showed (Active, Pick an upscaler, Needs fix or Not played yet) and a switch to turn it off. The rest of your games with FSR, DLSS or XeSS are listed underneath.
 - Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
