@@ -53,6 +53,8 @@ XeSS works the same way: pick XeSS in a game that offers it and Lite runs instea
 | Control | DLSS only | DLSS | FSR 4.1.2 Lite |
 | Red Dead Redemption 2 | FSR 2.0, DLSS | FSR 2.0, with Graphics API set to DirectX 12 | FSR 4.1.2 Lite |
 
+In Red Dead Redemption 2 it's a trade. With the same settings at 4K, its built-in benchmark averaged 61.0 FPS on the game's own FSR 2.0 and 52.5 FPS on FSR 4.1.2 Lite, with the lows the same at about 30 FPS. FSR 2.0 is a light upscaler from 2022; Lite is AMD's ML model, so you give up about 8 FPS for a much cleaner image.
+
 All tested on my own Steam Machine. Set the game up from Now playing, restart it, then pick the upscaler from the table in its graphics settings. The notification tells you when it's running, for example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160".
 
 ## What you get
