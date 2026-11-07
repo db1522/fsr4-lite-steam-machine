@@ -2,6 +2,22 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.10] - 2026-11-07
+
+Set up the way the Windows widget does it: in the game you're playing.
+
+### 🔧 Changed
+- **Games:** Install on the Now playing card sets the game up next to the program that is the game right now, like
+  the widget installing into the game on screen. If only a launcher or a loading screen is running yet, it asks you
+  to wait for the game's menu instead of guessing.
+- **Check setup:** the saved report also shows how the plugin found the game (the programs running from its folder,
+  with their memory and graphics) and every other OptiScaler log in the game's folder.
+
+### 🐛 Fixed
+- **Games:** a game set up next to its launcher moves to the game. When OptiScaler runs a whole session there and
+  never sees the game draw, that program is marked as a launcher for good and the setup moves when you quit
+  (Phantom Blade Zero's steam/PBZ.exe).
+
 ## [2.2.9] - 2026-11-07
 
 ### 🔧 Changed
