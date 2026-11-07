@@ -52,7 +52,7 @@ XeSS works the same way: pick XeSS in a game that offers it and Lite runs instea
 | Control | DLSS only | DLSS | FSR 4.1.2 Lite |
 | Red Dead Redemption 2 | FSR 2.2, DLSS | FSR 2.2, with Graphics API set to DirectX 12 | FSR 4.1.2 Lite |
 
-All tested on my own Steam Machine. Set the game up from Now playing, restart it, then pick the upscaler from the table in its graphics settings. The notification tells you when it's running, for example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160". Played a DLSS game that works? [Send a game report](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=game_report.yml) and it goes in this table.
+All tested on my own Steam Machine. Set the game up from Now playing, restart it, then pick the upscaler from the table in its graphics settings. The notification tells you when it's running, for example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160".
 
 ## What you get
 
