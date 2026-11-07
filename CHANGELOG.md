@@ -2,6 +2,26 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.3] - 2026-11-07
+
+More games found and set up, with the Windows widget's game logic.
+
+### ✨ Added
+- **Games:** a game with no upscaler files can still be set up from the Now playing card. Many games build FSR 2 or
+  3 into the game itself, so OptiScaler is told to search the game for it (it loads a little slower). These games stay
+  out of the library list and Install in all.
+- **Games:** tips on the Now playing card, as in the widget: pick DLSS or XeSS in games without FSR files, and the
+  setup Red Dead Redemption 2 and Enshrouded need.
+
+### 🔧 Changed
+- **Loader:** the file name OptiScaler loaded under is remembered for each game, so setting it up again starts there.
+  After a skipped name, the names the game's exe loads at startup are tried first.
+- **Games:** FSR 2 games on DirectX 11 or Vulkan get OptiScaler's FSR 2 inputs for that API.
+
+### 🐛 Fixed
+- **Games:** upscalers deep inside Unreal Engine Plugins folders are found, so Phantom Blade Zero no longer says no
+  upscaler was found.
+
 ## [2.2.2] - 2026-11-07
 
 ### 🔧 Changed
