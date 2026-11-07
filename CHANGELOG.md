@@ -2,6 +2,12 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.16] - 2026-11-07
+
+### 🐛 Fixed
+- **Your games:** a game that's running shows its live status, like Now playing. A game set up this session said
+  "Not played yet" while Lite was already running; it now says Active.
+
 ## [2.2.15] - 2026-11-07
 
 ### ✨ Added
