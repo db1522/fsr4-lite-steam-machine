@@ -159,6 +159,27 @@ export const CSS = `
 .sml-linklabel { font-size: 15px; }
 .sml-linklabel.danger { color: var(--bad); }
 .sml-linklabel.kofi { color: #ff7a75; }
+/* ---- 2.2.15: premium status pills. Tinted glass capsules with a thin coloured edge, a soft top highlight and a
+   glowing dot; one look for the Now playing pill and the smaller one on each game row ---- */
+.sml-root .sml-live, .sml-root .sml-state { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;
+  border-radius: 99px; font-weight: 600; letter-spacing: .01em; line-height: 1; color: #d6e2f0;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.035)); border: 1px solid rgba(255,255,255,.13);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 8px rgba(0,0,0,.25); backdrop-filter: none; }
+.sml-root .sml-live { position: static; height: 26px; padding: 0 11px 0 9px; font-size: 12.5px; }
+.sml-root .sml-state { height: 20px; padding: 0 8px 0 7px; font-size: 11.5px; vertical-align: 1px; }
+.sml-root .sml-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  box-shadow: 0 0 6px currentColor; opacity: .95; }
+.sml-root .sml-live.good, .sml-root .sml-state.good { color: #63e6a6;
+  background: linear-gradient(180deg, rgba(63,214,143,.24), rgba(63,214,143,.09)); border-color: rgba(63,214,143,.40); }
+.sml-root .sml-live.warn, .sml-root .sml-state.warn { color: #f8d57f;
+  background: linear-gradient(180deg, rgba(245,201,107,.24), rgba(245,201,107,.08)); border-color: rgba(245,201,107,.42); }
+.sml-root .sml-live.bad, .sml-root .sml-state.bad { color: #ff9ca6;
+  background: linear-gradient(180deg, rgba(255,138,149,.24), rgba(255,138,149,.08)); border-color: rgba(255,138,149,.42); }
+.sml-root .sml-live .sml-dot { width: 7px; height: 7px; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.sml-root .sml-live svg { width: 13px; height: 13px; flex-shrink: 0; }
+.sml-nowtop .sml-eyebrow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sml-gamesub { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 2px; }
+.sml-extra { color: var(--soft); }
 .sml-chev { display: inline-block; font-size: 22px; line-height: 1; color: var(--mute); transition: transform .15s; }
 .sml-chev { display: inline-block; font-size: 24px; line-height: 1; color: var(--soft); transition: transform .15s; }
 `;

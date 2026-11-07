@@ -113,7 +113,7 @@ test('a refused install shows the backend\'s reason, not "Unknown error"', async
   assert.ok(!/Unknown error/.test(text));
 });
 
-test('the running game shows its live status: Restart the game, then Active', async () => {
+test('the running game shows its live status: Restart needed, then Active', async () => {
   const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
   await open(h, state({ games: [{ ...game, installed: true, verdict: 'unplayed', proxy: 'dxgi.dll' }] }));
   // the first check (before the games arrived) is superseded by the one made with them: answer both
@@ -122,7 +122,7 @@ test('the running game shows its live status: Restart the game, then Active', as
   await settle();
   let tree = h.render();
   const pill = t => all(t).filter(n => n.type === 'div' && /sml-live/.test(n.props?.className ?? '')).map(n => [].concat(n.props.children).filter(c => typeof c === 'string').join(''));
-  assert.deepEqual(pill(tree), ['Restart the game']);
+  assert.deepEqual(pill(tree), ['Restart needed']);
   assert.match(strings(tree), /Restart the game\./);
 });
 

@@ -78,12 +78,24 @@ export const chipFor = (g: Game): [string, string] => {
   }
 };
 
+const RESTART = "Restart needed";
+
+/** A status pill: a glowing dot (a circular arrow for a restart) and a short label that never wraps. */
+const StatusPill = ({ tone, label }: { tone: string; label: string }) =>
+  <div className={`sml-live ${tone}`}>
+    {label === RESTART
+      ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"
+          strokeLinejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
+      : <span className={`sml-dot ${tone}${tone === "good" ? " live" : ""}`} />}
+    {label}
+  </div>;
+
 /** The running game's live status as a pill: [tone, label]. */
 export const livePill = (live: Live | undefined): [string, string] | null => {
   switch (live) {
     case "active": return ["good", "Active"];
-    case "restart": return ["warn", "Restart the game"];
-    case "starting": return ["", "Starting…"];
+    case "restart": return ["warn", RESTART];
+    case "starting": return ["", "Starting"];
     case "inactive": return ["bad", "Not active"];
     case "off": return ["", "Off"];
     default: return null;
@@ -265,7 +277,7 @@ export const Content: FC = () => {
     const head = (title: string, pill: [string, string] | null, dim = false) => <>
       <div className="sml-nowtop">
         <span className="sml-eyebrow">Now playing</span>
-        {pill && <div className={`sml-live ${pill[0]}`}><span className={`sml-dot ${pill[0]}${pill[0] === "good" ? " live" : ""}`} />{pill[1]}</div>}
+        {pill && <StatusPill tone={pill[0]} label={pill[1]} />}
       </div>
       <div className={`sml-nowtitle${dim ? " dim" : ""}`}>{title}</div>
     </>;
@@ -323,16 +335,13 @@ export const Content: FC = () => {
     // game, as the widget does). In this list a game can only be turned off; the others say how to set them up.
     const extra = [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");
     if (!g.installed) return <PanelSectionRow key={`r${g.appid}`}>
-      <Field focusable className="sml-gameoff" label={<span className="sml-gamerow"><span className="sml-dot" /><span>{g.name}</span></span>}
+      <Field focusable className="sml-gameoff" label={<span className="sml-gamerow"><span>{g.name}</span></span>}
         description={<span className={`sml-gamesub${g.anticheat ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}` : extra}</span>} />
     </PanelSectionRow>;
     return <PanelSectionRow key={`r${g.appid}`}>
-      <ToggleField label={<span className="sml-gamerow">
-          <span className={`sml-dot ${tone || "set"}`} />
-          <span>{g.name}</span>
-        </span>}
+      <ToggleField label={<span className="sml-gamerow"><span>{g.name}</span></span>}
         description={<>
-          <span className="sml-gamesub"><span className={`sml-state ${tone}`}>{label}</span>{extra && ` · ${extra}`}</span>
+          <span className="sml-gamesub"><span className={`sml-state ${tone}`}>{label}</span>{extra && <span className="sml-extra">{extra}</span>}</span>
           {failure(failed[g.appid])}
         </>}
         checked
