@@ -685,6 +685,39 @@ def logged_exe(log):
     return found[-1].strip() if found else ""
 
 
+RENDER_MARKERS = ("hkD3D12CreateDevice", "hkD3D11CreateDevice", "hkvkCreateDevice", "WrappedIDXGISwapChain",
+                  "CreateRenderTargetDx12", "Render Resolution:")
+
+
+def renders(log):
+    """Whether OptiScaler saw the process draw: a graphics device, swapchain or upscaler in its log. The widget only
+    counts a process with graphics loaded as the game (GameWatcher); a launcher OptiScaler loaded into ends its log
+    after start-up (Phantom Blade Zero's steam/PBZ.exe: "Init done", then nothing)."""
+    return any(m in log for m in RENDER_MARKERS)
+
+
+def game_besides(install_dir, helper):
+    """The game when helper (an exe that never drew) turned out to be a launcher: an exe of the same name in an Unreal
+    Binaries/Win64 (or WinGDK) folder first (Phantom Blade Zero: steam/PBZ.exe starts ProjectPBZ/Binaries/Win64/
+    PBZ.exe), then any other exe of that name, then the folder guess when it's somewhere else. None if none."""
+    name = os.path.basename(helper).lower()
+    same = [os.path.join(d, f) for d, _dirs, files in _walk(install_dir) for f in files
+            if f.lower() == name and os.path.normpath(os.path.join(d, f)) != os.path.normpath(helper)]
+    unreal = [p for p in same if [s.lower() for s in p.split(os.sep)[-3:-1]] in (["binaries", "win64"], ["binaries", "wingdk"])]
+    if unreal or same:
+        return sorted(unreal or same)[0]
+    guess = analyze(install_dir)
+    if guess and os.path.normpath(guess["exe_dir"]) != os.path.normpath(os.path.dirname(helper)):
+        return os.path.join(guess["exe_dir"], guess["exe_name"])
+    return None
+
+
+def all_logs(install_dir):
+    """Every OptiScaler.log in the game folder, newest first (for the support report)."""
+    found = [os.path.join(d, f) for d, _dirs, files in _walk(install_dir) for f in files if f.lower() == "optiscaler.log"]
+    return sorted(found, key=lambda p: -log_time(os.path.dirname(p)))
+
+
 def find_exe(install_dir, name):
     """The one file called name (any letter case) in the game folder, or None when there's none or several."""
     hits = [os.path.join(d, f) for d, _dirs, files in _walk(install_dir) for f in files if f.lower() == name.lower()]
@@ -779,12 +812,28 @@ def running_exe(install_dir, proc="/proc"):
     graphics for a moment (Phantom Blade Zero's steam/PBZ.exe), but only the game uses gigabytes. Proton starts exes
     with their Windows path ("S:\\steamapps\\common\\PBZ\\ProjectPBZ\\Binaries\\Win64\\PBZ.exe", the drive letter
     depending on the library), so a path is matched from steamapps/common/<game folder>/ down."""
+    return pick_game(running_processes(install_dir, proc))
+
+
+def pick_game(processes):
+    """(exe, memory in MB) of the process from running_processes that is the game: graphics loaded, most memory."""
+    drawing = [p for p in processes if p["graphics"]]
+    if not drawing:
+        return None, 0
+    best = max(sorted(drawing, key=lambda p: p["path"]), key=lambda p: p["mb"])
+    return best["path"], best["mb"]
+
+
+def running_processes(install_dir, proc="/proc"):
+    """Every running exe from the game's folder: [{path, mb, graphics}], one per exe (its largest process). A path is
+    matched from steamapps/common/<game folder>/ down; one given relative to the process's working folder is joined
+    to it first."""
     marker = "/steamapps/common/" + os.path.basename(install_dir.rstrip("/\\")).lower() + "/"
-    memory = {}
+    found = {}
     try:
         pids = [p for p in os.listdir(proc) if p.isdigit()]
     except OSError:
-        return None, 0
+        return []
     for pid in pids:
         try:
             with open(os.path.join(proc, pid, "cmdline"), "rb") as f:
@@ -794,17 +843,25 @@ def running_exe(install_dir, proc="/proc"):
         for arg in args:
             text = arg.decode("utf-8", "replace").replace("\\", "/")
             low = text.lower()
+            if not low.endswith(".exe"):
+                continue
+            if marker not in low and not re.match(r"^[a-z]:/|^/", low):  # relative: from the working folder
+                try:
+                    text = os.readlink(os.path.join(proc, pid, "cwd")).rstrip("/") + "/" + text
+                except OSError:
+                    continue
+                low = text.lower()
             at = low.find(marker)
-            if at < 0 or not low.endswith(".exe"):
+            if at < 0:
                 continue
             path = _resolve(install_dir, text[at + len(marker):])
-            if path and _is_game_exe(os.path.basename(path)) and _rendering(proc, pid):
-                memory[path] = max(memory.get(path, 0), _memory_mb(proc, pid))
+            if path and _is_game_exe(os.path.basename(path)):
+                mb, graphics = _memory_mb(proc, pid), _rendering(proc, pid)
+                old = found.get(path)
+                if not old or (graphics, mb) > (old["graphics"], old["mb"]):
+                    found[path] = {"path": path, "mb": mb, "graphics": graphics}
                 break
-    if not memory:
-        return None, 0
-    path = max(sorted(memory), key=lambda p: memory[p])
-    return path, memory[path]
+    return sorted(found.values(), key=lambda p: p["path"])
 
 
 def opti_dll_path(exe_dir):

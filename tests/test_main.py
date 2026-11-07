@@ -200,8 +200,10 @@ class Flow(unittest.TestCase):
         touch(launcher, b"launcher")
         touch(real, b"game")
         # the launcher runs first (graphics loaded, little memory), then the game takes over
-        seen = iter([(launcher, 180), (launcher, 190), (real, 2400), (real, 5400)] + [(None, 0)] * 30)
-        with mock.patch("sml_opti.running_exe", side_effect=lambda *a: next(seen)), \
+        def p(path, mb):
+            return [{"path": path, "mb": mb, "graphics": True}]
+        seen = iter([p(launcher, 180), p(launcher, 190), p(real, 2400), p(real, 5400)] + [[]] * 30)
+        with mock.patch("sml_opti.running_processes", side_effect=lambda *a: next(seen)), \
                 mock.patch("asyncio.sleep", return_value=None):
             self.run_(self.p.session_started(4115450))
             self.run_(self.p._watchers[4115450])
@@ -259,6 +261,65 @@ class Flow(unittest.TestCase):
         r = self.run_(self.p.session_check(42))
         self.assertEqual((r["lite"], r["minutes"]), (True, 3))
         self.assertEqual(r["summary"], "DLSS → FSR 4.1.2 Lite, 1280×720 → 2560×1440 (Performance)")
+
+    def test_a_setup_in_a_launcher_moves_to_the_game_and_the_report_shows_why(self):
+        # 2.2.9 as reported: 2.2.8 remembered the launcher steam/PBZ.exe, so the setup sits there; OptiScaler loads in
+        # it and its log ends after start-up: no device, no swapchain, no upscaler
+        root = self.pbz()
+        launcher_dir, game_dir = os.path.join(root, "steam"), os.path.join(root, "ProjectPBZ", "Binaries", "Win64")
+        touch(os.path.join(launcher_dir, "PBZ.exe"), b"launcher")
+        touch(os.path.join(game_dir, "PBZ.exe"), b"game" * 3000)
+        self.p.exes = {"4115450": "steam/PBZ.exe"}
+        self.run_(self.p.scan_games())
+        self.assertEqual(self.p._game(4115450)["exe_dir"], launcher_dir)
+        r = self.run_(self.p.enable_game(4115450, ""))
+        self.p.registry["4115450"]["installed_at"] = time.time() - 600
+        self.run_(self.p.session_started(4115450))
+        self.p.sessions[4115450] = time.time() - 120
+        touch(os.path.join(launcher_dir, "OptiScaler.log"),
+              b"CheckQuirks Game's Exe: PBZ.exe\nCheckQuirks Game Version: 1.0.0.0\nInit done\n"
+              b"VulkanSpoofing::hkvkCreateInstance Skipping because DXVK/VKD3D is creating a D3D device\n"
+              b"Amdxc64Hooks::Init amdxc64.dll loaded\n")
+        self.p.seen[4115450] = [{"path": os.path.join(launcher_dir, "PBZ.exe"), "mb": 180, "graphics": True}]
+        report_before = self.run_(self.p.save_report(4115450))
+        with open(report_before["saved"], encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn("Seen running and remembered: steam/PBZ.exe", text)
+        self.assertIn("steam/PBZ.exe: 180 MB, graphics loaded", text)
+        r = self.run_(self.p.session_ended(4115450, r["launch_options"]))
+        self.assertEqual(r["retry"], self.p.registry["4115450"]["proxy"])
+        self.assertTrue(os.path.isfile(os.path.join(game_dir, "OptiScaler.ini")))
+        self.assertFalse(os.path.exists(os.path.join(launcher_dir, "OptiScaler.ini")))
+        self.assertEqual(self.p.launchers, {"4115450": ["steam/PBZ.exe"]})
+        self.assertEqual(self.p.exes, {"4115450": "ProjectPBZ/Binaries/Win64/PBZ.exe"})
+        # the launcher is never picked again, even when seen running with lots of memory
+        self.run_(self.p._use_exe(4115450, os.path.join(launcher_dir, "PBZ.exe")))
+        self.assertEqual(self.p._game(4115450)["exe_dir"], game_dir)
+        # and after a reload it stays ruled out
+        again = main.Plugin()
+        self.run_(again._main())
+        self.run_(again._scan_task)
+        self.assertEqual(again._game(4115450)["exe_dir"], game_dir)
+        self.assertEqual(again.launchers, {"4115450": ["steam/PBZ.exe"]})
+        # the report lists every other OptiScaler.log in the folder
+        touch(os.path.join(launcher_dir, "OptiScaler.log"), b"the launcher's own log line\n")
+        with open(self.run_(self.p.save_report(4115450))["saved"], encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn("Ruled out as launchers: steam/PBZ.exe", text)
+        self.assertIn("-- steam/OptiScaler.log", text)
+        self.assertIn("the launcher's own log line", text)
+
+    def test_a_short_session_never_marks_a_launcher(self):
+        root = self.pbz()
+        self.run_(self.p.enable_game(4115450, ""))
+        exe_dir = self.p._game(4115450)["exe_dir"]
+        self.p.registry["4115450"]["installed_at"] = time.time() - 600
+        self.run_(self.p.session_started(4115450))
+        self.p.sessions[4115450] = time.time() - 20  # quit at the menu
+        touch(os.path.join(exe_dir, "OptiScaler.log"), b"Init done\n")
+        self.run_(self.p.session_ended(4115450, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+        self.assertEqual(self.p.launchers, {})
+        self.assertEqual(self.p._game(4115450)["exe_dir"], exe_dir)
 
     def test_games_set_up_by_an_older_version_get_the_pinned_folder_at_load(self):
         self.run_(self.p.enable_game(42, ""))

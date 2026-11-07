@@ -129,6 +129,8 @@ class Plugin:
             # the running game's exe; folder layouts like Phantom Blade Zero's platform/steam/PBZ.exe fool a guess)
             self.exes_path = os.path.join(settings_dir, "exes.json")
             self.exes, self._watchers = {}, {}
+            self.launchers = {}  # str(appid) -> exes OptiScaler showed never draw, never picked again
+            self.seen = {}  # appid -> the game's processes the last watch saw, for the support report
             self.settings = dict(DEFAULT_SETTINGS)
             self.registry = {}  # str(appid) -> {exe_dir, proxy, tried, launch_original, launch_applied, installed_at}
             self.loaders = {}
@@ -151,8 +153,13 @@ class Plugin:
             loaders = await asyncio.to_thread(_read, self.loaders_path, {})
             self.loaders = {k: v for k, v in loaders.items() if v in sml_opti.PROXY_NAMES}
             exes = await asyncio.to_thread(_read, self.exes_path, {})
-            self.exes = {k: v for k, v in exes.items() if isinstance(v, str) and v.lower().endswith(".exe")
-                         and not os.path.isabs(v) and ".." not in v.split("/")}
+
+            def _rel_ok(v):
+                return isinstance(v, str) and v.lower().endswith(".exe") and not os.path.isabs(v) \
+                    and ".." not in v.split("/")
+            launchers = exes.pop("launchers", {}) if isinstance(exes.get("launchers"), dict) else {}
+            self.launchers = {k: [v for v in vs if _rel_ok(v)] for k, vs in launchers.items() if isinstance(vs, list)}
+            self.exes = {k: v for k, v in exes.items() if _rel_ok(v) and v not in self.launchers.get(k, [])}
             try:
                 os.chmod(SEVENZIP, 0o755)
             except OSError:
@@ -250,13 +257,32 @@ class Plugin:
         game = self._game(appid)
         if not game or game["nonsteam"] or os.path.join(game["exe_dir"], game["exe_name"]) == path:
             return
+        rel = os.path.relpath(path, game["install_dir"]).replace(os.sep, "/")
+        if rel in self.launchers.get(str(appid), []):
+            return  # seen running, but OptiScaler showed it never draws: a launcher
         info = await asyncio.to_thread(sml_opti.analyze, game["install_dir"], path)
         if not info:
             return
         game.update(info)
-        self.exes[str(appid)] = os.path.relpath(path, game["install_dir"]).replace(os.sep, "/")
-        await asyncio.to_thread(dk_fs.write_json, self.exes_path, self.exes)
-        decky.logger.info(f"{appid} runs {self.exes[str(appid)]}")
+        self.exes[str(appid)] = rel
+        await asyncio.to_thread(dk_fs.write_json, self.exes_path, {**self.exes, "launchers": self.launchers})
+        decky.logger.info(f"{appid} runs {rel}")
+
+    async def _not_the_game(self, appid, helper):
+        """helper ran a whole session with OptiScaler and never drew: a launcher. Never picked again; the game is an
+        exe of the same name in Binaries/Win64, else the folder guess (sml_opti.game_besides)."""
+        game = self._game(appid)
+        rel = os.path.relpath(helper, game["install_dir"]).replace(os.sep, "/")
+        marked = self.launchers.setdefault(str(appid), [])
+        if rel not in marked:
+            marked.append(rel)
+        if self.exes.get(str(appid)) == rel:
+            del self.exes[str(appid)]
+        await asyncio.to_thread(dk_fs.write_json, self.exes_path, {**self.exes, "launchers": self.launchers})
+        decky.logger.info(f"{appid}: {rel} is a launcher (OptiScaler saw it never draw)")
+        alt = await asyncio.to_thread(sml_opti.game_besides, game["install_dir"], helper)
+        if alt:
+            await self._use_exe(appid, alt)
 
     async def _watch_exe(self, appid, started):
         """For the first two minutes of a session: the exe the game really runs, from the process list (graphics
@@ -269,7 +295,10 @@ class Plugin:
                 game = self._game(appid)
                 if self.sessions.get(appid) != started or not game or game["nonsteam"]:
                     return
-                path, mb = await asyncio.to_thread(sml_opti.running_exe, game["install_dir"])
+                seen = await asyncio.to_thread(sml_opti.running_processes, game["install_dir"])
+                if seen:
+                    self.seen[appid] = seen  # for the support report
+                path, mb = sml_opti.pick_game(seen)
                 if path and mb >= sml_opti.GAME_MEMORY_MB and mb > best:
                     best = mb
                     await self._use_exe(appid, path)
@@ -285,15 +314,21 @@ class Plugin:
                 except OSError as e:
                     decky.logger.warning(f"settings not refreshed in {entry['exe_dir']} ({dk_fs.shown(e)})")
 
-    async def _move_to_real_exe(self, appid, entry, launch_options):
-        """A game set up next to an exe it doesn't run (seen running, or named in OptiScaler's log): the setup moves
-        next to the exe it does run. The result for session_ended, or None when nothing moved."""
+    async def _move_to_real_exe(self, appid, entry, launch_options, started=None):
+        """A game set up next to an exe it doesn't run (seen running, named in OptiScaler's log, or shown by the log
+        to be a launcher that never draws): the setup moves next to the exe it does run. The result for
+        session_ended, or None when nothing moved."""
         game = self._game(appid)
         if not game or game["nonsteam"]:
             return None
         log = await asyncio.to_thread(sml_opti.read_log, entry["exe_dir"])
         if "ffxProvider_FSR4Lite_Int8" in log:
             return None  # Lite runs from where it is: never move a working setup
+        # a whole session (a minute or more) with OptiScaler loaded and no device, swapchain or upscaler: a launcher
+        if (started and time.time() - started >= 60 and log and not sml_opti.renders(log)
+                and sml_opti.log_time(entry["exe_dir"]) >= started - 2
+                and os.path.normpath(game["exe_dir"]) == os.path.normpath(entry["exe_dir"])):
+            await self._not_the_game(appid, os.path.join(game["exe_dir"], game["exe_name"]))
         logged = sml_opti.logged_exe(log)
         if logged and logged.lower() != game["exe_name"].lower():
             path = await asyncio.to_thread(sml_opti.find_exe, game["install_dir"], logged)
@@ -475,7 +510,7 @@ class Plugin:
             started = self.sessions.pop(appid, None)
             if not entry or not entry.get("proxy"):
                 return dk_rpc.ok(managed=False)
-            moved = await self._move_to_real_exe(appid, entry, launch_options)
+            moved = await self._move_to_real_exe(appid, entry, launch_options, started)
             if moved:
                 return dk_rpc.ok(**moved)
             if started and entry.get("installed_at", 0) > started:
@@ -578,6 +613,40 @@ class Plugin:
                 "FSR4", "Fsr4", "amdxcffx64", "amdvkffx64", "Lite", "upscaler", "Upscaler", "error", "Error"))][-12:],
         }
 
+    def _report_finding(self, appid):
+        """How the plugin picked the exe: the remembered one, launchers it ruled out, the folder guess, and the game's
+        processes the last watch saw (memory, graphics loaded)."""
+        game = self._game(appid) or {}
+        root = game.get("install_dir", "")
+        rel = (lambda p: os.path.relpath(p, root).replace(os.sep, "/")) if root else (lambda p: p)
+        guess = sml_opti.analyze(root) if root and os.path.isdir(root) else None
+        seen = self.seen.get(appid, [])
+        entry = self.registry.get(str(appid)) or {}
+        return ["== How the plugin found the game ==",
+                f"Game folder: {root}",
+                f"Seen running and remembered: {self.exes.get(str(appid), '(none)')}",
+                f"Ruled out as launchers: {', '.join(self.launchers.get(str(appid), [])) or '(none)'}",
+                f"Folder guess: {rel(os.path.join(guess['exe_dir'], guess['exe_name'])) if guess else '(none)'}",
+                f"Launch options set: {entry.get('launch_applied', '')}",
+                "Processes from the game folder at the last check (first two minutes of a session):",
+                *([f"  {rel(p['path'])}: {p['mb']} MB, graphics {'loaded' if p['graphics'] else 'not loaded'}"
+                   for p in seen] or ["  (none seen since the plugin loaded)"])]
+
+    def _report_other_logs(self, appid, exe_dir):
+        """Every other OptiScaler.log in the game folder (a launcher's, an older setup's), newest first."""
+        game = self._game(appid) or {}
+        root = game.get("install_dir", "")
+        logs = sml_opti.all_logs(root) if root and os.path.isdir(root) else []
+        logs = [p for p in logs if os.path.normpath(os.path.dirname(p)) != os.path.normpath(exe_dir or "")]
+        out = ["== Other OptiScaler logs in the game folder =="]
+        if not logs:
+            return out + ["(none)"]
+        for path in logs:
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(path)))
+            out += ["", f"-- {os.path.relpath(path, root).replace(os.sep, '/')} ({when}) --",
+                    *sml_opti.read_log(os.path.dirname(path), 64 * 1024).splitlines()[-150:]]
+        return out
+
     @rpc
     async def save_report(self, appid: int) -> dict:
         return await asyncio.to_thread(self._save_report, appid)
@@ -598,6 +667,7 @@ class Plugin:
             f"Files in place: {d['files_ok']} {d['missing']}", f"Last verdict: {d['verdict']} {d['detail']}",
             "", "== OptiScaler.ini (set values) ==", *ini, "", "== OptiScaler.log (end) ==",
             *(log.splitlines()[-400:] or ["(no log: OptiScaler hasn't run in this game yet)"]),
+            "", *self._report_finding(appid), "", *self._report_other_logs(appid, exe_dir),
         ])
         try:
             downloads = os.path.join(_home(), "Downloads")

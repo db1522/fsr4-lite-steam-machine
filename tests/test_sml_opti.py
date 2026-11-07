@@ -318,6 +318,38 @@ class RealExe(unittest.TestCase):
         self.process(1, "S:\\steamapps\\common\\PBZ\\..\\..\\evil.exe", mb=4000, graphics=True)
         self.assertEqual(O.running_exe(self.root, self.proc), (None, 0))
 
+    def test_a_launcher_log_never_draws(self):
+        launcher = "CheckQuirks Game's Exe: PBZ.exe\nInit done\nVulkanSpoofing::hkvkCreateInstance Skipping\n"
+        game = "hkD3D12CreateDevice Adapter Desc: AMD Steam Machine\nWrappedIDXGISwapChain4 created\n"
+        self.assertFalse(O.renders(launcher))
+        self.assertTrue(O.renders(game))
+        self.assertTrue(O.renders("IFeature::SetInitParameters Render Resolution: 1280x720, Display Resolution 3840x2160"))
+
+    def test_the_game_besides_a_launcher(self):
+        self.assertEqual(O.game_besides(self.root, self.launcher), self.real)  # same name, in Binaries/Win64
+        other = os.path.join(self.root, "Other.exe")
+        touch(other, b"x")
+        self.assertEqual(O.game_besides(self.root, other),
+                         os.path.join(os.path.dirname(self.real), "8za_v2.exe"))  # no namesake: the folder guess
+
+    @unittest.skipUnless(os.name == "posix", "a working-folder symlink in a fake /proc")
+    def test_a_path_relative_to_the_working_folder(self):
+        self.process(105, "..\\ProjectPBZ\\Binaries\\Win64\\PBZ.exe", mb=5000, graphics=True)
+        os.symlink(os.path.join(self.root, "steam"), os.path.join(self.proc, "105", "cwd"))
+        self.assertEqual(O.running_exe(self.root, self.proc), (self.real, 5000))
+
+    def test_the_report_sees_every_process(self):
+        self.process(101, "S:\\steamapps\\common\\PBZ\\steam\\PBZ.exe", mb=180, graphics=True)
+        self.process(102, "S:\\steamapps\\common\\PBZ\\ProjectPBZ\\Binaries\\Win64\\8za_v2.exe", mb=40)
+        seen = O.running_processes(self.root, self.proc)
+        self.assertEqual([(os.path.basename(p["path"]), p["mb"], p["graphics"]) for p in seen],
+                         [("8za_v2.exe", 40, False), ("PBZ.exe", 180, True)])
+
+    def test_every_optiscaler_log_in_the_folder(self):
+        touch(os.path.join(self.root, "steam", "OptiScaler.log"), b"launcher")
+        touch(os.path.join(os.path.dirname(self.real), "OptiScaler.log"), b"game")
+        self.assertEqual(len(O.all_logs(self.root)), 2)
+
     def test_optiscalers_folder_is_pinned_to_the_games(self):
         self.assertEqual(O.opti_dll_path("/home/deck/.local/share/Steam/steamapps/common/PBZ/ProjectPBZ/Binaries/Win64"),
                          "Z:\\home\\deck\\.local\\share\\Steam\\steamapps\\common\\PBZ\\ProjectPBZ\\Binaries\\Win64\\OptiScaler"
