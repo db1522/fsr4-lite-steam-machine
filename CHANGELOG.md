@@ -2,6 +2,18 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.13] - 2026-11-07
+
+A calmer, cleaner menu.
+
+### 🔧 Changed
+- **Look:** one quiet status line at the top instead of a second title and three boxes. Now playing is one calm card
+  with the game, its status, its upscalers and one button. Headings are small and quiet, settings say less, and
+  Rescan, Uninstall from all games and About are slim rows instead of big buttons.
+- **Look:** the menu opens at the top of its main page every time.
+- **Games:** you set games up from Now playing, with the game running, so the plugin sees which program is the game.
+  Your games keeps a switch to turn a game off; Install in all compatible games is gone.
+
 ## [2.2.12] - 2026-11-07
 
 Phantom Blade Zero, checked on my own Steam Machine while it ran.
