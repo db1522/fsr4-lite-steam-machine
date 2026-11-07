@@ -199,6 +199,18 @@ def analyze(install_dir, exe_path=None):
                 size = 0
             return (not ("shipping" in c[1].lower() and unreal), not unreal, c[0].count(os.sep), -size)
         exe_dir, exe_name = min(candidates, key=rank)
+        # An Unreal folder without a -Shipping exe can hold only tools (Phantom Blade Zero: a 5 MB 8za_v2.exe in
+        # Binaries/Win64), with the game elsewhere (its 476 MB platform/steam/PBZ.exe, seen running on the device).
+        # Then a far bigger exe is the game.
+        if "shipping" not in exe_name.lower():
+            def size(c):
+                try:
+                    return os.path.getsize(os.path.join(*c))
+                except OSError:
+                    return 0
+            biggest = max(candidates, key=size)
+            if size(biggest) >= 50 << 20 and size(biggest) >= 10 * size((exe_dir, exe_name)):
+                exe_dir, exe_name = biggest
     anticheat = anticheat or ANTICHEAT_FILES.get(exe_name.lower())
     parts = exe_dir.lower().split(os.sep)
     return {

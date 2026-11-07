@@ -294,6 +294,23 @@ class RealExe(unittest.TestCase):
     def test_the_folder_guess_is_the_wrong_exe(self):
         self.assertEqual(O.analyze(self.root)["exe_name"], "8za_v2.exe")
 
+    def test_the_folder_guess_takes_a_far_bigger_game_exe(self):
+        # as seen on the Steam Machine: Binaries/Win64 holds only a 5 MB tool, the game is platform/steam/PBZ.exe
+        real = os.path.join(self.root, "platform", "steam", "PBZ.exe")
+        touch(real)
+        with open(real, "r+b") as f:
+            f.truncate(60 << 20)
+        self.assertEqual(os.path.join(O.analyze(self.root)["exe_dir"], "PBZ.exe"), real)
+
+    def test_a_shipping_exe_always_wins_the_folder_guess(self):
+        win64 = os.path.dirname(self.real)
+        touch(os.path.join(win64, "PBZ-Win64-Shipping.exe"), b"ship")
+        big = os.path.join(self.root, "platform", "steam", "Big.exe")
+        touch(big)
+        with open(big, "r+b") as f:
+            f.truncate(60 << 20)
+        self.assertEqual(O.analyze(self.root)["exe_name"], "PBZ-Win64-Shipping.exe")
+
     def test_the_game_is_the_rendering_process_using_the_most_memory(self):
         self.process(100, "/usr/bin/python3", "/proton", "waitforexitandrun",
                      "/home/deck/.local/share/Steam/steamapps/common/PBZ/steam/PBZ.exe")
