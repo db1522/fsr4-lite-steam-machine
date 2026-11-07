@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Inter:wght@500;600&display=block" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#05080d; font-family:Inter,sans-serif; color:#e9f1fb; }
+  .page { display:none; padding:28px; background:linear-gradient(180deg,#0a1220,#05080d); }
+  body.overview #overview, body.detail #detail { display:block; }
+  .pair { display:flex; gap:24px; }
+  .shot { position:relative; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.10); }
+  .shot.lite { border-color:rgba(27,154,255,.75); box-shadow:0 0 0 1px rgba(27,154,255,.35), 0 0 30px rgba(27,154,255,.18); }
+  .shot img { display:block; }
+  .tag { position:absolute; left:0; right:0; bottom:0; padding:60px 26px 20px;
+    background:linear-gradient(180deg, transparent, rgba(5,8,13,.86)); }
+  .tag .t { font:700 54px/1 'Barlow Condensed'; color:#fff; }
+  .tag .t span { color:#2ea7ff; text-shadow:0 0 20px rgba(27,154,255,.5); }
+  .tag .f { margin-top:6px; font:600 26px/1.2 Inter; color:#c8d6e6; }
+  /* overview: each shot 1600 wide */
+  #overview .shot { width:1600px; height:900px; }
+  #overview .shot img { width:1600px; height:900px; }
+  /* detail: crops */
+  #detail .row + .row { margin-top:24px; }
+  .row .label { font:600 22px/1 Inter; color:#8fa3bc; letter-spacing:.08em; text-transform:uppercase; margin:0 0 12px 4px; }
+  .crop { width:980px; height:560px; }
+  .crop img { position:absolute; }
+  .crop .tag { top:16px; left:16px; right:auto; bottom:auto; padding:10px 16px 11px; border-radius:12px; background:rgba(5,8,13,.78); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(6px); display:flex; align-items:baseline; gap:12px; } .crop.lite .tag { border-color:rgba(27,154,255,.6); }
+  .crop .tag .t { font-size:32px; }
+  .crop .tag .f { font-size:19px; margin-top:0; color:#9fb6d0; }
+  .head { display:flex; justify-content:space-between; align-items:baseline; margin:0 4px 22px; }
+  .head .h { font:700 44px/1 'Barlow Condensed'; color:#fff; }
+  .head .h span { color:#2ea7ff; }
+  .head .s { font:500 20px/1 Inter; color:#8fa3bc; }
+</style></head>
+<body>
+<div class="page" id="overview">
+  <div class="pair">
+    <div class="shot lite"><img src="fsr 4.1.2 lite.png"><div class="tag"><div class="t">FSR 4.1 <span>Lite</span></div><div class="f">62 FPS, 16.1 ms frame time</div></div></div>
+    <div class="shot"><img src="fsr 4.1 proton experimental stock.png"><div class="tag"><div class="t">Stock FSR 4.1</div><div class="f">44 FPS, 22.5 ms frame time</div></div></div>
+  </div>
+</div>
+<div class="page" id="detail">
+  <div class="head"><div class="h">Payday 3 at 4K: <span>Lite</span> vs stock FSR 4.1, up close</div><div class="s">100% crops of the 4K output · Steam Machine</div></div>
+</div>
+<script>
+  // [label, lite crop x,y, stock crop x,y] in 2000x1125 source pixels; crop is 500x286 source, shown at 1.96x
+  const K = 1.92, S = 980 / 960;
+  const rows = [
+    ["The SCB sign",        1150, 40,  1170, 120],
+    ["Fire escape and brick", 640, 150,  720, 225],
+    ["Down the street",     470, 380,  560, 440],
+  ];
+  const det = document.getElementById("detail");
+  for (const [label, lx, ly, sx, sy] of rows) {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = `<div class="label">${label}</div><div class="pair"></div>`;
+    for (const [src, x, y, lite] of [["fsr 4.1.2 lite.png", lx*K, ly*K, true], ["fsr 4.1 proton experimental stock.png", sx*K, sy*K, false]]) {
+      const c = document.createElement("div"); c.className = "shot crop" + (lite ? " lite" : "");
+      c.innerHTML = `<img src="${src}" style="width:${3840*S}px;left:${-x*S}px;top:${-y*S}px">` +
+        `<div class="tag"><div class="t">${lite ? 'FSR 4.1 <span>Lite</span>' : 'Stock FSR 4.1'}</div><div class="f">${lite ? '62 FPS' : '44 FPS'}</div></div>`;
+      row.querySelector(".pair").appendChild(c);
+    }
+    det.appendChild(row);
+  }
+  document.body.className = location.hash.slice(1) || "overview";
+</script>
+</body></html>
