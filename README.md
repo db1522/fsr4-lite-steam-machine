@@ -5,6 +5,7 @@
 <p align="center">
   <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/db1522/fsr4-lite-steam-machine?style=for-the-badge&label=release&color=1b9aff&labelColor=0d1117"></a>
   <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite-steam-machine/total?style=for-the-badge&color=1b9aff&labelColor=0d1117"></a>
+  <a href="https://github.com/db1522/fsr4-lite-rog-ally"><img alt="Windows widget downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite-rog-ally/total?style=for-the-badge&label=windows%20widget%20downloads&color=1b9aff&labelColor=0d1117"></a>
   <img alt="Steam Machine" src="https://img.shields.io/badge/Steam_Machine-RDNA_3-1b9aff?style=for-the-badge&labelColor=0d1117">
   <img alt="Requires Decky Loader" src="https://img.shields.io/badge/requires-Decky_Loader-8fa3bc?style=for-the-badge&labelColor=0d1117">
   <a href="https://steammachinelife.com/fsr-4-1-2-lite-steam-machine/"><img alt="Full guide on Steam Machine Life" src="https://img.shields.io/badge/guide-Steam_Machine_Life-1b9aff?style=for-the-badge&labelColor=0d1117"></a>
@@ -13,7 +14,7 @@
 
 FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. Lite is the smaller ML upscaler AMD built for handheld chips. On the Steam Machine it costs about as much as FSR 3 and looks close to full FSR 4.1, which is the trade I've wanted since I started testing this hardware. Full FSR 4.1 runs through Proton Experimental too, but it can cost up to 20 FPS next to Lite.
 
-It does it one way for every game, the same way the FSR 4.1 Lite widget for Windows does: OptiScaler goes next to the game, takes over the game's upscaler and runs FSR 4.1 Lite in its place. You press one button per game, and turning it off puts every file and launch option back as it was. No terminal.
+It does it one way for every game, the same way my [FSR 4.1 Lite widget for Windows](https://github.com/db1522/fsr4-lite-rog-ally) does: OptiScaler goes next to the game, takes over the game's upscaler and runs FSR 4.1 Lite in its place. You press one button per game, and turning it off puts every file and launch option back as it was. No terminal. The widget has been downloaded over 54,000 times, and this plugin brings the same method to SteamOS.
 
 The full guide, with how I tested and what to pick in each game, is on Steam Machine Life: [FSR 4.1.2 Lite on the Steam Machine](https://steammachinelife.com/fsr-4-1-2-lite-steam-machine/).
 
