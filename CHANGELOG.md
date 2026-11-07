@@ -2,6 +2,16 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.15] - 2026-11-07
+
+### ✨ Added
+- **About:** a row to support Steam Machine Life on Ko-fi, opened in Steam's browser.
+
+### 🔧 Changed
+- **Look:** status badges are tinted glass pills with a glowing dot: green when active, amber when the game needs
+  you, red for a problem. Each game in Your games gets a smaller one in the same style.
+- **Look:** "Restart the game" is now "Restart needed" with a small restart icon, on one line.
+
 ## [2.2.14] - 2026-11-07
 
 ### 🔧 Changed
