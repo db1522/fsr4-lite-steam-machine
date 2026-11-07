@@ -506,8 +506,8 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
         ini = os.path.join(exe_dir, "OptiScaler.ini")
         if "OptiScaler.ini" not in manifest["created"]:
             manifest["created"].append("OptiScaler.ini")
-        set_ini(ini, ini_settings(**settings) + (game_inputs(exe_dir, exe_name, upscalers) if upscalers is not None
-                                                  else []))
+        set_ini(ini, ini_settings(**settings) + game_values(exe_dir) + (
+            game_inputs(exe_dir, exe_name, upscalers) if upscalers is not None else []))
         if manifest.get("reframework") and REFRAMEWORK_CONFIG not in manifest["reframework_preexisting"]:
             # REFramework opens its menu on every launch; with RememberMenuState it starts closed (Insert opens it)
             _set_lines(os.path.join(exe_dir, REFRAMEWORK_CONFIG), {"REFrameworkConfig_RememberMenuState": "true",
@@ -611,7 +611,7 @@ def uninstall(exe_dir, manifest=None):
 def apply_settings(exe_dir, settings):
     ini = os.path.join(exe_dir, "OptiScaler.ini")
     if os.path.isfile(ini):
-        set_ini(ini, ini_settings(**settings))
+        set_ini(ini, ini_settings(**settings) + game_values(exe_dir))
 
 
 # ---- launch options ----
@@ -747,17 +747,44 @@ def _resolve(root, rel, want_dir=False):
     return path if (os.path.isdir(path) if want_dir else os.path.isfile(path)) else None
 
 
+GAME_MEMORY_MB = 512  # a game's process uses gigabytes; a launcher (Phantom Blade Zero's steam/PBZ.exe) far less
+
+
+def _memory_mb(proc, pid):
+    try:
+        with open(os.path.join(proc, pid, "status"), encoding="utf-8", errors="replace") as f:
+            found = re.search(r"^VmRSS:\s*(\d+)\s*kB", f.read(), re.M)
+        return int(found.group(1)) // 1024 if found else 0
+    except (OSError, ValueError):
+        return 0
+
+
+GRAPHICS_DLLS = ("dxgi.dll", "d3d11.dll", "d3d12.dll", "vulkan-1.dll")  # the widget's GameWatcher.GraphicsDlls
+
+
+def _rendering(proc, pid):
+    """The widget's "rendering" test: the process has loaded a graphics DLL (Wine maps them as files)."""
+    try:
+        with open(os.path.join(proc, pid, "maps"), encoding="utf-8", errors="replace") as f:
+            return any(line.rstrip().lower().endswith(GRAPHICS_DLLS) for line in f)
+    except OSError:
+        return False
+
+
 def running_exe(install_dir, proc="/proc"):
-    """The exe a running game really runs, found in its process list (the widget installs next to the running game's
-    own exe, ForegroundGame): Proton starts it with its Windows path ("S:\\steamapps\\common\\PBZ\\platform\\steam\\
-    PBZ.exe", the drive letter depending on the library), so a path is matched from steamapps/common/<game folder>/
-    down. With a launcher and the game both running, the largest exe is the game, as in the widget's exe pick."""
+    """(exe, memory in MB) of the game a running game really is, or (None, 0). The widget installs next to the exe
+    that owns the big window on screen (ForegroundGame) and only counts a process with graphics loaded (GameWatcher);
+    any other exe from the folder is "a launcher or helper, not the game itself". Proton games have no window to ask,
+    so: of the exes from the game's folder with graphics loaded, the one using the most memory. A launcher can load
+    graphics for a moment (Phantom Blade Zero's steam/PBZ.exe), but only the game uses gigabytes. Proton starts exes
+    with their Windows path ("S:\\steamapps\\common\\PBZ\\ProjectPBZ\\Binaries\\Win64\\PBZ.exe", the drive letter
+    depending on the library), so a path is matched from steamapps/common/<game folder>/ down."""
     marker = "/steamapps/common/" + os.path.basename(install_dir.rstrip("/\\")).lower() + "/"
-    hits = set()
+    memory = {}
     try:
         pids = [p for p in os.listdir(proc) if p.isdigit()]
     except OSError:
-        return None
+        return None, 0
     for pid in pids:
         try:
             with open(os.path.join(proc, pid, "cmdline"), "rb") as f:
@@ -771,15 +798,27 @@ def running_exe(install_dir, proc="/proc"):
             if at < 0 or not low.endswith(".exe"):
                 continue
             path = _resolve(install_dir, text[at + len(marker):])
-            if path and _is_game_exe(os.path.basename(path)):
-                hits.add(path)
+            if path and _is_game_exe(os.path.basename(path)) and _rendering(proc, pid):
+                memory[path] = max(memory.get(path, 0), _memory_mb(proc, pid))
+                break
+    if not memory:
+        return None, 0
+    path = max(sorted(memory), key=lambda p: memory[p])
+    return path, memory[path]
 
-    def size(p):
-        try:
-            return os.path.getsize(p)
-        except OSError:
-            return 0
-    return max(sorted(hits), key=size) if hits else None
+
+def opti_dll_path(exe_dir):
+    """OptiScaler's OptiDllPath for a game: its OptiScaler folder as a full Windows path. OptiScaler works the folder
+    out from its own location, which under Proton can come out as the folder Steam starts the game in, where AMD's
+    FSR 4 file isn't (Phantom Blade Zero). Proton maps Z: to /, so the full path always points at the right folder;
+    if it ever didn't exist, OptiScaler falls back to its own folder as before."""
+    path = os.path.abspath(os.path.join(exe_dir, SUBFOLDER))
+    return "Z:" + path.replace("/", "\\") if path.startswith("/") else path
+
+
+def game_values(exe_dir):
+    """The settings every set-up game gets for its folder."""
+    return [("Libraries", "OptiDllPath", opti_dll_path(exe_dir))]
 
 
 MODES = ((1.0, "Native AA"), (1.5, "Quality"), (1.7, "Balanced"), (2.0, "Performance"), (3.0, "Ultra Performance"))

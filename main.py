@@ -158,6 +158,7 @@ class Plugin:
             except OSError:
                 pass
             self.assets_ok = await asyncio.to_thread(sml_assets.ready, _data_dir())
+            await asyncio.to_thread(self._refresh_settings)
             self.legacy = await asyncio.to_thread(self._legacy_entries)
             self._scan_task = asyncio.create_task(self.scan_games())
         finally:
@@ -258,19 +259,31 @@ class Plugin:
         decky.logger.info(f"{appid} runs {self.exes[str(appid)]}")
 
     async def _watch_exe(self, appid, started):
-        """While a game starts: find the exe it really runs in the process list, for up to two minutes."""
+        """For the first two minutes of a session: the exe the game really runs, from the process list (graphics
+        loaded and game-sized memory, see sml_opti.running_exe). Watched the whole time, so a launcher that starts the
+        game is passed over for the game itself."""
+        best = 0
         try:
             for _ in range(24):
                 await asyncio.sleep(5)
                 game = self._game(appid)
                 if self.sessions.get(appid) != started or not game or game["nonsteam"]:
                     return
-                path = await asyncio.to_thread(sml_opti.running_exe, game["install_dir"])
-                if path:
+                path, mb = await asyncio.to_thread(sml_opti.running_exe, game["install_dir"])
+                if path and mb >= sml_opti.GAME_MEMORY_MB and mb > best:
+                    best = mb
                     await self._use_exe(appid, path)
-                    return
         finally:
             self._watchers.pop(appid, None)
+
+    def _refresh_settings(self):
+        """Every set-up game's OptiScaler.ini brought up to this version's settings (OptiDllPath, 2.2.9)."""
+        for entry in list(self.registry.values()):
+            if entry.get("proxy"):
+                try:
+                    sml_opti.apply_settings(entry["exe_dir"], self._settings_for_ini(entry.get("height")))
+                except OSError as e:
+                    decky.logger.warning(f"settings not refreshed in {entry['exe_dir']} ({dk_fs.shown(e)})")
 
     async def _move_to_real_exe(self, appid, entry, launch_options):
         """A game set up next to an exe it doesn't run (seen running, or named in OptiScaler's log): the setup moves

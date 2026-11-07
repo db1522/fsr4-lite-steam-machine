@@ -193,15 +193,23 @@ class Flow(unittest.TestCase):
         self.run_(self.p.scan_games())  # remembered across scans
         self.assertEqual(self.p._game(4115450)["exe_dir"], real)
 
-    def test_the_running_exe_is_used_for_a_first_setup(self):
+    def test_the_running_game_not_its_launcher_is_used_for_a_first_setup(self):
         root = self.pbz()
-        real = os.path.join(root, "platform", "steam", "PBZ.exe")
-        with mock.patch("sml_opti.running_exe", return_value=real), mock.patch("asyncio.sleep", return_value=None):
+        launcher = os.path.join(root, "steam", "PBZ.exe")
+        real = os.path.join(root, "ProjectPBZ", "Binaries", "Win64", "PBZ.exe")
+        touch(launcher, b"launcher")
+        touch(real, b"game")
+        # the launcher runs first (graphics loaded, little memory), then the game takes over
+        seen = iter([(launcher, 180), (launcher, 190), (real, 2400), (real, 5400)] + [(None, 0)] * 30)
+        with mock.patch("sml_opti.running_exe", side_effect=lambda *a: next(seen)), \
+                mock.patch("asyncio.sleep", return_value=None):
             self.run_(self.p.session_started(4115450))
             self.run_(self.p._watchers[4115450])
-        self.assertEqual(self.p._game(4115450)["exe_name"], "PBZ.exe")
+        self.assertEqual(self.p._game(4115450)["exe_dir"], os.path.dirname(real))
+        self.assertEqual(self.p.exes, {"4115450": "ProjectPBZ/Binaries/Win64/PBZ.exe"})
         self.assertTrue(self.run_(self.p.enable_game(4115450, ""))["ok"])
-        self.assertTrue(os.path.isfile(os.path.join(root, "platform", "steam", "dxgi.dll")))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(real), "dxgi.dll")))
+        self.assertFalse(os.path.exists(os.path.join(root, "steam", "dxgi.dll")))
 
     def test_fsr4_files_go_where_optiscaler_looks_for_them(self):
         # Phantom Blade Zero as it is: PBZ.exe next to 8za_v2.exe, but Steam starts it in platform/steam, where
@@ -251,6 +259,19 @@ class Flow(unittest.TestCase):
         r = self.run_(self.p.session_check(42))
         self.assertEqual((r["lite"], r["minutes"]), (True, 3))
         self.assertEqual(r["summary"], "DLSS → FSR 4.1.2 Lite, 1280×720 → 2560×1440 (Performance)")
+
+    def test_games_set_up_by_an_older_version_get_the_pinned_folder_at_load(self):
+        self.run_(self.p.enable_game(42, ""))
+        ini = os.path.join(self.game, "OptiScaler.ini")
+        with open(ini, encoding="utf-8") as f:
+            old = "".join(line for line in f if not line.startswith("OptiDllPath="))
+        with open(ini, "w", encoding="utf-8") as f:
+            f.write(old)
+        again = main.Plugin()
+        self.run_(again._main())
+        self.run_(again._scan_task)
+        with open(ini, encoding="utf-8") as f:
+            self.assertIn("OptiDllPath=", f.read())
 
     def test_anticheat_is_refused(self):
         touch(os.path.join(self.game, "BattlEye", "BEClient_x64.dll"))

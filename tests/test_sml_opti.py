@@ -270,42 +270,70 @@ class REFrameworkDownload(unittest.TestCase):
 
 
 class RealExe(unittest.TestCase):
-    """Phantom Blade Zero: an Unreal folder, but Steam runs platform/steam/PBZ.exe, not Binaries/Win64/8za_v2.exe."""
+    """Phantom Blade Zero as the reports show it: Steam starts a small launcher, steam/PBZ.exe, which starts the game,
+    ProjectPBZ/Binaries/Win64/PBZ.exe, next to 8za_v2.exe (the folder guess)."""
     def setUp(self):
         t = tempfile.mkdtemp()
         self.root = os.path.join(t, "steamapps", "common", "PBZ")
-        self.real = os.path.join(self.root, "platform", "steam", "PBZ.exe")
+        self.launcher = os.path.join(self.root, "steam", "PBZ.exe")
+        self.real = os.path.join(self.root, "ProjectPBZ", "Binaries", "Win64", "PBZ.exe")
+        touch(self.launcher, b"launcher" * 100)
         touch(self.real, b"game" * 1000)
-        touch(os.path.join(self.root, "PBZLauncher.exe"), b"small")
         touch(os.path.join(self.root, "ProjectPBZ", "Binaries", "Win64", "8za_v2.exe"), b"tool" * 2000)
+        os.makedirs(os.path.join(self.root, "platform", "steam"))  # where the 2.2.6 report's DllPath pointed
         self.proc = os.path.join(t, "proc")
 
-    def process(self, pid, *args):
+    def process(self, pid, *args, mb=0, graphics=False):
         touch(os.path.join(self.proc, str(pid), "cmdline"), b"\0".join(a.encode() for a in args) + b"\0")
+        touch(os.path.join(self.proc, str(pid), "status"), f"Name:\tx\nVmRSS:\t  {mb * 1024} kB\n".encode())
+        maps = "7f00-7f01 r-xp 0 08:01 1 /pfx/drive_c/windows/system32/kernel32.dll\n"
+        if graphics:
+            maps += "7f02-7f03 r-xp 0 08:01 2 /proton/lib/wine/x86_64-windows/D3D12.dll\n"
+        touch(os.path.join(self.proc, str(pid), "maps"), maps.encode())
 
     def test_the_folder_guess_is_the_wrong_exe(self):
         self.assertEqual(O.analyze(self.root)["exe_name"], "8za_v2.exe")
 
-    def test_the_running_exe_is_found_in_the_process_list(self):
+    def test_the_game_is_the_rendering_process_using_the_most_memory(self):
         self.process(100, "/usr/bin/python3", "/proton", "waitforexitandrun",
-                     "/home/deck/.local/share/Steam/steamapps/common/PBZ/PBZLauncher.exe")
-        self.process(101, "S:\\steamapps\\common\\PBZ\\PLATFORM\\steam\\PBZ.exe", "-dx12")  # any letter case
-        self.process(102, "C:\\windows\\system32\\steam.exe")
-        self.process(103, "Z:\\other\\steamapps\\common\\Other Game\\game.exe")
+                     "/home/deck/.local/share/Steam/steamapps/common/PBZ/steam/PBZ.exe")
+        self.process(101, "S:\\steamapps\\common\\PBZ\\steam\\PBZ.exe", mb=180, graphics=True)  # the launcher
+        self.process(102, "S:\\steamapps\\common\\PBZ\\PROJECTPBZ\\Binaries\\Win64\\PBZ.exe", "-dx12", mb=5400,
+                     graphics=True)  # any letter case
+        self.process(103, "S:\\steamapps\\common\\PBZ\\ProjectPBZ\\Binaries\\Win64\\8za_v2.exe", mb=9000)  # no graphics
+        self.process(104, "Z:\\other\\steamapps\\common\\Other Game\\game.exe", mb=9000, graphics=True)
         os.makedirs(os.path.join(self.proc, "self"))
-        self.assertEqual(O.running_exe(self.root, self.proc), self.real)  # the game, not the small launcher
+        self.assertEqual(O.running_exe(self.root, self.proc), (self.real, 5400))
+
+    def test_only_the_launcher_running_is_too_small_to_be_the_game(self):
+        self.process(101, "S:\\steamapps\\common\\PBZ\\steam\\PBZ.exe", mb=180, graphics=True)
+        path, mb = O.running_exe(self.root, self.proc)
+        self.assertEqual(path, self.launcher)
+        self.assertLess(mb, O.GAME_MEMORY_MB)  # main.py won't take it
 
     def test_nothing_running_or_no_proc(self):
         os.makedirs(self.proc)
-        self.assertIsNone(O.running_exe(self.root, self.proc))
-        self.assertIsNone(O.running_exe(self.root, os.path.join(self.proc, "missing")))
-        self.process(1, "S:\\steamapps\\common\\PBZ\\..\\..\\evil.exe")
-        self.assertIsNone(O.running_exe(self.root, self.proc))
+        self.assertEqual(O.running_exe(self.root, self.proc), (None, 0))
+        self.assertEqual(O.running_exe(self.root, os.path.join(self.proc, "missing")), (None, 0))
+        self.process(1, "S:\\steamapps\\common\\PBZ\\..\\..\\evil.exe", mb=4000, graphics=True)
+        self.assertEqual(O.running_exe(self.root, self.proc), (None, 0))
+
+    def test_optiscalers_folder_is_pinned_to_the_games(self):
+        self.assertEqual(O.opti_dll_path("/home/deck/.local/share/Steam/steamapps/common/PBZ/ProjectPBZ/Binaries/Win64"),
+                         "Z:\\home\\deck\\.local\\share\\Steam\\steamapps\\common\\PBZ\\ProjectPBZ\\Binaries\\Win64\\OptiScaler"
+                         if os.sep == "/" else os.path.abspath(
+                             "/home/deck/.local/share/Steam/steamapps/common/PBZ/ProjectPBZ/Binaries/Win64/OptiScaler"))
+        exe_dir = os.path.dirname(self.real)
+        t = tempfile.mkdtemp()
+        touch(os.path.join(t, "OptiScaler.dll"), b"opti")
+        O.install(exe_dir, "PBZ.exe", t, [], {})
+        self.assertIn("OptiDllPath=" + O.opti_dll_path(exe_dir), read(os.path.join(exe_dir, "OptiScaler.ini")))
 
     def test_optiscalers_log_names_the_exe(self):
         log = "[13:25:07.284454] [I] CheckQuirks Game's Exe: PBZ.exe\n[13:25:07.284461] [I] CheckQuirks Game Name: x\n"
         self.assertEqual(O.logged_exe(log), "PBZ.exe")
-        self.assertEqual(O.find_exe(self.root, "pbz.EXE"), self.real)
+        self.assertIsNone(O.find_exe(self.root, "pbz.EXE"))  # two PBZ.exe: the log can't say which
+        self.assertEqual(O.find_exe(self.root, "8ZA_V2.exe"), os.path.join(os.path.dirname(self.real), "8za_v2.exe"))
         self.assertIsNone(O.find_exe(self.root, "missing.exe"))
 
     def test_the_folder_optiscaler_looks_in(self):
