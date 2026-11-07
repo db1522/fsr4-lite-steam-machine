@@ -32,31 +32,44 @@
   .head .s { font:500 20px/1 Inter; color:#8fa3bc; }
 </style></head>
 <body>
-<div class="page" id="overview">
-  <div class="pair">
-    <div class="shot lite"><img src="fsr 4.1.2 lite.png"><div class="tag"><div class="t">FSR 4.1 <span>Lite</span></div><div class="f">62 FPS, 16.1 ms frame time</div></div></div>
-    <div class="shot"><img src="fsr 4.1 proton experimental stock.png"><div class="tag"><div class="t">Stock FSR 4.1</div><div class="f">44 FPS, 22.5 ms frame time</div></div></div>
-  </div>
-</div>
-<div class="page" id="detail">
-  <div class="head"><div class="h">Payday 3 at 4K: <span>Lite</span> vs stock FSR 4.1, up close</div><div class="s">100% crops of the 4K output · Steam Machine</div></div>
-</div>
+<div class="page" id="overview"><div class="pair"></div></div>
+<div class="page" id="detail"><div class="head"><div class="h"></div><div class="s">100% crops of the 4K output · Steam Machine</div></div></div>
 <script>
-  // [label, lite crop x,y, stock crop x,y] in 2000x1125 source pixels; crop is 500x286 source, shown at 1.96x
+  // One comparison per game: compare.html?game=<key>#overview (3280x956) or #detail (2012x1964), rendered with
+  // headless Edge. The 4K PNGs sit next to this file and stay out of git (.gitignore).
+  // rows: [label, lite crop x,y, other crop x,y] in 2000x1125 coordinates; each crop is 960x549 of the 4K image.
+  const GAMES = {
+    payday3: {
+      title: "Payday 3 at 4K: <span>Lite</span> vs stock FSR 4.1, up close",
+      lite: { src: "fsr 4.1.2 lite.png", fps: "62 FPS", line: "62 FPS, 16.1 ms frame time" },
+      other: { src: "fsr 4.1 proton experimental stock.png", name: "Stock FSR 4.1", fps: "44 FPS", line: "44 FPS, 22.5 ms frame time" },
+      rows: [["The SCB sign", 1150, 40, 1170, 120], ["Fire escape and brick", 640, 150, 720, 225],
+             ["Down the street", 470, 380, 560, 440]],
+    },
+    rdr2: {
+      title: "Red Dead Redemption 2 at 4K: <span>Lite</span> vs the game's FSR 2.0, up close",
+      lite: { src: "rdr2 lite.png", fps: "51 FPS", line: "51 FPS, 19.4 ms frame time" },
+      other: { src: "rdr2 fsr2.png", name: "Game's FSR 2.0", fps: "63 FPS", line: "63 FPS, 15.8 ms frame time" },
+      rows: [["The farmhouse", 140, 190, 140, 190], ["The sign and the town", 1100, 360, 1100, 360],
+             ["Grass and the trail", 1150, 600, 1150, 600]],
+    },
+  };
+  const g = GAMES[new URLSearchParams(location.search).get("game") || "payday3"];
+  const liteTag = f => `<div class="t">FSR 4.1 <span>Lite</span></div><div class="f">${f}</div>`;
+  const otherTag = f => `<div class="t">${g.other.name}</div><div class="f">${f}</div>`;
+  document.querySelector("#overview .pair").innerHTML =
+    `<div class="shot lite"><img src="${g.lite.src}"><div class="tag">${liteTag(g.lite.line)}</div></div>` +
+    `<div class="shot"><img src="${g.other.src}"><div class="tag">${otherTag(g.other.line)}</div></div>`;
+  document.querySelector("#detail .h").innerHTML = g.title;
   const K = 1.92, S = 980 / 960;
-  const rows = [
-    ["The SCB sign",        1150, 40,  1170, 120],
-    ["Fire escape and brick", 640, 150,  720, 225],
-    ["Down the street",     470, 380,  560, 440],
-  ];
   const det = document.getElementById("detail");
-  for (const [label, lx, ly, sx, sy] of rows) {
+  for (const [label, lx, ly, sx, sy] of g.rows) {
     const row = document.createElement("div"); row.className = "row";
     row.innerHTML = `<div class="label">${label}</div><div class="pair"></div>`;
-    for (const [src, x, y, lite] of [["fsr 4.1.2 lite.png", lx*K, ly*K, true], ["fsr 4.1 proton experimental stock.png", sx*K, sy*K, false]]) {
+    for (const [src, x, y, lite] of [[g.lite.src, lx*K, ly*K, true], [g.other.src, sx*K, sy*K, false]]) {
       const c = document.createElement("div"); c.className = "shot crop" + (lite ? " lite" : "");
       c.innerHTML = `<img src="${src}" style="width:${3840*S}px;left:${-x*S}px;top:${-y*S}px">` +
-        `<div class="tag"><div class="t">${lite ? 'FSR 4.1 <span>Lite</span>' : 'Stock FSR 4.1'}</div><div class="f">${lite ? '62 FPS' : '44 FPS'}</div></div>`;
+        `<div class="tag">${lite ? liteTag(g.lite.fps) : otherTag(g.other.fps)}</div>`;
       row.querySelector(".pair").appendChild(c);
     }
     det.appendChild(row);
