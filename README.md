@@ -40,9 +40,11 @@ Up close, at 100% of the 4K output. Click either image for full size.
 
 <sub>Single-frame captures from the same street. The stock shot has a busier sidewalk, so treat the exact gap as a guide. Matched 60-second runs are coming with the full write-up on Steam Machine Life.</sub>
 
-## DLSS and FSR 2 games run FSR 4.1.2 Lite too
+## DLSS, XeSS and FSR 2 games run FSR 4.1.2 Lite too
 
 This is the part I'm most excited about. A lot of games only offer DLSS, and on an AMD Steam Machine that option is normally greyed out or missing. Others are stuck on an old FSR 2. With the plugin set up, OptiScaler unlocks the game's DLSS option or takes over its FSR 2, and the plugin runs FSR 4.1.2 Lite in its place. You get AMD's newest upscaler in games that never shipped it.
+
+XeSS works the same way: pick XeSS in a game that offers it and Lite runs instead. I don't know of a game that ships XeSS and nothing else, so the table sticks to DLSS and FSR 2.
 
 | Game | Upscalers the game ships | Pick in its settings | What runs |
 |---|---|---|---|
@@ -54,7 +56,7 @@ All tested on my own Steam Machine. Set the game up from Now playing, restart it
 
 ## What you get
 
-- DLSS and FSR 2 games on FSR 4.1.2 Lite. Games that only offer DLSS get their DLSS option unlocked, and older FSR 2 games get taken over, and both run Lite instead.
+- DLSS, XeSS and FSR 2 games on FSR 4.1.2 Lite. Games that only offer DLSS get their DLSS option unlocked, older FSR 2 games get taken over, and XeSS works too. All of them run Lite instead.
 - A Now playing card. Open the plugin in a game and you see the game, which upscalers it ships, and one button to install or uninstall. It sets the game up next to the program that's really running, the same way the Windows widget does.
 - Your games: every game you set up, each with a chip for what its last session showed (Active, Pick an upscaler, Needs fix or Not played yet) and a switch to turn it off. The rest of your games with FSR, DLSS or XeSS are listed underneath.
 - Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
