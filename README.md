@@ -5,7 +5,6 @@
 <p align="center">
   <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/db1522/fsr4-lite-steam-machine?style=for-the-badge&label=release&color=1b9aff&labelColor=0d1117"></a>
   <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite-steam-machine/total?style=for-the-badge&color=1b9aff&labelColor=0d1117"></a>
-  <a href="https://github.com/db1522/fsr4-lite-rog-ally"><img alt="Windows widget downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite-rog-ally/total?style=for-the-badge&label=windows%20widget%20downloads&color=1b9aff&labelColor=0d1117"></a>
   <img alt="Steam Machine" src="https://img.shields.io/badge/Steam_Machine-RDNA_3-1b9aff?style=for-the-badge&labelColor=0d1117">
   <img alt="Requires Decky Loader" src="https://img.shields.io/badge/requires-Decky_Loader-8fa3bc?style=for-the-badge&labelColor=0d1117">
   <a href="https://steammachinelife.com/fsr-4-1-2-lite-steam-machine/"><img alt="Full guide on Steam Machine Life" src="https://img.shields.io/badge/guide-Steam_Machine_Life-1b9aff?style=for-the-badge&labelColor=0d1117"></a>
