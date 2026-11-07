@@ -11,7 +11,7 @@
   <a href="https://ko-fi.com/steammachinelife"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=for-the-badge&logo=kofi&logoColor=white&labelColor=0d1117"></a>
 </p>
 
-FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. Lite is the smaller ML upscaler AMD built for handheld chips. On the Steam Machine it costs about as much as FSR 3 and looks close to full FSR 4.1, which is the trade I've wanted since I started testing this hardware. Full FSR 4.1 runs through Proton Experimental too, but it can cost up to 20 FPS next to Lite.
+FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. Lite is the smaller ML upscaler AMD built for handheld chips. On the Steam Machine it costs about as much as FSR 3 and looks close to full FSR 4.1, which is the trade I've wanted since I started testing this hardware. Full FSR 4.1 runs through Proton Experimental too, but it can cost up to 20 FPS next to Lite. Lite is the FSR the Steam Machine should be using by default.
 
 It does it one way for every game, the same way my [FSR 4.1 Lite widget for Windows](https://github.com/db1522/fsr4-lite-rog-ally) does: OptiScaler goes next to the game, takes over the game's upscaler and runs FSR 4.1 Lite in its place. You press one button per game, and turning it off puts every file and launch option back as it was. No terminal. The widget has been downloaded over 54,000 times, and this plugin brings the same method to SteamOS.
 
