@@ -106,6 +106,33 @@ class Flow(unittest.TestCase):
         touch(os.path.join(self.game, "OptiScaler.log"), b"ffxProvider_FSR4Lite_Int8")
         self.assertEqual(self.run_(self.p.live_status(42))["status"], "active")
 
+    def test_a_game_without_upscaler_files_can_still_be_set_up(self):
+        # like the widget: many games build FSR in, so OptiScaler is told to search the exe for it
+        os.remove(os.path.join(self.game, "nvngx_dlss.dll"))
+        self.run_(self.p.scan_games())
+        g = self.run_(self.p.get_state())["state"]["games"][0]
+        self.assertEqual(g["upscalers"], [])
+        self.assertIn("No upscaler files found", g["tip"])
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertTrue(r["ok"], r)
+        with open(os.path.join(self.game, "OptiScaler.ini"), encoding="utf-8") as f:
+            self.assertIn("Fsr2Pattern=true", f.read())
+
+    def test_the_loader_that_worked_is_used_when_set_up_again(self):
+        self.run_(self.p.enable_game(42, ""))
+        self.p.registry["42"]["proxy"] = "version.dll"  # as if OptiScaler had moved to version.dll
+        os.rename(os.path.join(self.game, "dxgi.dll"), os.path.join(self.game, "version.dll"))
+        self.run_(self.p.session_started(42))
+        touch(os.path.join(self.game, "OptiScaler.log"), b"ffxProvider_FSR4Lite_Int8")
+        self.run_(self.p.session_ended(42, "WINEDLLOVERRIDES=version=n,b %command%"))
+        self.assertEqual(self.p.loaders, {"game.exe": "version.dll"})
+        self.assertTrue(os.path.isfile(os.path.join(self.settings, "loaders.json")))
+        os.rename(os.path.join(self.game, "version.dll"), os.path.join(self.game, "dxgi.dll"))
+        self.p.registry["42"]["proxy"] = "dxgi.dll"
+        self.run_(self.p.disable_game(42, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=version=n,b %command%")
+
     def test_anticheat_is_refused(self):
         touch(os.path.join(self.game, "BattlEye", "BEClient_x64.dll"))
         self.run_(self.p.scan_games())

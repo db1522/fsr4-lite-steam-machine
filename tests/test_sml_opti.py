@@ -115,6 +115,88 @@ class Install(unittest.TestCase):
         self.assertEqual(O.pick_proxy(self.game, "game.exe", ["dxgi.dll"]), "version.dll")  # winmm is the game's
         self.assertEqual(O.pick_proxy(self.game, "RDR2.exe"), "dxgi.dll")  # its rule name is taken here
 
+    def test_the_name_that_worked_last_time_comes_first(self):
+        # the widget's LoaderMemory: after the game is set up again, the name OptiScaler loaded under is tried first
+        self.assertEqual(O.pick_proxy(self.game, "game.exe", remembered="dbghelp.dll"), "dbghelp.dll")
+        self.assertEqual(O.pick_proxy(self.game, "game.exe", remembered="evil.dll"), "dxgi.dll")  # only real names
+        os.remove(os.path.join(self.game, "winmm.dll"))
+        self.assertEqual(O.pick_proxy(self.game, "RDR2.exe", remembered="version.dll"), "winmm.dll")  # rule first
+
+    def test_after_a_skipped_name_the_ones_the_exe_imports_go_first(self):
+        # the widget's OrderForExe: Windows loads imported DLLs from the game folder at startup
+        touch(os.path.join(self.game, "game.exe"), pe_importing(["KERNEL32.dll", "VERSION.dll"]))
+        self.assertEqual(O.pick_proxy(self.game, "game.exe", ["dxgi.dll"]), "version.dll")
+        self.assertEqual(O.pick_proxy(self.game, "game.exe"), "dxgi.dll")  # a first install keeps the usual order
+
+    def test_a_game_without_upscaler_files_gets_optiscalers_pattern_search(self):
+        O.install(self.game, "game.exe", self.pkg, self.fsr4, {"watermark": False, "overlay": False}, upscalers=[])
+        ini = read(os.path.join(self.game, "OptiScaler.ini"))
+        self.assertIn("Fsr2Pattern=true", ini)
+        self.assertIn("Fsr3Pattern=true", ini)
+
+    def test_fsr2_inputs_follow_the_exes_graphics_api(self):
+        touch(os.path.join(self.game, "dx11.exe"), pe_importing(["d3d11.dll"], delayed=["dxgi.dll"]))
+        touch(os.path.join(self.game, "vk.exe"), pe_importing(["vulkan-1.dll"]))
+        touch(os.path.join(self.game, "dx12.exe"), pe_importing(["d3d12.dll", "d3d11.dll"]))
+        self.assertEqual(O.game_inputs(self.game, "dx11.exe", ["FSR 2"]), [("Inputs", "UseFsr2Dx11Inputs", "true")])
+        self.assertEqual(O.game_inputs(self.game, "vk.exe", ["FSR 2"]), [("Inputs", "UseFsr2VulkanInputs", "true")])
+        self.assertEqual(O.game_inputs(self.game, "dx12.exe", ["FSR 2"]), [])  # OptiScaler's default
+        self.assertEqual(O.game_inputs(self.game, "dx11.exe", ["DLSS"]), [])  # only FSR 2 games
+        self.assertEqual(O.game_inputs(self.game, "game.exe", ["FSR 2"]), [])  # not a PE file: nothing guessed
+
+
+def pe_importing(dlls, delayed=()):
+    """A minimal 64-bit PE: one section holding an import table for dlls and a delay-load table for delayed."""
+    import struct
+    sec_rva, sec_raw, size = 0x1000, 0x200, 0x400
+    body = bytearray(size)
+    names, at = {}, 0x100
+    for n in list(dlls) + list(delayed):
+        names[n] = sec_rva + at
+        body[at:at + len(n)] = n.encode()
+        at += len(n) + 1
+    for i, n in enumerate(dlls):  # 20-byte import descriptors at the section start, then a zero one
+        struct.pack_into("<IIIII", body, i * 20, 0, 0, 0, names[n], 0)
+    delay_at = 0x80
+    for i, n in enumerate(delayed):  # 32-byte delay-load descriptors
+        struct.pack_into("<IIIIIIII", body, delay_at + i * 32, 1, names[n], 0, 0, 0, 0, 0, 0)
+    head = bytearray(sec_raw)
+    head[0:2] = b"MZ"
+    struct.pack_into("<I", head, 0x3C, 0x40)
+    head[0x40:0x44] = b"PE\0\0"
+    struct.pack_into("<HHIIIHH", head, 0x44, 0x8664, 1, 0, 0, 0, 240, 0x22)
+    opt = 0x58
+    struct.pack_into("<H", head, opt, 0x20B)
+    dirs = opt + 112
+    struct.pack_into("<II", head, dirs + 1 * 8, sec_rva, 20 * (len(dlls) + 1))
+    if delayed:
+        struct.pack_into("<II", head, dirs + 13 * 8, sec_rva + delay_at, 32 * (len(delayed) + 1))
+    struct.pack_into("<8sIIIIIIHHI", head, opt + 240, b".idata", size, sec_rva, size, sec_raw, 0, 0, 0, 0, 0)
+    return bytes(head) + bytes(body)
+
+
+class ExeImports(unittest.TestCase):
+    def test_imports_and_delay_loads_are_read(self):
+        d = tempfile.mkdtemp()
+        exe = os.path.join(d, "g.exe")
+        touch(exe, pe_importing(["KERNEL32.dll", "WINMM.dll"], delayed=["d3d11.dll"]))
+        self.assertEqual(O.exe_imports(exe), {"kernel32.dll", "winmm.dll", "d3d11.dll"})
+
+    def test_anything_else_gives_nothing(self):
+        d = tempfile.mkdtemp()
+        for name, data in (("a.exe", b""), ("b.exe", b"MZ" + b"\xff" * 100), ("c.exe", b"not a program at all")):
+            touch(os.path.join(d, name), data)
+            self.assertEqual(O.exe_imports(os.path.join(d, name)), set())
+        self.assertEqual(O.exe_imports(os.path.join(d, "missing.exe")), set())
+
+
+class Tips(unittest.TestCase):
+    def test_the_widgets_card_lines(self):
+        self.assertIn("No upscaler files found", O.tips("game.exe", []))
+        self.assertIn("pick DLSS or XeSS", O.tips("game.exe", ["DLSS", "XeSS"]))
+        self.assertEqual(O.tips("game.exe", ["DLSS", "FSR 3.1"]), "")
+        self.assertIn("DirectX 12", O.tips("RDR2.exe", ["FSR 2"]))
+
 
 class Overlay(unittest.TestCase):
     def test_tv_sizes_grow_with_the_screen_and_choice(self):

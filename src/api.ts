@@ -19,6 +19,7 @@ export interface Game {
   nonsteam: boolean;
   manual_optiscaler: boolean;  // OptiScaler from another install is already there
   installed: boolean;
+  tip: string;  // the widget's card line: no upscaler files, DLSS/XeSS only, or the game's own rule ("" when none)
   verdict: Verdict;
   detail: string;
   proxy?: string;  // the name OptiScaler loads under

@@ -104,8 +104,19 @@ MAX_DEPTH = 8
 # GameAnalyzer: a Plugins folder within 3 levels of the game folder is searched 7 folders further down.
 PLUGINS_DIR, PLUGINS_WITHIN, PLUGINS_DEPTH = "plugins", 3, 7
 
-# Games the OptiScaler community has a setup for: the loader name they need (the widget's GameRules)
+# Games the OptiScaler community has a setup for: the loader name they need and a tip (the widget's GameRules)
 LOADER_RULES = {"rdr2.exe": "winmm.dll", "enshrouded.exe": "winmm.dll"}
+GAME_TIPS = {
+    # OptiScaler wiki: works as winmm.dll with FSR 2 inputs on DirectX 12; Vulkan, the game's default, crashes
+    "rdr2.exe": "In Red Dead Redemption 2, set Graphics API to DirectX 12 (Vulkan crashes with OptiScaler), then pick "
+                "FSR 2 as the upscaler.",
+    # OptiScaler's Compatibility List: DLSS input; the game only lists DLSS after a restart with its upscaler off
+    "enshrouded.exe": "In Enshrouded, pick DLSS as the upscaler. If DLSS isn't listed, turn the upscaler off, restart "
+                      "the game, then pick DLSS.",
+}
+NO_UPSCALER_TIP = ("No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells "
+                   "OptiScaler to search for it (the game loads a little slower). Install, restart the game and turn on "
+                   "FSR in its settings. FSR 1 can't be upgraded.")
 # Names OptiScaler can load under, in order of preference (OptiScaler's own setup script order)
 PROXY_NAMES = ("dxgi.dll", "winmm.dll", "version.dll", "dbghelp.dll", "d3d12.dll", "wininet.dll", "winhttp.dll")
 SKIP_PACKAGE_FILES = {"setup_windows.bat", "setup_linux.sh", "remove optiscaler.bat", "remove_optiscaler.bat",
@@ -193,11 +204,100 @@ def _manual_optiscaler(exe_dir):
     return os.path.isfile(os.path.join(exe_dir, "OptiScaler.ini"))
 
 
-def pick_proxy(exe_dir, exe_name, tried=()):
-    """The loader name for this game: its rule, else the first name free in the folder (and not tried yet)."""
-    rule = LOADER_RULES.get((exe_name or "").lower())
-    order = ([rule] if rule else []) + [n for n in PROXY_NAMES if n != rule]
-    for name in order:
+def tips(exe_name, upscalers):
+    """The widget's game card lines: no upscaler files, DLSS/XeSS-only games, and the game's own rule."""
+    parts = []
+    if not upscalers:
+        parts.append(NO_UPSCALER_TIP)
+    elif not any(u.startswith("FSR") for u in upscalers):
+        parts.append(f"In this game, pick {' or '.join(upscalers)} in its graphics settings: if it also has an FSR "
+                     "option, that one is built into the game and may not switch to FSR 4.1 Lite.")
+    if GAME_TIPS.get((exe_name or "").lower()):
+        parts.append(GAME_TIPS[(exe_name or "").lower()])
+    return " ".join(parts)
+
+
+def exe_imports(path):
+    """DLL names a Windows exe imports or delay-loads, lower case (the widget's ExeImports). Read with seeks, so a
+    150 MB Unreal exe isn't loaded whole. Never raises: an unreadable or odd file gives an empty set."""
+    out = set()
+    try:
+        with open(path, "rb") as f:
+            def at(off, n):
+                f.seek(off)
+                return f.read(n)
+
+            def u32(b, i):
+                return int.from_bytes(b[i:i + 4], "little")
+
+            head = at(0, 64)
+            if len(head) < 64 or head[:2] != b"MZ":
+                return out
+            pe = u32(head, 0x3C)
+            hdr = at(pe, 24)
+            if len(hdr) < 24 or hdr[:4] != b"PE\0\0":
+                return out
+            sections, opt_size = int.from_bytes(hdr[6:8], "little"), int.from_bytes(hdr[20:22], "little")
+            opt = pe + 24
+            dirs = opt + (112 if at(opt, 2) == b"\x0b\x02" else 96)
+            table = at(opt + opt_size, 40 * min(sections, 96))
+            secs = [(u32(s, 12), max(u32(s, 8), u32(s, 16)), u32(s, 20))
+                    for s in (table[i:i + 40] for i in range(0, len(table) - 39, 40))]
+
+            def offset(rva):
+                return next((rva - va + raw for va, size, raw in secs if va <= rva < va + size), -1)
+
+            entries = at(dirs, 14 * 8)
+            # regular imports: 20-byte descriptors, name RVA at 12; delay-load: 32-byte descriptors, name RVA at 4
+            for index, size, name_at in ((1, 20, 12), (13, 32, 4)):
+                rva = u32(entries, index * 8)
+                start = offset(rva) if rva else -1
+                for n in range(512 if start >= 0 else 0):
+                    desc = at(start + n * size, size)
+                    name_rva = u32(desc, name_at) if len(desc) == size else 0
+                    if not name_rva:
+                        break
+                    o = offset(name_rva)
+                    raw = at(o, 256) if o >= 0 else b""
+                    end = raw.find(b"\0")
+                    if end > 0:
+                        out.add(raw[:end].decode("ascii", "replace").lower())
+    except (OSError, ValueError, OverflowError):
+        pass
+    return out
+
+
+def game_inputs(exe_dir, exe_name, upscalers):
+    """Extra OptiScaler input settings from what the scan found (the widget's InstallConfig.Fsr2Inputs):
+    no upscaler files at all: Fsr2Pattern/Fsr3Pattern, OptiScaler searches the exe for built-in FSR 2 and 3 (loads a
+    little slower, so only for these games); an FSR 2 DLL in a DX11 or Vulkan game: that API's FSR 2 inputs, as
+    OptiScaler hooks DX12 FSR 2 by default. The widget reads the API from the running game; the plugin installs before
+    the game runs, so it reads it from the exe's imports (no answer when the exe loads its renderer at runtime)."""
+    if not upscalers:
+        return [("Inputs", "Fsr2Pattern", "true"), ("Inputs", "Fsr3Pattern", "true")]
+    if "FSR 2" not in upscalers or not exe_name:
+        return []
+    imports = exe_imports(os.path.join(exe_dir, exe_name))
+    if "d3d12.dll" in imports:
+        return []
+    if "vulkan-1.dll" in imports:
+        return [("Inputs", "UseFsr2VulkanInputs", "true")]
+    if "d3d11.dll" in imports:
+        return [("Inputs", "UseFsr2Dx11Inputs", "true")]
+    return []
+
+
+def pick_proxy(exe_dir, exe_name, tried=(), remembered=None):
+    """The loader name for this game, the first free in the folder and not tried yet (the widget's PickProxyName):
+    the game's rule, then the name that worked last time it was set up (LoaderMemory), then the usual order. When a
+    name was already skipped, names the exe imports go first: Windows loads those from the game folder at startup,
+    before anything can skip them (the widget's OrderForExe)."""
+    order = list(PROXY_NAMES)
+    if tried and exe_name:
+        imports = exe_imports(os.path.join(exe_dir, exe_name))
+        order = [n for n in order if n in imports] + [n for n in order if n not in imports]
+    first = [n for n in (LOADER_RULES.get((exe_name or "").lower()), remembered) if n in PROXY_NAMES]
+    for name in first + [n for n in order if n not in first]:
         if name in tried:
             continue
         if not os.path.exists(os.path.join(exe_dir, name)):
@@ -245,10 +345,11 @@ def _sha(path):
     return h.hexdigest()
 
 
-def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None):
-    """Copies OptiScaler (OptiScaler.dll under the proxy name), the FSR 4 files into its subfolder and the settings.
+def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, upscalers=None, remembered=None):
+    """Copies OptiScaler (OptiScaler.dll under the proxy name), the FSR 4 files into its subfolder and the settings,
+    plus the game's input settings when its upscalers are given (game_inputs).
     Returns the manifest: created files, backed-up files, proxy name. Rolls back on failure."""
-    proxy = proxy or pick_proxy(exe_dir, exe_name)
+    proxy = proxy or pick_proxy(exe_dir, exe_name, remembered=remembered)
     if not proxy:
         raise InstallError("Every name OptiScaler can load under is already taken in this game's folder.")
     meta = os.path.join(exe_dir, META)
@@ -278,7 +379,8 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None):
         ini = os.path.join(exe_dir, "OptiScaler.ini")
         if "OptiScaler.ini" not in manifest["created"]:
             manifest["created"].append("OptiScaler.ini")
-        set_ini(ini, ini_settings(**settings))
+        set_ini(ini, ini_settings(**settings) + (game_inputs(exe_dir, exe_name, upscalers) if upscalers is not None
+                                                  else []))
         _save(meta, manifest)
     except OSError as e:
         try:

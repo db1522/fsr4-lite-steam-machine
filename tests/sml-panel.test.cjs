@@ -67,6 +67,18 @@ test('a running game installs with one button and its launch option is saved', a
   assert.ok(dialogButton(tree, 'Check setup'));
 });
 
+test('a game without upscaler files installs from Now playing but stays out of the library list', async () => {
+  const pbz = { ...game, appid: 2005010, name: 'Phantom Blade Zero', exe_name: 'PBZ-Win64-Shipping.exe', upscalers: [],
+    tip: 'No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells OptiScaler to search for it.' };
+  const h = panel({ appid: '2005010', display_name: 'Phantom Blade Zero' });
+  const tree = await open(h, state({ games: [game, pbz] }));
+  const text = strings(tree);
+  assert.match(text, /No upscaler files found/);
+  assert.ok(dialogButton(tree, 'Install FSR 4.1 Lite'));
+  assert.match(text, /Games: 0 of 1 set up/);
+  assert.ok(!all(tree).some(n => n.type === 'ToggleField' && /Phantom Blade Zero/.test(strings({ props: { children: n.props.label } }))));
+});
+
 test('the running game shows its live status: Restart the game, then Active', async () => {
   const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
   await open(h, state({ games: [{ ...game, installed: true, verdict: 'unplayed', proxy: 'dxgi.dll' }] }));

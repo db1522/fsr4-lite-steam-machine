@@ -37,6 +37,10 @@ let autoChecked = false;
 
 const failure = (text?: string): ReactNode => text ? <div style={{ color: colors.error }}>{text}</div> : null;
 
+/** In the library list: games with upscaler files, and any game set up. Games without them (many build FSR in) are
+ * offered on the Now playing card only, like the widget, which works on the game in front. */
+export const listed = (g: Game) => g.upscalers.length > 0 || g.installed;
+
 /** The chip for a game: what its last session showed. */
 export const chipFor = (g: Game): [string, string] => {
   if (!g.installed) return ["", ""];
@@ -141,7 +145,7 @@ export const Content: FC = () => {
   };
   const applyAll = async (on: boolean) => {
     if (busy !== null || !state) return;
-    const list = state.games.filter(g => on ? !g.installed && !g.anticheat && !g.manual_optiscaler : g.installed);
+    const list = state.games.filter(g => on ? listed(g) && !g.installed && !g.anticheat && !g.manual_optiscaler : g.installed);
     setBusy(-1);
     let n = 0;
     for (const g of list) { setBulk(`${++n} of ${list.length}`); await apply(g, on); }
@@ -202,6 +206,7 @@ export const Content: FC = () => {
   const settings = state.settings;
   const dl = state.download;
   const installed = state.games.filter(g => g.installed);
+  const library = state.games.filter(listed);
   const running = Router.MainRunningApp;
   const current = running ? state.games.find(g => g.appid === Number(running.appid)) : undefined;
 
@@ -222,8 +227,8 @@ export const Content: FC = () => {
       <div className="sml-body"><div className="sml-note" style={{ marginTop: 0 }}>Start a game, then open this menu to set up FSR 4.1 Lite in it with one button.</div></div>
     </div>;
     if (!current) return <div className="sml-now">
-      {art(Number(running.appid), running.display_name, ["", "No upscaler found"])}
-      <div className="sml-body"><div className="sml-note" style={{ marginTop: 0 }}>The scan didn't find FSR, DLSS or XeSS in this game, so OptiScaler has nothing to take over. If it updated recently, rescan your library below.</div></div>
+      {art(Number(running.appid), running.display_name, ["", "Not found"])}
+      <div className="sml-body"><div className="sml-note" style={{ marginTop: 0 }}>The scan didn't find this game's files. If you installed or updated it recently, rescan your library below.</div></div>
     </div>;
     const now = live && live.appid === current.appid ? live : null;
     const blocked = (!!current.anticheat && !current.installed) || (current.manual_optiscaler && !current.installed);
@@ -240,6 +245,7 @@ export const Content: FC = () => {
       <div className="sml-body">
         <div className="sml-meta">
           {current.upscalers.map(u => <span key={u} className="sml-badge">{u}</span>)}
+          {!current.upscalers.length && <span className="sml-badge warn">No upscaler files</span>}
           {current.installed && current.proxy && <span className="sml-badge">Loads as {current.proxy}</span>}
           {current.anticheat && <span className="sml-badge bad">Blocked: {current.anticheat}</span>}
         </div>
@@ -252,6 +258,7 @@ export const Content: FC = () => {
             onClick={() => { setCheckId(current.appid); navigate("check"); }}>Check setup</DialogButton>
         </div>}
         <div className={`sml-note${now?.status === "inactive" ? " bad" : ""}`}>{note}</div>
+        {!blocked && current.tip && <div className="sml-note">{current.tip}</div>}
         {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}
       </div>
     </div>;
@@ -340,14 +347,14 @@ export const Content: FC = () => {
       <PanelSection>
         <PanelSectionRow>
           <Field focusable highlightOnFocus onActivate={() => flip("games")}
-            label={`Games: ${installed.length} of ${state.games.length} set up`}
+            label={`Games: ${installed.length} of ${library.length} set up`}
             description={!state.scanned || scanning ? "Scanning your library…"
-              : state.games.length ? "Games with FSR, DLSS or XeSS. Turn one off to restore its files." : "No compatible games found."}
+              : library.length ? "Games with FSR, DLSS or XeSS. Turn one off to restore its files." : "No compatible games found."}
             childrenLayout="inline" childrenContainerWidth="min" verticalAlignment="center">
             <span style={{ display: "inline-block", transform: open.games ? "rotate(90deg)" : "none", transition: "transform .15s" }}>›</span>
           </Field>
         </PanelSectionRow>
-        {open.games && state.games.map(g => <Fragment key={g.appid}>
+        {open.games && library.map(g => <Fragment key={g.appid}>
           {gameRow(g)}
           {g.installed && <PanelSectionRow>
             <ActionButton onClick={() => { setCheckId(g.appid); navigate("check"); }}>Check setup: {g.name}</ActionButton>
@@ -386,12 +393,12 @@ export const Content: FC = () => {
         <PanelSectionRow>
           <ActionButton onClick={rescan}>{scanning ? "Scanning…" : "Rescan library"}</ActionButton>
         </PanelSectionRow>
-        {state.games.length > 0 && <PanelSectionRow>
+        {library.length > 0 && <PanelSectionRow>
           <ActionButton onClick={() => applyAll(true)} description="Skips games with anti-cheat, which stay blocked.">
             {busy === -1 && bulk ? `Setting up… ${bulk}` : "Install in all compatible games"}
           </ActionButton>
         </PanelSectionRow>}
-        {state.games.length > 0 && <PanelSectionRow>
+        {installed.length > 0 && <PanelSectionRow>
           <ActionButton onClick={() => applyAll(false)} description="Puts every game back as it was. Do this before removing the plugin.">
             {busy === -1 && bulk ? `Removing… ${bulk}` : "Uninstall from all games"}
           </ActionButton>

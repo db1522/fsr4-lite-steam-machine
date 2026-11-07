@@ -65,8 +65,10 @@ def _read(path, default):
         return default
 
 
-def scan_library(steam_root, installed):
-    """Every Steam game and non-Steam shortcut with an upscaler OptiScaler can take over, plus installed ones."""
+def scan_library(steam_root):
+    """Every Steam game and non-Steam shortcut with a game exe. Games without upscaler files stay in the scan, like
+    in the widget (many build FSR 2 or 3 in, which OptiScaler can search for); the panel offers them only while they
+    run, not in the library list."""
     games = []
     for lib in fsr4_games.libraries(steam_root):
         apps = os.path.join(lib, "steamapps")
@@ -97,8 +99,6 @@ def scan_library(steam_root, installed):
         info = sml_opti.analyze(root, exe)
         if not info:
             continue
-        if not info["upscalers"] and str(appid) not in installed:
-            continue
         out.append({"appid": appid, "name": name, "install_dir": root, "nonsteam": exe is not None, **info})
     out.sort(key=lambda g: g["name"].lower())
     return out
@@ -110,8 +110,12 @@ class Plugin:
             settings_dir = decky.DECKY_PLUGIN_SETTINGS_DIR
             self.settings_path = os.path.join(settings_dir, "settings.json")
             self.registry_path = os.path.join(settings_dir, "games.json")
+            # exe name (lower case) -> the loader name OptiScaler last loaded under in that game (the widget's
+            # LoaderMemory), so setting a game up again starts with the name that worked
+            self.loaders_path = os.path.join(settings_dir, "loaders.json")
             self.settings = dict(DEFAULT_SETTINGS)
             self.registry = {}  # str(appid) -> {exe_dir, proxy, tried, launch_original, launch_applied, installed_at}
+            self.loaders = {}
             self.games, self.scanned, self._scan_task = [], False, None
             self.download = {"state": "idle", "done": 0, "total": sml_assets.TOTAL, "error": ""}
             self.assets_ok = False
@@ -128,6 +132,8 @@ class Plugin:
                              saved.get(k) in CHOICES.get(k, ()) else v for k, v in DEFAULT_SETTINGS.items()}
             reg = await asyncio.to_thread(_read, self.registry_path, {})
             self.registry = {k: v for k, v in reg.items() if isinstance(v, dict) and isinstance(v.get("exe_dir"), str)}
+            loaders = await asyncio.to_thread(_read, self.loaders_path, {})
+            self.loaders = {k: v for k, v in loaders.items() if v in sml_opti.PROXY_NAMES}
             try:
                 os.chmod(SEVENZIP, 0o755)
             except OSError:
@@ -157,6 +163,7 @@ class Plugin:
         view = {k: g[k] for k in ("appid", "name", "exe_name", "upscalers", "anticheat", "nonsteam",
                                   "manual_optiscaler")}
         view["installed"] = entry is not None
+        view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"])
         view["verdict"], view["detail"] = ("", "")
         if entry:
             view["verdict"], view["detail"] = entry.get("verdict", "unplayed"), entry.get("detail", "")
@@ -177,7 +184,7 @@ class Plugin:
 
     @rpc
     async def scan_games(self) -> dict:
-        self.games = await asyncio.to_thread(scan_library, _steam_root(), set(self.registry))
+        self.games = await asyncio.to_thread(scan_library, _steam_root())
         self.scanned = True
         return dk_rpc.ok(await self._state())
 
@@ -240,7 +247,8 @@ class Plugin:
             try:
                 manifest = await asyncio.to_thread(
                     sml_opti.install, game["exe_dir"], game["exe_name"], sml_assets.package_dir(_data_dir()),
-                    sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), entry.get("next_proxy"))
+                    sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), entry.get("next_proxy"),
+                    game["upscalers"], self.loaders.get(game["exe_name"].lower()))
             except sml_opti.InstallError as e:
                 return dk_rpc.fail(str(e), await self._state())
             original = entry.get("launch_original", launch_options)
@@ -362,6 +370,11 @@ class Plugin:
                 entry["height"] = height  # the overlay is sized for what the game really draws at
                 await asyncio.to_thread(sml_opti.apply_settings, exe_dir, self._settings_for_ini(height))
             result = {"managed": True, "verdict": verdict, "detail": detail}
+            game = self._game(appid)
+            exe_key = (game or {}).get("exe_name", "").lower()
+            if verdict != "none" and exe_key and self.loaders.get(exe_key) != entry["proxy"]:
+                self.loaders[exe_key] = entry["proxy"]  # OptiScaler loaded under this name: remember it
+                await asyncio.to_thread(dk_fs.write_json, self.loaders_path, self.loaders)
             # OptiScaler never loaded: the game skipped that file name. Next name, like the widget's game watcher.
             if verdict == "none" and started:
                 game = self._game(appid)
@@ -373,7 +386,7 @@ class Plugin:
                     try:
                         manifest = await asyncio.to_thread(
                             sml_opti.install, exe_dir, game["exe_name"], sml_assets.package_dir(_data_dir()),
-                            sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), nxt)
+                            sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), nxt, game["upscalers"])
                     except sml_opti.InstallError as e:
                         await asyncio.to_thread(self._save_registry)
                         return dk_rpc.ok(managed=True, verdict="none", detail=str(e), launch_options=restored)
