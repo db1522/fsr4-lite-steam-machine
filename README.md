@@ -16,7 +16,7 @@ It does it one way for every game, the same way the FSR 4.1 Lite widget for Wind
 
 ## Results
 
-Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, on my own Steam Machine. Measured with version 1, which ran the same Lite model; 2.0 numbers are coming with the full write-up.
+Same spot, 4K output, Proton Experimental's stock FSR 4.1 against FSR 4.1 Lite, on my own Steam Machine.
 
 | Game | Engine | Stock FSR 4.1 → Lite |
 |---|---|---|
