@@ -2,6 +2,14 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.25] - 2026-11-08
+
+### ✨ Added
+- **OptiPatcher:** games that only offer DLSS on AMD with OptiPatcher, like DOOM Eternal, now get it next to
+  OptiScaler, so DLSS isn't greyed out anymore. The plugin adds it to the games OptiScaler's Compatibility List marks
+  for it (212 right now), downloads the newest release checked against GitHub's SHA-256, and looks for a newer one
+  once a day. Games you set up before get it with the next update.
+
 ## [2.2.24] - 2026-11-08
 
 ### 🔧 Changed

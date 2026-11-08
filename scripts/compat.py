@@ -42,7 +42,8 @@ def status(cell):
 
 
 def parse(markdown):
-    """[[name, status, [inputs]], ...] from the list's main table (the first whose header starts "| Game |")."""
+    """[[name, status, [inputs], optipatcher], ...] from the list's main table (the first whose header starts
+    "| Game |"); optipatcher is true for the rows marked ✨ in its OptiPatcher Support column."""
     lines = markdown.replace("\r", "").split("\n")
     start = next((i for i, l in enumerate(lines) if l.startswith("| Game |")), None)
     games = []
@@ -61,7 +62,7 @@ def parse(markdown):
         if not name or name.upper() == "GAME NAME":
             continue
         inputs = [x for x in (plain(p) for p in cells[2].split(",")) if x]
-        games.append([name, status(cells[1]), inputs])
+        games.append([name, status(cells[1]), inputs, "✨" in cells[3]])
     return games
 
 

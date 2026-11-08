@@ -307,6 +307,43 @@ class Flow(unittest.TestCase):
         self.assertEqual(r["launch_options"], "")
         self.assertEqual(sorted(os.listdir(mhw)), ["MonsterHunterWilds.exe", "amd_fidelityfx_dx12.dll"])
 
+    def test_a_game_the_list_marks_gets_optipatcher_and_loses_it_at_uninstall(self):
+        apps = os.path.join(self.home, ".local", "share", "Steam", "steamapps")
+        touch(os.path.join(apps, "appmanifest_782330.acf"),
+              b'"AppState"\n{\n"appid" "782330"\n"name" "DOOM Eternal"\n"installdir" "DOOMEternal"\n}\n')
+        doom = os.path.join(apps, "common", "DOOMEternal")
+        touch(os.path.join(doom, "DOOMEternalx64vk.exe"), b"game" * 50)
+        touch(os.path.join(doom, "nvngx_dlss.dll"))
+        asi = os.path.join(self.data, "op", "OptiPatcher.asi")
+        touch(asi, b"MZ patcher")
+        self.run_(self.p.scan_games())
+        with mock.patch("sml_assets.fetch_optipatcher", return_value=asi) as fetch:
+            r = self.run_(self.p.enable_game(782330, ""))
+        self.assertTrue(r["ok"], r)
+        fetch.assert_called_once()
+        self.assertTrue(os.path.isfile(os.path.join(doom, "plugins", "OptiPatcher.asi")))
+        with open(os.path.join(doom, "OptiScaler.ini"), encoding="utf-8") as f:
+            self.assertIn("LoadAsiPlugins=true", f.read())
+        self.run_(self.p.disable_game(782330, r["launch_options"]))
+        self.assertEqual(sorted(os.listdir(doom)), ["DOOMEternalx64vk.exe", "nvngx_dlss.dll"])
+
+    def test_a_game_set_up_before_gets_optipatcher_with_the_next_update(self):
+        apps = os.path.join(self.home, ".local", "share", "Steam", "steamapps")
+        touch(os.path.join(apps, "appmanifest_782330.acf"),
+              b'"AppState"\n{\n"appid" "782330"\n"name" "DOOM Eternal"\n"installdir" "DOOMEternal"\n}\n')
+        doom = os.path.join(apps, "common", "DOOMEternal")
+        touch(os.path.join(doom, "DOOMEternalx64vk.exe"), b"game" * 50)
+        asi = os.path.join(self.data, "op", "OptiPatcher.asi")
+        touch(asi, b"MZ patcher")
+        self.run_(self.p.scan_games())
+        with mock.patch("sml_assets.fetch_optipatcher", side_effect=OSError("offline")):
+            self.assertTrue(self.run_(self.p.enable_game(782330, ""))["ok"], "set up even when it can't download")
+        self.assertFalse(os.path.exists(os.path.join(doom, "plugins")))
+        with mock.patch("sml_assets.fetch_optipatcher", return_value=asi), \
+                mock.patch("sml_opti.running_processes", return_value=[]):
+            self.run_(self.p._update_games())
+        self.assertTrue(os.path.isfile(os.path.join(doom, "plugins", "OptiPatcher.asi")))
+
     def test_other_games_never_download_reframework(self):
         with mock.patch("sml_assets.fetch_reframework") as fetch:
             self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])

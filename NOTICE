@@ -30,9 +30,12 @@ FSR 4.1 Lite 2.0 and later:
 - AMD's FSR 4 files (amdxcffx64.dll, amdvkffx64.dll) are not included. The plugin downloads AMD's signed files,
   unmodified, from https://github.com/db1522/fsr4-files at setup.
 - shim/ (LGPL-2.1+) is no longer part of the plugin as of 2.0.
-- compat.json is a snapshot of each game's name, status and working upscaler inputs from OptiScaler's community
+- compat.json is a snapshot of each game's name, status, working upscaler inputs and OptiPatcher support from OptiScaler's community
   Compatibility List (https://github.com/optiscaler/OptiScaler/wiki/Compatibility-List), made by scripts/compat.py.
   All credit to the OptiScaler community who keep it.
 - REFramework (MIT, praydog) is not included. For the Capcom RE Engine games OptiScaler needs it in, the plugin
   downloads the newest nightly from https://github.com/praydog/REFramework-nightly, unmodified, and uses its dinput8.dll;
   its source is at https://github.com/praydog/REFramework.
+- OptiPatcher (MIT, the OptiScaler team) is not included. For the games OptiScaler's Compatibility List marks as
+  OptiPatcher-supported, the plugin downloads the newest release from https://github.com/optiscaler/OptiPatcher,
+  unmodified, and puts OptiPatcher.asi in the game's plugins folder next to OptiScaler.

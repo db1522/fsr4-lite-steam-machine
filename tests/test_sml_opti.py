@@ -237,6 +237,126 @@ class REFramework(unittest.TestCase):
         self.assertEqual(read(os.path.join(self.game, "dinput8.dll"), "rb"), b"the player's own mod")
 
 
+class OptiPatcher(unittest.TestCase):
+    def test_the_games_the_list_marks_get_it(self):
+        self.assertTrue(O.needs_optipatcher("DOOM Eternal", "DOOMEternalx64vk.exe"))
+        self.assertFalse(O.needs_optipatcher("Horizon Zero Dawn Complete Edition", "HorizonZeroDawn.exe"))
+        self.assertFalse(O.needs_optipatcher("Not Listed", "n.exe"))
+        self.assertIn("OptiPatcher", O.tips("DOOMEternalx64vk.exe", ["DLSS"], "DOOM Eternal"))
+        # compat.json from before 2.2.25 (three columns) still reads
+        path = os.path.join(tempfile.mkdtemp(), "compat.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"games": [["Old", "working", ["DLSS"]], ["New", "working", ["DLSS"], True]]}, f)
+        self.assertFalse(O.needs_optipatcher("Old", "old.exe", path))
+        self.assertTrue(O.needs_optipatcher("New", "new.exe", path))
+        self.assertEqual(O.compat_text("Old", "old.exe", path), "Works with: DLSS")
+
+    def setUp(self):
+        t = tempfile.mkdtemp()
+        self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
+        touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
+        touch(os.path.join(self.pkg, "OptiScaler.ini"), b"[Plugins]\r\nPath=auto\r\nLoadAsiPlugins=auto\r\n")
+        self.asi = os.path.join(t, "OptiPatcher.asi")
+        touch(self.asi, b"MZ patcher")
+        touch(os.path.join(self.game, "doom.exe"), b"game")
+
+    def test_added_in_plugins_with_asi_loading_on_and_removed_at_uninstall(self):
+        O.install(self.game, "doom.exe", self.pkg, [], {})
+        self.assertTrue(O.add_optipatcher(self.game, self.asi, "v0.42"))
+        self.assertEqual(read(os.path.join(self.game, "plugins", "OptiPatcher.asi"), "rb"), b"MZ patcher")
+        self.assertIn("LoadAsiPlugins=true", read(os.path.join(self.game, "OptiScaler.ini")))
+        self.assertEqual(O.load_manifest(self.game)["optipatcher"], "v0.42")
+        self.assertFalse(O.add_optipatcher(self.game, self.asi, "v0.42"), "already there")
+        touch(self.asi, b"MZ newer")
+        self.assertTrue(O.add_optipatcher(self.game, self.asi, "v0.43"))
+        self.assertEqual(read(os.path.join(self.game, "plugins", "OptiPatcher.asi"), "rb"), b"MZ newer")
+        O.uninstall(self.game)
+        self.assertEqual(os.listdir(self.game), ["doom.exe"])
+
+    def test_a_players_own_plugin_folder_stays(self):
+        touch(os.path.join(self.game, "plugins", "theirs.asi"), b"theirs")
+        O.install(self.game, "doom.exe", self.pkg, [], {})
+        O.add_optipatcher(self.game, self.asi, "v0.42")
+        O.uninstall(self.game)
+        self.assertEqual(sorted(os.listdir(self.game)), ["doom.exe", "plugins"])
+        self.assertEqual(os.listdir(os.path.join(self.game, "plugins")), ["theirs.asi"])
+
+    def test_repair_puts_it_back(self):
+        O.install(self.game, "doom.exe", self.pkg, [], {})
+        O.add_optipatcher(self.game, self.asi, "v0.42")
+        os.remove(os.path.join(self.game, "plugins", "OptiPatcher.asi"))
+        os.remove(os.path.join(self.game, "OptiScaler.ini"))
+        fixed = O.repair(self.game, self.pkg, [], {}, optipatcher=self.asi)
+        self.assertIn(os.path.join("plugins", "OptiPatcher.asi"), fixed)
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "plugins", "OptiPatcher.asi")))
+        self.assertIn("LoadAsiPlugins=true", read(os.path.join(self.game, "OptiScaler.ini")))
+
+    def test_not_for_a_game_that_isnt_set_up(self):
+        self.assertFalse(O.add_optipatcher(self.game, self.asi, "v0.42"))
+        self.assertFalse(os.path.exists(os.path.join(self.game, "plugins")))
+
+
+OP_RELEASES = [
+    {"tag_name": "rolling", "published_at": "2026-05-14T18:26:56Z", "assets": [
+        {"name": "OptiPatcher.asi", "size": 300, "digest": "sha256:" + "c" * 64,
+         "browser_download_url": "https://github.com/optiscaler/OptiPatcher/releases/download/rolling/OptiPatcher.asi"}]},
+    {"tag_name": "v0.43", "published_at": "2026-11-01T00:00:00Z", "prerelease": True, "assets": [
+        {"name": "OptiPatcher_v0.43.asi", "size": 300,
+         "browser_download_url": "https://github.com/optiscaler/OptiPatcher/releases/download/v0.43/OptiPatcher_v0.43.asi"}]},
+    {"tag_name": "v0.42", "published_at": "2026-10-18T12:28:51Z", "assets": [
+        {"name": "OptiPatcher_v0.42.asi", "size": 200, "digest": "sha256:" + "a" * 64,
+         "browser_download_url": "https://github.com/optiscaler/OptiPatcher/releases/download/v0.42/OptiPatcher_v0.42.asi"}]},
+    {"tag_name": "evil", "published_at": "2026-12-01T00:00:00Z", "assets": [
+        {"name": "OptiPatcher.asi", "size": 200, "browser_download_url": "https://example.com/OptiPatcher.asi"}]},
+]
+
+
+class OptiPatcherDownload(unittest.TestCase):
+    def fake_download(self, data, expect):
+        def download(url, dest, limit, sha256, **kw):
+            self.assertEqual((url, limit, sha256), expect)
+            with open(dest, "wb") as f:
+                f.write(data)
+        return download
+
+    def test_the_newest_published_release_is_used_checked_by_githubs_sha256(self):
+        from unittest import mock
+        import sml_assets
+        self.assertEqual(sml_assets.newest_optipatcher(OP_RELEASES)["tag"], "v0.42")
+        data = tempfile.mkdtemp()
+        with mock.patch("sml_assets._api", return_value=OP_RELEASES), \
+                mock.patch("dk_net.download", self.fake_download(b"MZ op", (
+                    OP_RELEASES[2]["assets"][0]["browser_download_url"], 200, "a" * 64))):
+            path = sml_assets.fetch_optipatcher(data)
+        self.assertEqual(read(path, "rb"), b"MZ op")
+        self.assertEqual(sml_assets.optipatcher_build(data), "v0.42")
+
+    def test_without_githubs_api_the_pinned_release_is_used(self):
+        from unittest import mock
+        import dk_net
+        import sml_assets
+        data = tempfile.mkdtemp()
+        P = sml_assets.OPTIPATCHER
+        with mock.patch("sml_assets._api", side_effect=dk_net.NetError("rate limited")), \
+                mock.patch("dk_net.download", self.fake_download(b"MZ op", (P["url"], P["size"], P["sha256"]))):
+            sml_assets.fetch_optipatcher(data)
+        self.assertEqual(sml_assets.optipatcher_build(data), "v0.42")
+
+    def test_looked_for_once_a_day_and_a_non_dll_is_refused(self):
+        from unittest import mock
+        import sml_assets
+        data = tempfile.mkdtemp()
+        with mock.patch("sml_assets._api", return_value=OP_RELEASES) as api, \
+                mock.patch("dk_net.download", self.fake_download(b"MZ op", mock.ANY)):
+            sml_assets.update_optipatcher(data, now=1000)
+            self.assertEqual(sml_assets.update_optipatcher(data, now=1000 + 3600), ("v0.42", False))
+            self.assertEqual(api.call_count, 1)
+        with mock.patch("sml_assets._api", return_value=OP_RELEASES), \
+                mock.patch("dk_net.download", self.fake_download(b"<html>", mock.ANY)):
+            with self.assertRaises(RuntimeError):
+                sml_assets.fetch_optipatcher(tempfile.mkdtemp())
+
+
 REF_RELEASE = {"tag_name": "nightly-01440-abc", "assets": [
     {"name": "REFramework.zip", "size": 1234, "digest": "sha256:" + "a" * 64,
      "browser_download_url": "https://github.com/praydog/REFramework-nightly/releases/download/nightly-01440-abc/"
@@ -476,7 +596,7 @@ class CompatList(unittest.TestCase):
         "| ---- | :-----------: | :-----------------: | :---: | ----- | :----: |\n"
         "| [Cyberpunk 2077](Cyberpunk-2077) | ✅ | DLSS, FSR3, FSR3.1/4, XeSS |  | Notes | [1](https://x) |\n"
         "| Gears of War: Reloaded | ❌ |  |  | Crashes |  |\n"
-        "| [Some Game](Some-Game) | ✅ ❌ | DLSS |  | Depends |  |\n"
+        "| [Some Game](Some-Game) | ✅ ❌ | DLSS | ✨ | Depends |  |\n"
         "| Minecraft RTX | ➖ | `DLSS` |  |  |  |\n"
         "| [Resident Evil 8 Village](Resident-Evil-8-Village) | ✅ | DLSS, FSR2 |  | Requires REFramework |  |\n"
         "\n## Another section\n| not | a | row | in | the | table |\n")
@@ -488,9 +608,9 @@ class CompatList(unittest.TestCase):
         script = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(script)
         self.assertEqual(script.parse(self.SAMPLE), [
-            ["Cyberpunk 2077", "working", ["DLSS", "FSR3", "FSR3.1/4", "XeSS"]],
-            ["Gears of War: Reloaded", "not_working", []], ["Some Game", "mixed", ["DLSS"]],
-            ["Minecraft RTX", "partial", ["DLSS"]], ["Resident Evil 8 Village", "working", ["DLSS", "FSR2"]]])
+            ["Cyberpunk 2077", "working", ["DLSS", "FSR3", "FSR3.1/4", "XeSS"], False],
+            ["Gears of War: Reloaded", "not_working", [], False], ["Some Game", "mixed", ["DLSS"], True],
+            ["Minecraft RTX", "partial", ["DLSS"], False], ["Resident Evil 8 Village", "working", ["DLSS", "FSR2"], False]])
 
     def test_the_card_line(self):
         path = os.path.join(tempfile.mkdtemp(), "compat.json")

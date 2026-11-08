@@ -140,13 +140,14 @@ npm run check      # types, backend and frontend tests, build, package
 
 - [OptiScaler](https://github.com/optiscaler/OptiScaler) by cdozdil and contributors, which does the actual work in every game.
 - [REFramework](https://github.com/praydog/REFramework) by praydog. Capcom's RE Engine games need it for OptiScaler to load, so the plugin adds it to those games.
+- [OptiPatcher](https://github.com/optiscaler/OptiPatcher) by the OptiScaler team. Some games, like DOOM Eternal, only show DLSS on AMD with it, so the plugin adds it to the games OptiScaler's Compatibility List marks for it.
 - AMD for FSR 4, and TheRazerMD for making the FSR 4.1.2 files available to the community.
 - [FSR4 Injector](https://github.com/Rayekkk/FSR4Injector) by Rayekkk. Version 1 of this plugin was built on it, and its library scan, launch option handling and updater still are.
 - [7-Zip](https://www.7-zip.org) by Igor Pavlov, bundled to unpack OptiScaler.
 
 ## License
 
-Plugin code is BSD-3-Clause ([LICENSE](LICENSE)). `bin/7zz` is 7-Zip under the GNU LGPL ([bin/7zz-License.txt](bin/7zz-License.txt)). OptiScaler (GPL-3.0), REFramework (MIT) and AMD's files aren't included; the plugin downloads them unmodified at setup. Barlow Condensed is under the SIL Open Font License 1.1. Full details are in [NOTICE](NOTICE).
+Plugin code is BSD-3-Clause ([LICENSE](LICENSE)). `bin/7zz` is 7-Zip under the GNU LGPL ([bin/7zz-License.txt](bin/7zz-License.txt)). OptiScaler (GPL-3.0), REFramework (MIT), OptiPatcher (MIT) and AMD's files aren't included; the plugin downloads them unmodified at setup. Barlow Condensed is under the SIL Open Font License 1.1. Full details are in [NOTICE](NOTICE).
 
 Not affiliated with AMD, Valve or the OptiScaler project. The plugin places files in game folders and is provided as is, without warranty.
 

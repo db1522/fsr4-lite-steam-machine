@@ -263,7 +263,8 @@ class Plugin:
         try:
             fixed = await asyncio.to_thread(
                 sml_opti.repair, entry["exe_dir"], sml_assets.package_dir(data), sml_assets.fsr4_paths(data),
-                self._settings_for_ini(entry.get("height")), sml_assets.reframework_path(data))
+                self._settings_for_ini(entry.get("height")), sml_assets.reframework_path(data),
+                sml_assets.optipatcher_path(data))
         except OSError as e:
             decky.logger.warning(f"repair failed in {entry['exe_dir']} ({dk_fs.shown(e)})")
             return False
@@ -334,6 +335,11 @@ class Plugin:
                 await asyncio.to_thread(sml_assets.update_reframework, data, force)
             except Exception as e:  # noqa: BLE001
                 decky.logger.warning(f"REFramework check: {e!r}")
+        if sml_assets.optipatcher_build(data):  # downloaded once a game needed it
+            try:
+                await asyncio.to_thread(sml_assets.update_optipatcher, data, force)
+            except Exception as e:  # noqa: BLE001
+                decky.logger.warning(f"OptiPatcher check: {e!r}")
         if not self.settings["auto_update"]:
             return self.opti_note
         updated, running = await self._update_games()
@@ -360,6 +366,7 @@ class Plugin:
         data = _data_dir()
         build, package = sml_assets.current(data), sml_assets.package_dir(data)
         ref, ref_dll = sml_assets.reframework_build(data), sml_assets.reframework_path(data)
+        op = sml_assets.optipatcher_build(data)
         if not build:
             return 0, 0
         updated = running = 0
@@ -370,12 +377,14 @@ class Plugin:
                 manifest = await asyncio.to_thread(sml_opti.load_manifest, entry["exe_dir"])
                 if not manifest:
                     continue
-                stale = manifest.get("opti_build") != build or bool(
-                    manifest.get("reframework") and ref and manifest.get("ref_build") != ref)
-                if not stale:
-                    continue
                 appid = int(key) if key.isdigit() else None
                 game = self._game(appid) if appid is not None else None
+                patch = bool(game and sml_opti.needs_optipatcher(game["name"], game["exe_name"]) and (
+                    not manifest.get("optipatcher") or manifest.get("optipatcher") != (op or manifest["optipatcher"])))
+                stale = manifest.get("opti_build") != build or bool(
+                    manifest.get("reframework") and ref and manifest.get("ref_build") != ref)
+                if not stale and not patch:
+                    continue
                 busy = appid in self.sessions
                 if not busy and game:
                     busy = bool(await asyncio.to_thread(sml_opti.running_processes, game["install_dir"]))
@@ -385,6 +394,8 @@ class Plugin:
                 try:
                     did = await asyncio.to_thread(sml_opti.update_opti, entry["exe_dir"], package, build)
                     did = await asyncio.to_thread(sml_opti.update_reframework, entry["exe_dir"], ref_dll, ref) or did
+                    if patch and await self._add_optipatcher(game, entry["exe_dir"]):
+                        decky.logger.info(f"{key}: OptiPatcher added")
                     if did and manifest.get("opti_build"):
                         updated += 1  # a game set up before nightly updates only gets its build noted
                 except OSError as e:
@@ -540,6 +551,7 @@ class Plugin:
         except sml_opti.InstallError as e:
             await asyncio.to_thread(self._save_registry)
             return {"managed": True, "verdict": "none", "detail": str(e), "launch_options": restored}
+        await self._add_optipatcher(game, game["exe_dir"])
         new = _with_overrides(restored, manifest)
         detail = f"Moved next to {game['exe_name']}, the exe the game really runs. Play once more."
         self.registry[key] = {"exe_dir": game["exe_dir"], "proxy": manifest["proxy"], "tried": [manifest["proxy"]],
@@ -550,6 +562,20 @@ class Plugin:
         decky.logger.info(f"moved {appid} from {entry['exe_dir']} to {game['exe_dir']}")
         return {"managed": True, "verdict": "unplayed", "retry": manifest["proxy"], "launch_options": new,
                 "detail": detail}
+
+    async def _add_optipatcher(self, game, exe_dir):
+        """OptiPatcher next to OptiScaler in a game the Compatibility List marks for it (DLSS shown on AMD without
+        spoofing). A failed download leaves the game set up without it. True when it was added or updated."""
+        if not game or not sml_opti.needs_optipatcher(game["name"], game["exe_name"]):
+            return False
+        data = _data_dir()
+        try:
+            asi = await asyncio.to_thread(sml_assets.fetch_optipatcher, data)
+            return await asyncio.to_thread(sml_opti.add_optipatcher, exe_dir, asi,
+                                           sml_assets.optipatcher_build(data) or sml_assets.OPTIPATCHER["tag"])
+        except (dk_net.NetError, OSError, RuntimeError) as e:
+            decky.logger.warning(f"OptiPatcher not added in {exe_dir} ({e})")
+            return False
 
     def _settings_for_ini(self, height=None):
         return {"watermark": self.settings["watermark"], "overlay": self.settings["overlay"],
@@ -606,6 +632,7 @@ class Plugin:
                     game["upscalers"], self.loaders.get(game["exe_name"].lower()), reframework, **self._builds())
             except sml_opti.InstallError as e:
                 return dk_rpc.fail(str(e), await self._state())
+            await self._add_optipatcher(game, game["exe_dir"])
             original = entry.get("launch_original", launch_options)
             new = _with_overrides(launch_options, manifest)
             self.registry[key] = {"exe_dir": game["exe_dir"], "proxy": manifest["proxy"],
@@ -801,6 +828,7 @@ class Plugin:
                     except sml_opti.InstallError as e:
                         await asyncio.to_thread(self._save_registry)
                         return dk_rpc.ok(managed=True, verdict="none", detail=str(e), launch_options=restored)
+                    await self._add_optipatcher(game, exe_dir)
                     new = _with_overrides(restored, manifest)
                     self.registry[key] = {"exe_dir": exe_dir, "proxy": manifest["proxy"],
                                           "tried": sorted(set(self.registry[key].get("tried", [])) |

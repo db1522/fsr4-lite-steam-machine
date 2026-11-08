@@ -32,6 +32,10 @@ REF_API = "https://api.github.com/repos/praydog/REFramework-nightly/releases/lat
 REF_DOWNLOADS = "https://github.com/praydog/REFramework-nightly/releases/download/"
 OPTI_CHECK_EVERY = 6 * 3600  # the widget's CheckInterval: a new nightly reaches players the same day
 REF_CHECK_EVERY = 24 * 3600  # the widget's REFrameworkSource.CheckEvery
+OP_API = "https://api.github.com/repos/optiscaler/OptiPatcher/releases?per_page=10"
+OP_DOWNLOADS = "https://github.com/optiscaler/OptiPatcher/releases/download/"
+OP_CHECK_EVERY = 24 * 3600
+MAX_ASI = 16 << 20
 MAX_ARCHIVE = 256 << 20
 LITE_KEYS = ("Fsr4GpuSupport", "Fsr4Model")  # without them OptiScaler can't be told to run the Lite model
 
@@ -61,6 +65,15 @@ REFRAMEWORK = {
            "nightly-01433-d4611aef1d63effd3a736bdf9404ea702428017d/REFramework.zip",
     "size": 13267029,
     "sha256": "b3ff4f497be6f108ef494c2c02156b61b8d04f3171378ecc0dc28c218ee296b3",
+}
+
+# OptiPatcher (OptiScaler's ASI plugin): shows DLSS on AMD in the games the Compatibility List marks, without spoofing
+# an NVIDIA card. The newest release is used; this one is the fallback when GitHub's API can't be reached.
+OPTIPATCHER = {
+    "tag": "v0.42",
+    "url": "https://github.com/optiscaler/OptiPatcher/releases/download/v0.42/OptiPatcher_v0.42.asi",
+    "size": 107520,
+    "sha256": "2a6e033aeda72d63281889480b2380da830530cf6e1e448e2056d451ade75f1b",
 }
 
 
@@ -339,6 +352,91 @@ def fetch_reframework(data, cancelled=None):
             raise
         _unpack_reframework(data, REFRAMEWORK, cancelled)
     return reframework_path(data)
+
+
+# ---- OptiPatcher ----
+
+def _op_root(data):
+    return os.path.join(data, "optipatcher")
+
+
+def optipatcher_path(data):
+    return os.path.join(_op_root(data), "OptiPatcher.asi")
+
+
+def optipatcher_build(data):
+    """The OptiPatcher release ready to install (its tag), or ""."""
+    tag = _read(os.path.join(_op_root(data), "latest.txt"))
+    return tag if tag and os.path.isfile(optipatcher_path(data)) else ""
+
+
+def newest_optipatcher(releases):
+    """The newest OptiPatcher in a list of releases: the .asi of the latest published release that isn't a draft or a
+    pre-release. {tag, url, size, sha256}, or None."""
+    best = None
+    for release in releases if isinstance(releases, list) else []:
+        if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
+            continue
+        tag, when = str(release.get("tag_name", "")), str(release.get("published_at") or "")
+        for a in release.get("assets") or []:
+            if not isinstance(a, dict):
+                continue
+            name, url, size = str(a.get("name", "")), str(a.get("browser_download_url", "")), a.get("size")
+            if not name.lower().endswith(".asi") or "/" in name or not url.startswith(OP_DOWNLOADS):
+                continue
+            if a.get("state", "uploaded") != "uploaded" or not isinstance(size, int) or not 0 < size <= MAX_ASI:
+                continue
+            if tag and (best is None or when > best["when"]):
+                best = {"tag": tag, "url": url, "size": size, "sha256": _digest(a), "when": when}
+            break
+    return best
+
+
+def _unpack_optipatcher(data, spec, cancelled=None):
+    folder = _op_root(data)
+    os.makedirs(folder, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=folder) as tmp:
+        out = os.path.join(tmp, "OptiPatcher.asi")
+        dk_net.download(spec["url"], out, spec["size"], spec.get("sha256"), hosts=HOSTS, redirects=REDIRECTS,
+                        deadline=300, cancel=cancelled)
+        with open(out, "rb") as f:
+            if f.read(2) != b"MZ":
+                raise RuntimeError("OptiPatcher's download isn't a Windows plugin")
+        os.replace(out, optipatcher_path(data))
+    _write(os.path.join(folder, "latest.txt"), spec["tag"])
+    return spec["tag"]
+
+
+def update_optipatcher(data, force=False, cancelled=None, now=None):
+    """OptiPatcher's newest release, looked for at most once a day once one is here. Returns (tag, changed)."""
+    now = time.time() if now is None else now
+    have = optipatcher_build(data)
+    marker = os.path.join(_op_root(data), "last-check.txt")
+    checked = _checked_at(marker)
+    if have and not force and checked and 0 <= now - checked < OP_CHECK_EVERY:
+        return have, False
+    spec = newest_optipatcher(_api(OP_API, cancelled))
+    if not spec:
+        raise RuntimeError("No OptiPatcher in OptiPatcher's releases")
+    _write(marker, str(now))
+    if spec["tag"] == have:
+        return have, False
+    return _unpack_optipatcher(data, spec, cancelled), True
+
+
+def fetch_optipatcher(data, cancelled=None):
+    """OptiPatcher.asi, downloaded the first time a game needs it (the newest release, else the pinned fallback); its
+    path. Raises dk_net.NetError, OSError or RuntimeError."""
+    if optipatcher_build(data):
+        return optipatcher_path(data)
+    os.makedirs(data, exist_ok=True)
+    try:
+        update_optipatcher(data, force=True, cancelled=cancelled)
+    except (dk_net.NetError, RuntimeError):
+        if cancelled and cancelled():
+            raise
+        _unpack_optipatcher(data, OPTIPATCHER, cancelled)
+    return optipatcher_path(data)
 
 
 # ---- first download ----

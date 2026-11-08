@@ -126,6 +126,12 @@ REFRAMEWORK_GAMES = ("Monster Hunter Wilds", "Onimusha: Way of the Sword", "PRAG
 REFRAMEWORK_EXES = {"dd2.exe"}
 REFRAMEWORK_TIP = "This game needs REFramework, so the plugin adds it too."
 REFRAMEWORK_CONFIG = "re2_fw_config.txt"  # the same name in every game
+# OptiPatcher (OptiScaler's ASI plugin) for the games the Compatibility List marks with ✨: on AMD those games only
+# show DLSS with it (Doom Eternal's wiki page: "For AMD/Intel, requires using OptiPatcher to expose DLSS setting").
+# It goes in a "plugins" folder next to OptiScaler, with LoadAsiPlugins=true (OptiPatcher's README).
+OPTIPATCHER_REL = os.path.join("plugins", "OptiPatcher.asi")
+OPTIPATCHER_INI = [("Plugins", "LoadAsiPlugins", "true")]
+OPTIPATCHER_TIP = "On AMD this game only offers DLSS with OptiPatcher, so the plugin adds it too."
 NO_UPSCALER_TIP = ("No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells "
                    "OptiScaler to search for it (the game loads a little slower). Install, restart the game and turn on "
                    "FSR in its settings. FSR 1 can't be upgraded.")
@@ -314,12 +320,13 @@ COMPAT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "compat.j
 
 @functools.lru_cache(maxsize=1)
 def _compat(path=COMPAT_PATH):
-    """{list name: (status, inputs)} and the names as a tuple; empty when the file is missing or unreadable."""
+    """{list name: (status, inputs, optipatcher)} and the names as a tuple; empty when the file is missing or
+    unreadable. Rows are [name, status, inputs] or, since 2.2.25, [name, status, inputs, optipatcher]."""
     try:
         with open(path, encoding="utf-8") as f:
             games = json.load(f).get("games", [])
-        table = {g[0]: (g[1], tuple(g[2])) for g in games
-                 if isinstance(g, list) and len(g) == 3 and isinstance(g[0], str) and isinstance(g[2], list)}
+        table = {g[0]: (g[1], tuple(g[2]), len(g) > 3 and g[3] is True) for g in games
+                 if isinstance(g, list) and len(g) in (3, 4) and isinstance(g[0], str) and isinstance(g[2], list)}
     except (OSError, ValueError, AttributeError, TypeError):
         table = {}
     return table, tuple(table)
@@ -332,12 +339,19 @@ def compat_text(game_name, exe_name, path=COMPAT_PATH):
     name = find_name(names, game_name, exe_name) if names else None
     if not name:
         return ""
-    state, inputs = table[name]
+    state, inputs, _optipatcher = table[name]
     if state == "not_working":
         return "OptiScaler community: not working in this game."
     if state == "mixed":
         return "OptiScaler community: mixed reports for this game."
     return "Works with: " + ", ".join(inputs) if inputs else ""
+
+
+def needs_optipatcher(game_name, exe_name, path=COMPAT_PATH):
+    """The Compatibility List marks this game as OptiPatcher-supported (the widget's CompatEntry.OptiPatcher)."""
+    table, names = _compat(path)
+    name = find_name(names, game_name, exe_name) if names else None
+    return bool(name and table[name][2])
 
 
 def reframework_artifacts(exe_dir):
@@ -358,6 +372,8 @@ def tips(exe_name, upscalers, game_name=""):
     # DLSS/XeSS-only games: the panel's own line says "pick DLSS, not its own FSR" (pickText in panel.tsx)
     if needs_reframework(game_name, exe_name):
         parts.append(REFRAMEWORK_TIP)
+    if needs_optipatcher(game_name, exe_name):
+        parts.append(OPTIPATCHER_TIP)
     if GAME_TIPS.get((exe_name or "").lower()):
         parts.append(GAME_TIPS[(exe_name or "").lower()])
     return " ".join(parts)
@@ -588,7 +604,7 @@ def update_opti(exe_dir, package_dir, build):
     return True
 
 
-def repair(exe_dir, package_dir, fsr4_files, settings, reframework=None):
+def repair(exe_dir, package_dir, fsr4_files, settings, reframework=None, optipatcher=None):
     """What a game update or Steam's file check undid, put back: each file the setup made that's gone, and the loader
     DLL when Steam put the game's own file of that name back over it (a different size than OptiScaler's). Leaves a
     game whose folder is gone (uninstalled) alone. Returns the files put back."""
@@ -606,13 +622,16 @@ def repair(exe_dir, package_dir, fsr4_files, settings, reframework=None):
         sources[os.path.join(SUBFOLDER, os.path.basename(src))] = src
     if manifest.get("reframework") and reframework and os.path.isfile(reframework):
         sources["dinput8.dll"] = reframework
+    if manifest.get("optipatcher") and optipatcher and os.path.isfile(optipatcher):
+        sources[OPTIPATCHER_REL] = optipatcher
     put_back = []
     for rel in manifest.get("created", []):
         dst = os.path.join(exe_dir, rel)
         src = sources.get(rel)
         if rel == "OptiScaler.ini":
             if not os.path.isfile(dst):
-                set_ini(dst, ini_settings(**settings) + game_values(exe_dir))
+                set_ini(dst, ini_settings(**settings) + game_values(exe_dir) +
+                        (OPTIPATCHER_INI if manifest.get("optipatcher") else []))
                 put_back.append(rel)
             continue
         if not src or not os.path.isfile(src):
@@ -637,6 +656,23 @@ def update_reframework(exe_dir, dll, tag):
     _place(exe_dir, os.path.join(exe_dir, META), manifest, dll, "dinput8.dll")
     manifest["ref_build"] = tag
     _save(os.path.join(exe_dir, META), manifest)
+    return True
+
+
+def add_optipatcher(exe_dir, asi, tag):
+    """OptiPatcher put next to a set-up game's OptiScaler (plugins/OptiPatcher.asi, LoadAsiPlugins=true), or brought to
+    another release. Tracked in the manifest, so uninstall and repair handle it. False when the game isn't set up here
+    or already has that release."""
+    manifest = load_manifest(exe_dir)
+    if not manifest or not manifest.get("proxy") or not tag or not os.path.isfile(asi):
+        return False
+    if manifest.get("optipatcher") == tag and os.path.isfile(os.path.join(exe_dir, OPTIPATCHER_REL)):
+        return False
+    meta = os.path.join(exe_dir, META)
+    _place(exe_dir, meta, manifest, asi, OPTIPATCHER_REL)
+    set_ini(os.path.join(exe_dir, "OptiScaler.ini"), OPTIPATCHER_INI)
+    manifest["optipatcher"] = tag
+    _save(meta, manifest)
     return True
 
 
