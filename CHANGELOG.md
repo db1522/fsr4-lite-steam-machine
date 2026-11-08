@@ -2,6 +2,13 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.26] - 2026-11-08
+
+### 🐛 Fixed
+- **OptiPatcher:** it now loads. 2.2.25 put it in a plugins folder next to the game, and OptiScaler only reads the
+  one inside its own OptiScaler folder. DOOM Eternal and the other games the Compatibility List marks now show DLSS
+  on AMD. Games set up with 2.2.25 are fixed automatically, and your own files in either plugins folder stay.
+
 ## [2.2.25] - 2026-11-08
 
 ### ✨ Added

@@ -374,6 +374,11 @@ class Plugin:
             for key, entry in list(self.registry.items()):
                 if not entry.get("proxy"):
                     continue
+                try:  # a 2.2.25 setup's OptiPatcher, in a folder OptiScaler never reads (safe while the game runs)
+                    if await asyncio.to_thread(sml_opti.move_old_optipatcher, entry["exe_dir"]):
+                        decky.logger.info(f"{key}: OptiPatcher moved into OptiScaler/plugins")
+                except OSError as e:
+                    decky.logger.warning(f"OptiPatcher not moved in {entry['exe_dir']} ({dk_fs.shown(e)})")
                 manifest = await asyncio.to_thread(sml_opti.load_manifest, entry["exe_dir"])
                 if not manifest:
                     continue

@@ -128,8 +128,10 @@ REFRAMEWORK_TIP = "This game needs REFramework, so the plugin adds it too."
 REFRAMEWORK_CONFIG = "re2_fw_config.txt"  # the same name in every game
 # OptiPatcher (OptiScaler's ASI plugin) for the games the Compatibility List marks with ✨: on AMD those games only
 # show DLSS with it (Doom Eternal's wiki page: "For AMD/Intel, requires using OptiPatcher to expose DLSS setting").
-# It goes in a "plugins" folder next to OptiScaler, with LoadAsiPlugins=true (OptiPatcher's README).
-OPTIPATCHER_REL = os.path.join("plugins", "OptiPatcher.asi")
+# It goes in OptiScaler's plugins folder with LoadAsiPlugins=true. OptiScaler reads plugins only from
+# <MainDllPath>/plugins ([Plugins] Path left on auto), and MainDllPath is OptiDllPath, which every setup pins to the
+# game's OptiScaler folder (dllmain.cpp). 2.2.25 put it in plugins/ next to the exe, which OptiScaler never reads;
+# move_old_optipatcher moves those setups.
 OPTIPATCHER_INI = [("Plugins", "LoadAsiPlugins", "true")]
 OPTIPATCHER_TIP = "On AMD this game only offers DLSS with OptiPatcher, so the plugin adds it too."
 NO_UPSCALER_TIP = ("No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells "
@@ -141,6 +143,8 @@ SKIP_PACKAGE_FILES = {"setup_windows.bat", "setup_linux.sh", "remove optiscaler.
                       "streamlined_fetcher_windows.bat"}
 SUBFOLDER = "OptiScaler"  # v10 reads the FSR 4 files from here, next to the exe
 META = ".fsr4lite"  # next to the exe: backups of anything an install replaced
+OPTIPATCHER_REL = os.path.join(SUBFOLDER, "plugins", "OptiPatcher.asi")
+OLD_OPTIPATCHER_REL = os.path.join("plugins", "OptiPatcher.asi")
 DX12_FSR4, VK_FSR4 = "amdxcffx64.dll", "amdvkffx64.dll"
 
 
@@ -611,6 +615,7 @@ def repair(exe_dir, package_dir, fsr4_files, settings, reframework=None, optipat
     manifest = load_manifest(exe_dir)
     if not manifest or not manifest.get("proxy") or not os.path.isdir(exe_dir):
         return []
+    _move_old_optipatcher(exe_dir, manifest)
     sources = {}
     for dirpath, _dirs, files in os.walk(package_dir):
         for f in files:
@@ -659,6 +664,39 @@ def update_reframework(exe_dir, dll, tag):
     return True
 
 
+def _move_old_optipatcher(exe_dir, manifest):
+    """A 2.2.25 setup's plugins/OptiPatcher.asi (next to the exe, where OptiScaler never looks) moved into
+    OptiScaler/plugins, the manifest updated, a file of the player's that was backed up there put back, and the old
+    plugins folder removed when it's left empty. The player's other files there stay. True when something moved."""
+    if OLD_OPTIPATCHER_REL not in manifest.get("created", []):
+        return False
+    old, new = os.path.join(exe_dir, OLD_OPTIPATCHER_REL), os.path.join(exe_dir, OPTIPATCHER_REL)
+    if os.path.isfile(old):
+        os.makedirs(os.path.dirname(new), exist_ok=True)
+        os.replace(old, new)
+    manifest["created"] = [r for r in manifest["created"] if r != OLD_OPTIPATCHER_REL]
+    if os.path.isfile(new) and OPTIPATCHER_REL not in manifest["created"]:
+        manifest["created"].append(OPTIPATCHER_REL)
+    meta = os.path.join(exe_dir, META)
+    if OLD_OPTIPATCHER_REL in manifest.get("backups", []):
+        backup = os.path.join(meta, "backup", OLD_OPTIPATCHER_REL)
+        if os.path.lexists(backup) and not os.path.lexists(old):
+            shutil.move(backup, old)
+        manifest["backups"] = [r for r in manifest["backups"] if r != OLD_OPTIPATCHER_REL]
+    try:
+        os.rmdir(os.path.dirname(old))  # only when empty: the player's own plugins stay
+    except OSError:
+        pass
+    _save(meta, manifest)
+    return True
+
+
+def move_old_optipatcher(exe_dir):
+    """_move_old_optipatcher for a set-up game folder. True when something moved."""
+    manifest = load_manifest(exe_dir)
+    return bool(manifest and _move_old_optipatcher(exe_dir, manifest))
+
+
 def add_optipatcher(exe_dir, asi, tag):
     """OptiPatcher put next to a set-up game's OptiScaler (plugins/OptiPatcher.asi, LoadAsiPlugins=true), or brought to
     another release. Tracked in the manifest, so uninstall and repair handle it. False when the game isn't set up here
@@ -666,6 +704,7 @@ def add_optipatcher(exe_dir, asi, tag):
     manifest = load_manifest(exe_dir)
     if not manifest or not manifest.get("proxy") or not tag or not os.path.isfile(asi):
         return False
+    _move_old_optipatcher(exe_dir, manifest)
     if manifest.get("optipatcher") == tag and os.path.isfile(os.path.join(exe_dir, OPTIPATCHER_REL)):
         return False
     meta = os.path.join(exe_dir, META)

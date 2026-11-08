@@ -321,7 +321,7 @@ class Flow(unittest.TestCase):
             r = self.run_(self.p.enable_game(782330, ""))
         self.assertTrue(r["ok"], r)
         fetch.assert_called_once()
-        self.assertTrue(os.path.isfile(os.path.join(doom, "plugins", "OptiPatcher.asi")))
+        self.assertTrue(os.path.isfile(os.path.join(doom, "OptiScaler", "plugins", "OptiPatcher.asi")))
         with open(os.path.join(doom, "OptiScaler.ini"), encoding="utf-8") as f:
             self.assertIn("LoadAsiPlugins=true", f.read())
         self.run_(self.p.disable_game(782330, r["launch_options"]))
@@ -338,11 +338,26 @@ class Flow(unittest.TestCase):
         self.run_(self.p.scan_games())
         with mock.patch("sml_assets.fetch_optipatcher", side_effect=OSError("offline")):
             self.assertTrue(self.run_(self.p.enable_game(782330, ""))["ok"], "set up even when it can't download")
-        self.assertFalse(os.path.exists(os.path.join(doom, "plugins")))
+        self.assertFalse(os.path.exists(os.path.join(doom, "OptiScaler", "plugins")))
         with mock.patch("sml_assets.fetch_optipatcher", return_value=asi), \
                 mock.patch("sml_opti.running_processes", return_value=[]):
             self.run_(self.p._update_games())
-        self.assertTrue(os.path.isfile(os.path.join(doom, "plugins", "OptiPatcher.asi")))
+        self.assertTrue(os.path.isfile(os.path.join(doom, "OptiScaler", "plugins", "OptiPatcher.asi")))
+
+    def test_a_2225_optipatcher_is_moved_by_the_update_even_while_the_game_runs(self):
+        import sml_opti
+        game_exe = os.path.join(self.game, "game.exe")
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        m = sml_opti.load_manifest(self.game)
+        asi = os.path.join(self.data, "op", "OptiPatcher.asi")
+        touch(asi, b"MZ patcher")
+        sml_opti._place(self.game, os.path.join(self.game, sml_opti.META), m, asi, os.path.join("plugins", "OptiPatcher.asi"))
+        m["optipatcher"] = "v0.42"
+        sml_opti._save(os.path.join(self.game, sml_opti.META), m)
+        with mock.patch("sml_opti.running_processes", return_value=[(game_exe, 900, True)]):
+            self.run_(self.p._update_games())
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi")))
+        self.assertFalse(os.path.exists(os.path.join(self.game, "plugins")))
 
     def test_other_games_never_download_reframework(self):
         with mock.patch("sml_assets.fetch_reframework") as fetch:

@@ -260,40 +260,86 @@ class OptiPatcher(unittest.TestCase):
         touch(self.asi, b"MZ patcher")
         touch(os.path.join(self.game, "doom.exe"), b"game")
 
-    def test_added_in_plugins_with_asi_loading_on_and_removed_at_uninstall(self):
+    def test_added_in_optiscalers_plugins_folder_with_asi_loading_on_and_removed_at_uninstall(self):
+        # OptiScaler reads plugins from <OptiDllPath>/plugins, and every setup pins OptiDllPath to OptiScaler/
         O.install(self.game, "doom.exe", self.pkg, [], {})
         self.assertTrue(O.add_optipatcher(self.game, self.asi, "v0.42"))
-        self.assertEqual(read(os.path.join(self.game, "plugins", "OptiPatcher.asi"), "rb"), b"MZ patcher")
+        self.assertEqual(read(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi"), "rb"), b"MZ patcher")
+        self.assertFalse(os.path.exists(os.path.join(self.game, "plugins")))
         self.assertIn("LoadAsiPlugins=true", read(os.path.join(self.game, "OptiScaler.ini")))
         self.assertEqual(O.load_manifest(self.game)["optipatcher"], "v0.42")
         self.assertFalse(O.add_optipatcher(self.game, self.asi, "v0.42"), "already there")
         touch(self.asi, b"MZ newer")
         self.assertTrue(O.add_optipatcher(self.game, self.asi, "v0.43"))
-        self.assertEqual(read(os.path.join(self.game, "plugins", "OptiPatcher.asi"), "rb"), b"MZ newer")
+        self.assertEqual(read(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi"), "rb"), b"MZ newer")
         O.uninstall(self.game)
         self.assertEqual(os.listdir(self.game), ["doom.exe"])
 
-    def test_a_players_own_plugin_folder_stays(self):
+    def test_a_players_own_plugins_stay_in_both_folders(self):
         touch(os.path.join(self.game, "plugins", "theirs.asi"), b"theirs")
         O.install(self.game, "doom.exe", self.pkg, [], {})
         O.add_optipatcher(self.game, self.asi, "v0.42")
+        touch(os.path.join(self.game, "OptiScaler", "plugins", "mine.asi"), b"mine")
         O.uninstall(self.game)
-        self.assertEqual(sorted(os.listdir(self.game)), ["doom.exe", "plugins"])
+        self.assertEqual(sorted(os.listdir(self.game)), ["OptiScaler", "doom.exe", "plugins"])
         self.assertEqual(os.listdir(os.path.join(self.game, "plugins")), ["theirs.asi"])
+        self.assertEqual(os.listdir(os.path.join(self.game, "OptiScaler", "plugins")), ["mine.asi"])
+
+    def setup_2225(self, players_file=False):
+        """A game set up by 2.2.25: OptiPatcher in plugins/ next to the exe."""
+        if players_file:
+            touch(os.path.join(self.game, "plugins", "theirs.asi"), b"theirs")
+        O.install(self.game, "doom.exe", self.pkg, [], {})
+        m = O.load_manifest(self.game)
+        meta = os.path.join(self.game, O.META)
+        O._place(self.game, meta, m, self.asi, os.path.join("plugins", "OptiPatcher.asi"))
+        m["optipatcher"] = "v0.42"
+        O._save(meta, m)
+
+    def test_a_2225_setup_is_moved_into_optiscalers_plugins_folder(self):
+        self.setup_2225()
+        self.assertTrue(O.move_old_optipatcher(self.game))
+        self.assertEqual(read(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi"), "rb"), b"MZ patcher")
+        self.assertFalse(os.path.exists(os.path.join(self.game, "plugins")), "the empty old folder is gone")
+        created = O.load_manifest(self.game)["created"]
+        self.assertIn(os.path.join("OptiScaler", "plugins", "OptiPatcher.asi"), created)
+        self.assertNotIn(os.path.join("plugins", "OptiPatcher.asi"), created)
+        self.assertFalse(O.move_old_optipatcher(self.game), "once")
+        self.assertFalse(O.add_optipatcher(self.game, self.asi, "v0.42"), "nothing more to do")
+        O.uninstall(self.game)
+        self.assertEqual(os.listdir(self.game), ["doom.exe"])
+
+    def test_a_players_file_in_the_old_folder_stays_when_moving(self):
+        self.setup_2225(players_file=True)
+        O.move_old_optipatcher(self.game)
+        self.assertEqual(os.listdir(os.path.join(self.game, "plugins")), ["theirs.asi"])
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi")))
+
+    def test_repair_and_updates_move_a_2225_setup_too(self):
+        self.setup_2225()
+        O.repair(self.game, self.pkg, [], {}, optipatcher=self.asi)
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi")))
+        self.assertFalse(os.path.exists(os.path.join(self.game, "plugins")))
+        self.setUp()
+        self.setup_2225()
+        touch(self.asi, b"MZ newer")
+        self.assertTrue(O.add_optipatcher(self.game, self.asi, "v0.43"))
+        self.assertEqual(read(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi"), "rb"), b"MZ newer")
+        self.assertFalse(os.path.exists(os.path.join(self.game, "plugins")))
 
     def test_repair_puts_it_back(self):
         O.install(self.game, "doom.exe", self.pkg, [], {})
         O.add_optipatcher(self.game, self.asi, "v0.42")
-        os.remove(os.path.join(self.game, "plugins", "OptiPatcher.asi"))
+        os.remove(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi"))
         os.remove(os.path.join(self.game, "OptiScaler.ini"))
         fixed = O.repair(self.game, self.pkg, [], {}, optipatcher=self.asi)
-        self.assertIn(os.path.join("plugins", "OptiPatcher.asi"), fixed)
-        self.assertTrue(os.path.isfile(os.path.join(self.game, "plugins", "OptiPatcher.asi")))
+        self.assertIn(os.path.join("OptiScaler", "plugins", "OptiPatcher.asi"), fixed)
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "OptiScaler", "plugins", "OptiPatcher.asi")))
         self.assertIn("LoadAsiPlugins=true", read(os.path.join(self.game, "OptiScaler.ini")))
 
     def test_not_for_a_game_that_isnt_set_up(self):
         self.assertFalse(O.add_optipatcher(self.game, self.asi, "v0.42"))
-        self.assertFalse(os.path.exists(os.path.join(self.game, "plugins")))
+        self.assertFalse(os.path.exists(os.path.join(self.game, "OptiScaler")))
 
 
 OP_RELEASES = [
