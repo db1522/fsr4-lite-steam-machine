@@ -594,3 +594,15 @@ class SevenZip(unittest.TestCase):
             os.chmod(os.path.dirname(src), 0o755)
         self.assertTrue(os.access(got, os.X_OK))
         self.assertTrue(stat.S_IMODE(os.stat(got).st_mode) & 0o100)
+
+
+class ExeRunning(unittest.TestCase):
+    def test_a_non_steam_exe_is_seen_running_under_proton(self):
+        proc = tempfile.mkdtemp()
+        touch(os.path.join(proc, "100", "cmdline"),
+              b"Z:\\home\\deck\\Games\\God Of War\\GoW.exe\0-windowed\0")
+        touch(os.path.join(proc, "101", "cmdline"), b"/usr/bin/bash\0")
+        self.assertTrue(O.exe_running("/home/deck/Games/God Of War/GoW.exe", proc))
+        self.assertTrue(O.exe_running("/home/deck/Games/God of War/gow.exe", proc))
+        self.assertFalse(O.exe_running("/home/deck/Games/Other/GoW.exe", proc))
+        self.assertFalse(O.exe_running("/home/deck/Games/God Of War", proc))

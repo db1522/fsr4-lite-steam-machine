@@ -115,7 +115,8 @@ def scan_library(steam_root, exes=None):
         info = sml_opti.analyze(root, exe)
         if not info:
             continue
-        out.append({"appid": appid, "name": name, "install_dir": root, "nonsteam": nonsteam, **info})
+        out.append({"appid": appid, "name": name, "install_dir": root, "nonsteam": nonsteam, **info,
+                    **({"launch_exe": exe} if nonsteam else {})})
     out.sort(key=lambda g: g["name"].lower())
     return out
 
@@ -142,6 +143,10 @@ class Plugin:
             self.exes, self._watchers = {}, {}
             self.launchers = {}  # str(appid) -> exes OptiScaler showed never draw, never picked again
             self.seen = {}  # appid -> the game's processes the last watch saw, for the support report
+            # Steam's app id for a running game -> the non-Steam shortcut it really is. A shortcut to a game that
+            # names its own Steam app (steam_appid.txt, like God of War's 1593500) runs under that id, not the
+            # shortcut's, so the shortcut is found by its exe running instead.
+            self.aliases = {}
             self.programs = {}  # appid -> every Windows program running at the last watch, for the support report
             self.settings = dict(DEFAULT_SETTINGS)
             self.registry = {}  # str(appid) -> {exe_dir, proxy, tried, launch_original, launch_applied, installed_at}
@@ -611,13 +616,34 @@ class Plugin:
 
     # ---- sessions ----
 
+    async def _resolve(self, appid):
+        """The game behind a running app id: itself when the scan knows it, else the non-Steam shortcut whose exe is
+        running (remembered for the rest of the session, so the end of it maps the same way)."""
+        if appid in self.aliases:
+            return self.aliases[appid]
+        if self._game(appid) or str(appid) in self.registry:
+            return appid
+        for g in self.games:
+            exe = g.get("launch_exe") or os.path.join(g["exe_dir"], g["exe_name"])
+            if g["nonsteam"] and await asyncio.to_thread(sml_opti.exe_running, exe):
+                self.aliases[appid] = g["appid"]
+                decky.logger.info(f"app {appid} is the non-Steam shortcut {g['appid']} ({g['name']})")
+                return g["appid"]
+        return appid
+
+    @rpc
+    async def resolve_running(self, appid: int) -> dict:
+        """For Now playing: the game in the library list that the running app id is (see _resolve)."""
+        return dk_rpc.ok(appid=await self._resolve(appid))
+
     @rpc
     async def session_started(self, appid: int) -> dict:
         # Every game's start is kept: setting a game up while it runs needs a restart, and the panel says so.
+        appid = await self._resolve(appid)
         self.sessions[appid] = time.time()
         if appid not in self._watchers:
             self._watchers[appid] = asyncio.create_task(self._watch_exe(appid, self.sessions[appid]))
-        return dk_rpc.ok(managed=str(appid) in self.registry)
+        return dk_rpc.ok(managed=str(appid) in self.registry, appid=appid)
 
     @rpc
     async def live_status(self, appid: int) -> dict:
@@ -625,6 +651,7 @@ class Plugin:
         active: this session's OptiScaler.log shows the Lite model; restart: set up after the game started;
         starting: running, no answer yet; inactive: running and OptiScaler's log says Lite isn't on (with why);
         idle: the game isn't running (the card shows the last session instead)."""
+        appid = await self._resolve(appid)
         started = self.sessions.get(appid)
         entry = self.registry.get(str(appid))
         if not started:
@@ -652,6 +679,7 @@ class Plugin:
         """While the game runs: whether this session's OptiScaler.log already shows the Lite model, with what it runs
         (summary: input, render and output resolution, mode), checked until it does, however late in the session.
         hint: once the game has run 90 seconds without Lite, why (pick an upscaler, the FSR 4 file, ...)."""
+        appid = await self._resolve(appid)
         entry = self.registry.get(str(appid))
         started = self.sessions.get(appid)
         if not entry or not entry.get("proxy") or not started or entry.get("installed_at", 0) > started:
@@ -668,6 +696,7 @@ class Plugin:
 
     @rpc
     async def session_ended(self, appid: int, launch_options: str = "") -> dict:
+        appid = self.aliases.pop(appid, appid)
         key = str(appid)
         async with self.lock:
             entry = self.registry.get(key)

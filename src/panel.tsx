@@ -15,7 +15,7 @@ import { canInstallUpdates, installUpdate } from "./installer";
 import { keepInView, onFocusReveal, openWeb, toTop } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, downloadAssets, downloadProgress, enableGame, Game,
-  checkOptiscaler, getState, Live, liveStatus, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
+  checkOptiscaler, getState, Live, liveStatus, resolveRunning, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
   StateResult,
 } from "./api";
 import { errorText } from "./result";
@@ -120,7 +120,11 @@ export const Content: FC = () => {
   const [checkId, setCheckId] = useState<number | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [live, setLive] = useState<{ appid: number; status: Live; detail: string } | null>(null);
-  const runningAppid = Number(Router.MainRunningApp?.appid ?? NaN);
+  // Steam's id for the running game, and the game in our list it is: a non-Steam shortcut to a game that names its
+  // own Steam app (God of War: 1593500) runs under that id, so the backend finds the shortcut by its exe running.
+  const steamAppid = Number(Router.MainRunningApp?.appid ?? NaN);
+  const [alias, setAlias] = useState<Record<number, number>>({});
+  const runningAppid = alias[steamAppid] ?? steamAppid;
   // The running game's status, every few seconds while the menu is open: Active, Restart the game, Not active.
   useEffect(() => {
     if (!visible || !Number.isFinite(runningAppid)) return;
@@ -225,10 +229,21 @@ export const Content: FC = () => {
   const rescannedFor = useRef<number | null>(null);
   useEffect(() => {
     if (!visible || !state?.scanned || scanning || !Number.isFinite(runningAppid)) return;
-    if (state.games.some(g => g.appid === runningAppid) || rescannedFor.current === runningAppid) return;
-    rescannedFor.current = runningAppid;
-    rescan();
-  }, [visible, runningAppid, state?.scanned, state?.games.length]);
+    if (state.games.some(g => g.appid === runningAppid)) return;
+    if (rescannedFor.current !== steamAppid) {
+      rescannedFor.current = steamAppid;
+      (async () => {
+        const r = await resolveRunning(steamAppid);
+        if (r.ok && r.appid !== undefined && r.appid !== steamAppid) setAlias(a => ({ ...a, [steamAppid]: r.appid! }));
+        else rescan();
+      })();
+    } else if (!(steamAppid in alias)) {
+      // rescanned and still unknown: maybe the scan just found the shortcut it is
+      resolveRunning(steamAppid).then(r => {
+        if (r.ok && r.appid !== undefined && r.appid !== steamAppid) setAlias(a => ({ ...a, [steamAppid]: r.appid! }));
+      });
+    }
+  }, [visible, runningAppid, state?.scanned, state?.games.length, scanning]);
   // Check now: GitHub asked right away for a newer OptiScaler nightly, then every game that isn't running updated.
   const checkNow = async () => {
     if (checking) return;
@@ -290,7 +305,7 @@ export const Content: FC = () => {
   const installed = state.games.filter(g => g.installed);
   const library = state.games.filter(listed);
   const running = Router.MainRunningApp;
-  const current = running ? state.games.find(g => g.appid === Number(running.appid)) : undefined;
+  const current = running ? state.games.find(g => g.appid === runningAppid) : undefined;
 
   const activeCount = state.games.filter(g => g.installed && g.verdict === "lite").length;
 
@@ -354,7 +369,7 @@ export const Content: FC = () => {
     </PanelSectionRow>;
 
   const gameRow = (g: Game) => {
-    const [tone, label] = rowChip(g, running && live?.appid === Number(running.appid) ? live : null);
+    const [tone, label] = rowChip(g, running && live?.appid === runningAppid ? live : null);
     // Setting a game up happens on Now playing, with the game running (the plugin then sees which program is the
     // game, as the widget does). In this list a game can only be turned off; the others say how to set them up.
     const extra = [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");

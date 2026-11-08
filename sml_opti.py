@@ -975,6 +975,29 @@ def running_processes(install_dir, proc="/proc"):
     return sorted(found.values(), key=lambda p: p["path"])
 
 
+def exe_running(exe, proc="/proc"):
+    """True when a process runs this exact exe (a non-Steam game's shortcut target, anywhere on disk). Under Proton
+    the path shows as Z:\\home\\deck\\Games\\...\\Game.exe, so it's compared from the first folder down."""
+    want = posixpath.normpath(exe.replace("\\", "/")).lower().lstrip("/")
+    if not want.endswith(".exe"):
+        return False
+    try:
+        pids = [p for p in os.listdir(proc) if p.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, pid, "cmdline"), "rb") as f:
+                args = f.read(64 * 1024).split(b"\0")
+        except OSError:
+            continue
+        for arg in args:
+            text = arg.decode("utf-8", "replace").replace("\\", "/").lower()
+            if text == want or text.endswith("/" + want) or text.endswith(":/" + want):
+                return True
+    return False
+
+
 def opti_dll_path(exe_dir):
     """OptiScaler's OptiDllPath for a game: its OptiScaler folder as a full Windows path. OptiScaler works the folder
     out from its own location, which under Proton can come out as the folder Steam starts the game in, where AMD's

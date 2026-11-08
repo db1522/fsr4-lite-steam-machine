@@ -66,10 +66,12 @@ export const enableGame = rpc<[number, string], ToggleResult>("enable_game");
 export const disableGame = rpc<[number, string], ToggleResult>("disable_game");
 export const cleanupLegacy = rpc<[number, string], ToggleResult>("cleanup_legacy");
 export const setSetting = rpc<[string, boolean | string], StateResult>("set_setting");
+// The game in the library list a running app id is: a non-Steam shortcut can run under its game's own Steam id.
+export const resolveRunning = rpc<[number], Result<never> & { appid?: number }>("resolve_running");
 export const checkOptiscaler = rpc<[], StateResult & { message?: string }>("check_optiscaler");
 export const diagnose = rpc<[number], Result<never> & { report?: Diagnosis }>("diagnose");
 export const saveReport = rpc<[number], Result<never> & { saved?: string }>("save_report");
-export const sessionStarted = rpc<[number], Result<never> & { managed?: boolean }>("session_started");
+export const sessionStarted = rpc<[number], Result<never> & { managed?: boolean; appid?: number }>("session_started");
 export type Live = "idle" | "off" | "restart" | "starting" | "active" | "inactive";
 export const liveStatus = rpc<[number], Result<never> & { status?: Live; detail?: string }>("live_status");
 export const sessionCheck = rpc<[number], Result<never> & {

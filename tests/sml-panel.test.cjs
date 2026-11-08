@@ -55,6 +55,8 @@ test('a running game the last scan missed (added to Steam later) is rescanned on
   const gow = { ...game, appid: 2725409646, name: 'God of War', exe_name: 'GoW.exe', upscalers: ['DLSS'], nonsteam: true };
   const h = panel({ appid: '2725409646', display_name: 'God of War' });
   await open(h);
+  h.respond('resolve_running', { ok: true, appid: 2725409646 });  // not a shortcut under another id
+  await settle();
   const scans = () => h.calls.filter(c => c.name === 'scan_games');
   assert.equal(scans().length, 1, 'rescanned by itself');
   h.respond('scan_games', ok(state({ games: [game, gow] })));
@@ -64,6 +66,19 @@ test('a running game the last scan missed (added to Steam later) is rescanned on
   h.render();
   await settle();
   assert.equal(scans().length, 1, 'only once');
+});
+
+test("a non-Steam shortcut running under its game's own Steam id (God of War: 1593500) is found by its exe", async () => {
+  const gow = { ...game, appid: 2725409646, name: 'GoW.exe', exe_name: 'GoW.exe', upscalers: ['DLSS'], nonsteam: true };
+  const h = panel({ appid: '1593500', display_name: 'God of War' });
+  await open(h, state({ games: [game, gow] }));
+  const ask = h.calls.find(c => c.name === 'resolve_running');
+  assert.deepEqual(ask.args, [1593500]);
+  h.respond('resolve_running', { ok: true, appid: 2725409646 });
+  await settle();
+  const tree = h.render();
+  assert.ok(dialogButton(tree, 'Install FSR 4.1 Lite'), strings(tree));
+  assert.ok(!h.calls.some(c => c.name === 'scan_games'), 'no rescan needed');
 });
 
 test('a running game installs with one button and its launch option is saved', async () => {
@@ -284,6 +299,8 @@ test('when OptiScaler did not load, the next loader name is saved and the player
   });
   h.exports.default();
   steam.lifetime({ unAppID: 9, bRunning: false });
+  await settle();
+  h.respond('resolve_running', { ok: true, appid: 9 });
   await settle(); await settle();
   h.respond('session_ended', { ok: true, managed: true, verdict: 'none', retry: 'winmm.dll', detail: 'Now set up as winmm.dll: play once more.',
     launch_options: 'WINEDLLOVERRIDES=winmm=n,b %command%' });

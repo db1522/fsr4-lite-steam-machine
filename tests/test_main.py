@@ -141,6 +141,24 @@ class Flow(unittest.TestCase):
         self.run_(self.p.disable_game(42, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
 
+    def test_a_non_steam_shortcut_running_under_its_games_steam_id_is_found_by_its_exe(self):
+        # God of War added as a non-Steam game: Steam runs it as app 1593500 (its steam_appid.txt), not the shortcut
+        exe = os.path.join(self.home, "Games", "God Of War", "GoW.exe")
+        touch(exe, b"game" * 50)
+        touch(os.path.join(os.path.dirname(exe), "nvngx_dlss.dll"))
+        self.p.games.append({"appid": 2725409646, "name": "GoW.exe", "install_dir": os.path.dirname(exe),
+                             "nonsteam": True, "launch_exe": exe, "exe_dir": os.path.dirname(exe),
+                             "exe_name": "GoW.exe", "upscalers": ["DLSS"], "anticheat": "",
+                             "manual_optiscaler": False, "unreal": False})
+        with mock.patch("sml_opti.exe_running", side_effect=lambda path: path == exe):
+            self.assertEqual(self.run_(self.p.resolve_running(1593500))["appid"], 2725409646)
+            self.assertEqual(self.run_(self.p.session_started(1593500))["appid"], 2725409646)
+        self.assertIn(2725409646, self.p.sessions)
+        with mock.patch("sml_opti.exe_running", return_value=False):  # the exe has quit by the time the session ends
+            self.run_(self.p.session_ended(1593500, ""))
+        self.assertNotIn(2725409646, self.p.sessions)
+        self.assertEqual(self.run_(self.p.resolve_running(42))["appid"], 42)  # a game the scan knows is itself
+
     def test_two_checks_at_once_run_one_after_the_other(self):
         # the 5-minute check and Check now landing together: the second used to lose its download folder
         import threading

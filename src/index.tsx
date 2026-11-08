@@ -4,7 +4,7 @@
 
 import { addEventListener, definePlugin, removeEventListener } from "@decky/api";
 import { staticClasses } from "@decky/ui";
-import { getState, off, readLaunchOptions, saveLaunchOptions, sessionCheck, sessionEnded, sessionStarted } from "./api";
+import { getState, off, readLaunchOptions, resolveRunning, saveLaunchOptions, sessionCheck, sessionEnded, sessionStarted } from "./api";
 import { closeUpdates, Content } from "./panel";
 import { notify } from "./ui";
 
@@ -40,22 +40,29 @@ export default definePlugin(() => {
     check(appid, name);
   }, 5000));
 
+  // Steam's app id -> the game in our list (a non-Steam shortcut can run under its game's own Steam id), kept from
+  // the start of a session to its end, when the exe that told them apart has already quit.
+  const games = new Map<number, number>();
   const lifetime = SteamClient.GameSessions.RegisterForAppLifetimeNotifications(async n => {
     if (n?.bRunning) {
       const res = await sessionStarted(n.unAppID);
+      const id = res.appid ?? n.unAppID;
+      games.set(n.unAppID, id);
       if (!res.managed) return;
       const r = await getState();
       if (!r.state?.settings.session_toast) return;
-      const name = r.state.games.find(g => g.appid === n.unAppID)?.name ?? "The game";
-      check(n.unAppID, name);
+      const name = r.state.games.find(g => g.appid === id)?.name ?? "The game";
+      check(id, name);
       return;
     }
-    unwatch(n.unAppID);
-    const options = await readLaunchOptions(n.unAppID).catch(() => "");
+    const id = games.get(n.unAppID) ?? (await resolveRunning(n.unAppID)).appid ?? n.unAppID;
+    games.delete(n.unAppID);
+    unwatch(id);
+    const options = await readLaunchOptions(id).catch(() => "");
     const res = await sessionEnded(n.unAppID, options);
     if (!res.managed) return;
     if (res.retry && res.launch_options !== undefined) {
-      await saveLaunchOptions(n.unAppID, res.launch_options);
+      await saveLaunchOptions(id, res.launch_options);
       notify(`${NAME}: one more try`, res.detail ?? "Play once more.");
     } else if (res.verdict && !["lite", "unplayed"].includes(res.verdict)) {
       notify(`${NAME} not active`, res.detail ?? "Open Check setup to see why.");
