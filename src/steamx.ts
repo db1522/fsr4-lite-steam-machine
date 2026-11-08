@@ -68,3 +68,27 @@ export const toTop = (root: HTMLElement | null | undefined) => {
 };
 /** For a page's root: every focus inside it, whichever control it lands on. */
 export const onFocusReveal = (e: { target: EventTarget }) => revealIfHidden(e.target as Element);
+
+
+/** A game's id for starting and closing it: a Steam game's app id, or a non-Steam shortcut's 64-bit m_gameid. */
+export const gameId = (appid: number): string => {
+  const o = appStore.GetAppOverviewByAppID(appid) as (SteamAppOverview & { m_gameid?: string }) | null | undefined;
+  return o?.m_gameid || String(appid);
+};
+
+/**
+ * Closes the running game and starts it again, so OptiScaler loads (Restart now). Waits up to a minute for it to
+ * close; false when Steam can't close or start games here, or it didn't close in time.
+ */
+export const restartGame = async (appid: number, running: () => boolean, wait = (ms: number) =>
+  new Promise<void>(r => window.setTimeout(r, ms))): Promise<boolean> => {
+  const apps = SteamClient.Apps;
+  if (!apps.TerminateApp || !apps.RunGame) return false;
+  const id = gameId(appid);
+  apps.TerminateApp(id, false);
+  for (let i = 0; i < 120 && running(); i++) await wait(500);
+  if (running()) return false;
+  await wait(2000);  // Steam finishes the session (cloud sync, the plugin's session end) before the next start
+  apps.RunGame(id, "", -1, 100);
+  return true;
+};

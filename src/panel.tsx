@@ -12,14 +12,14 @@ import { INSTALL_HINT, UpdateController, UpdateSection } from "./about";
 import { CSS, steamCss } from "./style";
 import { CheckPage } from "./check";
 import { canInstallUpdates, installUpdate } from "./installer";
-import { keepInView, onFocusReveal, openWeb, toTop } from "./steamx";
+import { keepInView, onFocusReveal, openWeb, restartGame, toTop } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, downloadAssets, downloadProgress, enableGame, Game,
   checkOptiscaler, getState, Live, liveStatus, resolveRunning, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
   StateResult,
 } from "./api";
 import { errorText } from "./result";
-import { colors, infoRow, notify, PageHeader, statusPlaceholder } from "./ui";
+import { colors, confirmAction, infoRow, notify, PageHeader, statusPlaceholder } from "./ui";
 
 const NAME = "FSR 4.1 Lite";
 const KOFI = "https://ko-fi.com/steammachinelife";
@@ -244,6 +244,16 @@ export const Content: FC = () => {
       });
     }
   }, [visible, runningAppid, state?.scanned, state?.games.length, scanning]);
+  // Restart now: right after an install the game needs a restart before OptiScaler loads; one press does it, after
+  // a warning, since closing a game loses what isn't saved.
+  const [restarting, setRestarting] = useState(false);
+  const restartNow = (g: Game) => confirmAction(`Restart ${g.name}?`,
+    "Save your game first. Anything not saved is lost when it closes.", "Restart", async () => {
+      setRestarting(true);
+      const ok = await restartGame(g.appid, () => !!Router.MainRunningApp);
+      setRestarting(false);
+      if (!ok) notify("FSR 4.1 Lite", `Couldn't restart ${g.name}. Close it and start it again yourself.`);
+    });
   // Check now: GitHub asked right away for a newer OptiScaler nightly, then every game that isn't running updated.
   const checkNow = async () => {
     if (checking) return;
@@ -349,6 +359,8 @@ export const Content: FC = () => {
         disabled={!current.installed && !state.assets_ready} onClick={() => toggle(current, !current.installed)}>
         {busy === current.appid ? "Working…" : current.installed ? "Uninstall FSR 4.1 Lite" : "Install FSR 4.1 Lite"}
       </DialogButton>}
+      {current.installed && now?.status === "restart" && <DialogButton onGamepadFocus={keepInView} className="sml-primary"
+        onClick={() => restartNow(current)}>{restarting ? "Restarting…" : "Restart now"}</DialogButton>}
       {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}
       <div className={`sml-note${now?.status === "inactive" ? " bad" : ""}`}>{note}</div>
       {!blocked && current.tip && <div className="sml-note soft">{current.tip}</div>}
@@ -436,6 +448,14 @@ export const Content: FC = () => {
       </div></PanelSectionRow></PanelSection>}
 
       <PanelSection><PanelSectionRow>{gameCard()}</PanelSectionRow></PanelSection>
+
+      {/* First use: how it goes, until the first game is set up */}
+      {state.assets_ready && installed.length === 0 && <PanelSection><PanelSectionRow><div className="sml-card sml-howto">
+        <div className="sml-cardlabel">How it works</div>
+        <div className="sml-note">1. Start a game and wait for its menu.</div>
+        <div className="sml-note">2. Open this menu and press Install FSR 4.1 Lite.</div>
+        <div className="sml-note">3. Restart the game and pick FSR, DLSS or XeSS in its graphics settings. A notification tells you when Lite runs.</div>
+      </div></PanelSectionRow></PanelSection>}
 
       <PanelSection>
         <PanelSectionRow>

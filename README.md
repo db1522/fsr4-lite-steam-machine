@@ -54,9 +54,9 @@ All tested on my own Steam Machine. Set the game up from Now playing, restart it
 
 - DLSS, XeSS and FSR 2 games on FSR 4.1.2 Lite. Games that only offer DLSS get their DLSS option unlocked, older FSR 2 games get taken over, and XeSS works too. All of them run Lite instead.
 - A Now playing card. Open the plugin in a game and you see the game, which upscalers it ships, and one button to install or uninstall. It sets the game up next to the program that's really running, the same way the Windows widget does.
-- Your games: every game you set up, each with a chip for what its last session showed (Active, Pick an upscaler, Needs fix or Not played yet) and a switch to turn it off. The rest of your games with FSR, DLSS or XeSS are listed underneath.
+- Your games: every game you set up, each with a badge: live while the game runs, otherwise what its last session showed (Active, Pick an upscaler, Needs fix or Not played yet), and a switch to turn it off. The rest of your games with FSR, DLSS or XeSS are listed underneath.
 - Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
-- It sorts itself out. If OptiScaler doesn't load in a game, the plugin sets it up under the next file name OptiScaler can load as and asks for one more session.
+- It sorts itself out. If OptiScaler doesn't load in a game, the plugin sets it up under the next file name OptiScaler can load as and asks for one more session. If a game update or Steam's file check removes OptiScaler, the plugin puts it back and tells you.
 - Check setup, a page per game that checks the files, the launch option, Proton and the last session, with a Fix setup button and a report you can save to Downloads.
 - OptiScaler's newest nightly, always. The plugin checks for a new build every 6 hours, the same as the Windows widget, and puts it in every game you set up that isn't running. Each game keeps its settings, and one notification tells you. Turn it off in Settings if you'd rather stay put.
 - OptiScaler's FPS and resolution overlay, and AMD's watermark, each one switch for every game.
@@ -83,7 +83,7 @@ Coming from version 1? The plugin shows a **Clean up** card for games version 1 
 ## Using it
 
 1. Start the game and wait for its menu. Open the plugin and press **Install FSR 4.1 Lite** on the Now playing card. I set games up this way only, with the game running, so the plugin sees exactly which program is the game.
-2. Restart the game. In its graphics settings, pick FSR, DLSS or XeSS as the upscaler, whichever it offers. OptiScaler swaps it for FSR 4.1 Lite.
+2. Restart the game, or press **Restart now** on the card. In its graphics settings, pick FSR, DLSS or XeSS as the upscaler, whichever it offers. OptiScaler swaps it for FSR 4.1 Lite.
 3. Play. With **Notify when active** on, a notification tells you when Lite is running, and the game's chip turns green: **Active**.
 
 If a notification says the plugin is trying another file name, play once more. That's OptiScaler finding the name this game loads it under.

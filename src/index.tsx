@@ -74,6 +74,8 @@ export default definePlugin(() => {
   addEventListener<[string, string]>("games_updated", gamesUpdated);
   // A newer FSR 4.1 Lite release (backend check every 6 hours): one notification per version.
   addEventListener<[string, string]>("plugin_update", gamesUpdated);
+  // A game update or Steam's file check removed OptiScaler and the backend put it back.
+  addEventListener<[string, string]>("game_repaired", gamesUpdated);
 
   return {
     name: NAME,
@@ -84,6 +86,7 @@ export default definePlugin(() => {
       off(lifetime);
       removeEventListener("games_updated", gamesUpdated);
       removeEventListener("plugin_update", gamesUpdated);
+      removeEventListener("game_repaired", gamesUpdated);
       [...watching.keys()].forEach(unwatch);
       closeUpdates();
     },

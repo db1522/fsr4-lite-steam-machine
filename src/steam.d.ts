@@ -55,6 +55,10 @@ declare const SteamClient: {
     SetAppLaunchOptions(appid: number, options: string): void;
     /** Sets a game's compatibility tool ("proton_experimental"); missing on some Steam builds. */
     SpecifyCompatTool?(appid: number, tool: string): void;
+    /** Closes a running game (its game id: the app id, or a non-Steam shortcut's m_gameid). */
+    TerminateApp?(gameid: string, unknown: boolean): void;
+    /** Starts a game by its game id, as the Play button does. */
+    RunGame?(gameid: string, launchOptions: string, unknown1: number, unknown2: number): void;
   };
   GameSessions: {
     RegisterForAppLifetimeNotifications(callback: (n: SteamAppLifetimeNotification) => void): SteamUnregister;

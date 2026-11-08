@@ -244,7 +244,49 @@ class Plugin:
                 await self._check_release()
             except Exception as e:  # noqa: BLE001
                 decky.logger.warning(f"release check: {e!r}")
+            try:
+                await self._repair_games()
+            except Exception as e:  # noqa: BLE001
+                decky.logger.warning(f"repair: {e!r}")
             await asyncio.sleep(UPDATE_LOOK_EVERY)
+
+    async def _repair(self, appid, entry, running):
+        """One game's setup put back after a game update or Steam's file check undid it, with a notification. True
+        when something was put back."""
+        if not entry.get("proxy"):
+            return False
+        data = _data_dir()
+        manifest = await asyncio.to_thread(sml_opti.load_manifest, entry["exe_dir"])
+        if not manifest or manifest.get("opti_build") not in ("", None, sml_assets.current(data)):
+            return False  # an older build: the update brings every file back
+        try:
+            fixed = await asyncio.to_thread(
+                sml_opti.repair, entry["exe_dir"], sml_assets.package_dir(data), sml_assets.fsr4_paths(data),
+                self._settings_for_ini(entry.get("height")), sml_assets.reframework_path(data))
+        except OSError as e:
+            decky.logger.warning(f"repair failed in {entry['exe_dir']} ({dk_fs.shown(e)})")
+            return False
+        if not fixed:
+            return False
+        game = self._game(appid) or {}
+        name = game.get("name", "A game")
+        decky.logger.info(f"{appid}: put back {fixed}")
+        await decky.emit("game_repaired", f"FSR 4.1 Lite set up again in {name}",
+                         "A game update or Steam's file check removed OptiScaler. It's back: restart the game."
+                         if running else "A game update or Steam's file check removed OptiScaler. It's back for "
+                         "your next session.")
+        return True
+
+    async def _repair_games(self):
+        """Every set-up game that isn't running checked for files a game update or Steam's file check removed."""
+        async with self.lock:
+            for key, entry in list(self.registry.items()):
+                appid = int(key) if key.isdigit() else None
+                game = self._game(appid) if appid is not None else None
+                if appid in self.sessions or (game and not game["nonsteam"] and await asyncio.to_thread(
+                        sml_opti.running_processes, game["install_dir"])):
+                    continue
+                await self._repair(appid, entry, running=False)
 
     async def _check_release(self, now=None):
         """Every 6 hours: a newer FSR 4.1 Lite release on GitHub, told once per version with a notification. Nothing
@@ -643,7 +685,11 @@ class Plugin:
         self.sessions[appid] = time.time()
         if appid not in self._watchers:
             self._watchers[appid] = asyncio.create_task(self._watch_exe(appid, self.sessions[appid]))
-        return dk_rpc.ok(managed=str(appid) in self.registry, appid=appid)
+        entry = self.registry.get(str(appid))
+        if entry:  # a game update since the last check removed OptiScaler: put back, and say to restart
+            async with self.lock:
+                await self._repair(appid, entry, running=True)
+        return dk_rpc.ok(managed=entry is not None, appid=appid)
 
     @rpc
     async def live_status(self, appid: int) -> dict:

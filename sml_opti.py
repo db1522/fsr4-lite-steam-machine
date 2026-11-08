@@ -572,6 +572,45 @@ def update_opti(exe_dir, package_dir, build):
     return True
 
 
+def repair(exe_dir, package_dir, fsr4_files, settings, reframework=None):
+    """What a game update or Steam's file check undid, put back: each file the setup made that's gone, and the loader
+    DLL when Steam put the game's own file of that name back over it (a different size than OptiScaler's). Leaves a
+    game whose folder is gone (uninstalled) alone. Returns the files put back."""
+    manifest = load_manifest(exe_dir)
+    if not manifest or not manifest.get("proxy") or not os.path.isdir(exe_dir):
+        return []
+    sources = {}
+    for dirpath, _dirs, files in os.walk(package_dir):
+        for f in files:
+            rel = os.path.relpath(os.path.join(dirpath, f), package_dir)
+            if f.lower() in SKIP_PACKAGE_FILES or f.startswith("!!") or rel.lower() == "optiscaler.ini":
+                continue
+            sources[manifest["proxy"] if rel.lower() == "optiscaler.dll" else rel] = os.path.join(dirpath, f)
+    for src in fsr4_files:
+        sources[os.path.join(SUBFOLDER, os.path.basename(src))] = src
+    if manifest.get("reframework") and reframework and os.path.isfile(reframework):
+        sources["dinput8.dll"] = reframework
+    put_back = []
+    for rel in manifest.get("created", []):
+        dst = os.path.join(exe_dir, rel)
+        src = sources.get(rel)
+        if rel == "OptiScaler.ini":
+            if not os.path.isfile(dst):
+                set_ini(dst, ini_settings(**settings) + game_values(exe_dir))
+                put_back.append(rel)
+            continue
+        if not src or not os.path.isfile(src):
+            continue
+        replaced = rel == manifest["proxy"] and os.path.isfile(dst) and os.path.getsize(dst) != os.path.getsize(src)
+        if not os.path.lexists(dst) or replaced:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            tmp = dst + ".fsr4lite-new"
+            shutil.copyfile(src, tmp)
+            os.replace(tmp, dst)
+            put_back.append(rel)
+    return put_back
+
+
 def update_reframework(exe_dir, dll, tag):
     """A game that got REFramework from the plugin brought to another REFramework nightly (the widget's
     RefreshREFramework). False when it didn't get it from us or already has it."""

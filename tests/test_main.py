@@ -159,6 +159,38 @@ class Flow(unittest.TestCase):
         self.assertNotIn(2725409646, self.p.sessions)
         self.assertEqual(self.run_(self.p.resolve_running(42))["appid"], 42)  # a game the scan knows is itself
 
+    def test_files_a_game_update_removed_are_put_back_with_one_notification(self):
+        self.run_(self.p.enable_game(42, ""))
+        dxgi = os.path.join(self.game, "dxgi.dll")
+        amd = os.path.join(self.game, "OptiScaler", "amdxcffx64.dll")
+        os.remove(dxgi)
+        os.remove(amd)
+        told = lambda: [e for e in decky.emitted if e[0] == "game_repaired"]  # noqa: E731
+        before = len(told())
+        self.run_(self.p._repair_games())
+        self.assertEqual(binary(dxgi), b"opti")
+        self.assertTrue(os.path.isfile(amd))
+        self.assertEqual(len(told()), before + 1)
+        self.assertEqual(told()[-1][1], "FSR 4.1 Lite set up again in Test Game")
+        self.assertIn("next session", told()[-1][2])
+        self.run_(self.p._repair_games())  # nothing missing: no second notification
+        self.assertEqual(len(told()), before + 1)
+
+    def test_a_game_file_steam_put_back_over_the_loader_is_replaced_at_game_start(self):
+        self.run_(self.p.enable_game(42, ""))
+        dxgi = os.path.join(self.game, "dxgi.dll")
+        touch(dxgi, b"the game's own dxgi.dll from Steam's file check")
+        self.run_(self.p.session_started(42))
+        self.assertEqual(binary(dxgi), b"opti")
+        self.assertIn("restart the game", [e for e in decky.emitted if e[0] == "game_repaired"][-1][2])
+
+    def test_a_running_game_is_left_alone_by_the_repair_check(self):
+        self.run_(self.p.enable_game(42, ""))
+        os.remove(os.path.join(self.game, "dxgi.dll"))
+        self.p.sessions[42] = time.time()
+        self.run_(self.p._repair_games())
+        self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
+
     def test_two_checks_at_once_run_one_after_the_other(self):
         # the 5-minute check and Check now landing together: the second used to lose its download folder
         import threading
@@ -240,7 +272,8 @@ class Flow(unittest.TestCase):
         self.run_(self.p.enable_game(42, ""))
         self.p.registry["42"]["proxy"] = "version.dll"  # as if OptiScaler had moved to version.dll
         os.rename(os.path.join(self.game, "dxgi.dll"), os.path.join(self.game, "version.dll"))
-        self.run_(self.p.session_started(42))
+        with mock.patch("sml_opti.repair", return_value=[]):  # the rename above is a stand-in, not a game update
+            self.run_(self.p.session_started(42))
         touch(os.path.join(self.game, "OptiScaler.log"), b"ffxProvider_FSR4Lite_Int8")
         self.run_(self.p.session_ended(42, "WINEDLLOVERRIDES=version=n,b %command%"))
         self.assertEqual(self.p.loaders, {"game.exe": "version.dll"})

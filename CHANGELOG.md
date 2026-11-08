@@ -1,6 +1,19 @@
 # Changelog
 
-All notable changes to FSR4 Injector, newest first.
+All notable changes to FSR 4.1 Lite, newest first.
+
+## [2.2.22] - 2026-11-07
+
+### ✨ Added
+- **Repair:** when a game update or Steam's file check removes OptiScaler, or puts the game's own DLL back over it,
+  the plugin puts it back by itself and tells you. Games that aren't running are checked every few minutes, and a
+  game is checked again as it starts.
+- **Now playing:** a Restart now button right after you set up a running game. It warns you to save first, then
+  closes the game and starts it again so OptiScaler loads.
+- **First use:** a short how-to on the main page until your first game is set up.
+
+### 🗑️ Removed
+- **GitHub:** the game report issue template.
 
 ## [2.2.21] - 2026-11-07
 

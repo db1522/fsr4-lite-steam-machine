@@ -14,16 +14,17 @@ const state = (over = {}) => ({
 });
 const ok = (s, extra = {}) => ({ ok: true, state: s, ...extra });
 
-function panel(running) {
+function panel(running, ui = {}, apps = {}) {
   const options = {}, applied = [];
   const h = harness({
-    ui: { Router: { MainRunningApp: running } },
+    ui: { Router: { MainRunningApp: running }, ...ui },
     globals: {
       appStore: { GetAppOverviewByAppID: () => null },
       SteamClient: {
         Apps: {
           RegisterForAppDetails(appid, fn) { Promise.resolve().then(() => fn({ strLaunchOptions: options[appid] ?? '' })); return { unregister() {} }; },
           SetAppLaunchOptions(appid, value) { applied.push([appid, value]); options[appid] = value; },
+          ...apps,
         },
         GameSessions: { RegisterForAppLifetimeNotifications() { return { unregister() {} }; } },
       },
@@ -180,6 +181,37 @@ test('OptiScaler updates: a switch, the build in use and Check now', async () =>
   row.props.onActivate();
   await settle();
   assert.ok(h.calls.some(c => c.name === 'check_optiscaler'));
+});
+
+test('a first-use how-to shows until the first game is set up', async () => {
+  let tree = await open(panel(undefined));
+  assert.match(strings(tree), /Start a game and wait for its menu/);
+  tree = await open(panel(undefined), state({ games: [{ ...game, installed: true, verdict: 'lite' }] }));
+  assert.doesNotMatch(strings(tree), /Start a game and wait for its menu/);
+});
+
+test('right after an install, Restart now closes the game and starts it again, after a warning', async () => {
+  const modals = [], steps = [];
+  const router = { MainRunningApp: { appid: '1091500', display_name: 'Cyberpunk 2077' } };
+  const h = panel(router.MainRunningApp, { Router: router, showModal: m => modals.push(m) }, {
+    TerminateApp(id) { steps.push(['close', id]); router.MainRunningApp = undefined; },
+    RunGame(id) { steps.push(['start', id]); },
+  });
+  await open(h, state({ games: [{ ...game, installed: true, verdict: 'unplayed', proxy: 'dxgi.dll' }] }));
+  for (const c of h.calls.filter(c => c.name === 'live_status' && !c.settled))
+    h.respond('live_status', { ok: true, status: 'restart', detail: 'Set up while the game was running. Restart the game.' });
+  await settle();
+  const button = dialogButton(h.render(), 'Restart now');
+  assert.ok(button, 'Restart now shows while a restart is needed');
+  button.props.onClick();
+  assert.equal(modals.length, 1, 'asks first');
+  assert.match(modals[0].props.strDescription, /Save your game first/);
+  assert.deepEqual(steps, [], 'nothing closes before the OK');
+  modals[0].props.onOK();
+  for (let i = 0; i < 3; i++) await settle();
+  h.timers.filter(t => !t.done && t.ms === 2000).forEach(t => { t.done = true; t.fn(); });  // the pause before starting
+  for (let i = 0; i < 3; i++) await settle();
+  assert.deepEqual(steps, [['close', '1091500'], ['start', '1091500']]);
 });
 
 test('a newer version on GitHub shows on the main page, not only in About', async () => {
