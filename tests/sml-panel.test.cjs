@@ -232,6 +232,14 @@ test('a game with anti-cheat gets no install button', async () => {
   assert.deepEqual(pills, ['Blocked']);
 });
 
+test("a game OptiScaler can't run in on SteamOS gets no install button", async () => {
+  const broken = 'This game closes itself a few seconds after it starts whenever OptiScaler is loaded on SteamOS, so installs are blocked.';
+  const tree = await open(panel({ appid: '1091500', display_name: 'x' }), state({ games: [{ ...game, broken }] }));
+  assert.ok(!dialogButton(tree, 'Install FSR 4.1 Lite'));
+  assert.ok(strings(tree).includes(broken), strings(tree));
+  assert.match(strings(tree), /Blocked: doesn't work on SteamOS/);
+});
+
 test('set-up games are always listed under Your games, with what their last session showed', async () => {
   const h = panel(undefined);
   const tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'B', installed: true, verdict: 'none' }] }));

@@ -339,11 +339,12 @@ export const Content: FC = () => {
         : "The scan didn't find this game's files. If you installed or updated it recently, rescan your library under More."}</div>
     </div>;
     const now = live && live.appid === current.appid ? live : null;
-    const blocked = (!!current.anticheat && !current.installed) || (current.manual_optiscaler && !current.installed);
-    const pill: [string, string] | null = current.anticheat && !current.installed ? ["bad", "Blocked"]
+    const blocked = (!!(current.anticheat || current.broken) && !current.installed) || (current.manual_optiscaler && !current.installed);
+    const pill: [string, string] | null = (current.anticheat || current.broken) && !current.installed ? ["bad", "Blocked"]
       : current.installed ? (livePill(now?.status) ?? chipFor(current)) : null;
     const note = current.anticheat && !current.installed
       ? `${current.anticheat} found. Injecting OptiScaler could get your account banned, so installs are blocked.`
+      : current.broken && !current.installed ? current.broken
       : current.manual_optiscaler && !current.installed ? "OptiScaler from another install is already in this game. Remove it first."
       : current.installed && now?.detail ? now.detail
       : current.installed && current.detail ? current.detail
@@ -354,7 +355,8 @@ export const Content: FC = () => {
     ].join(" · ");
     return <div className={`sml-now ${pill?.[0] ?? ""}`}>
       {head(current.name, pill && pill[1] ? pill : null)}
-      <div className="sml-nowmeta">{current.anticheat ? `Blocked: ${current.anticheat}` : meta}</div>
+      <div className="sml-nowmeta">{current.anticheat ? `Blocked: ${current.anticheat}`
+        : current.broken && !current.installed ? "Blocked: doesn't work on SteamOS" : meta}</div>
       {!blocked && <DialogButton onGamepadFocus={keepInView} className={`sml-primary${current.installed ? " quiet" : ""}`}
         disabled={!current.installed && !state.assets_ready} onClick={() => toggle(current, !current.installed)}>
         {busy === current.appid ? "Working…" : current.installed ? "Uninstall FSR 4.1 Lite" : "Install FSR 4.1 Lite"}
@@ -387,7 +389,8 @@ export const Content: FC = () => {
     const extra = [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");
     if (!g.installed) return <PanelSectionRow key={`r${g.appid}`}>
       <Field focusable className="sml-gameoff" label={<span className="sml-gamerow"><span>{g.name}</span></span>}
-        description={<span className={`sml-gamesub${g.anticheat ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}` : extra}</span>} />
+        description={<span className={`sml-gamesub${g.anticheat || g.broken ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}`
+          : g.broken ? "Blocked: doesn't work on SteamOS" : extra}</span>} />
     </PanelSectionRow>;
     return <PanelSectionRow key={`r${g.appid}`}>
       <ToggleField label={<span className="sml-gamerow"><span>{g.name}</span></span>}

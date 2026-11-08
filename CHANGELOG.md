@@ -2,6 +2,12 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.24] - 2026-11-08
+
+### 🔧 Changed
+- **Games:** DEAD OR ALIVE 6 Last Round is blocked. With OptiScaler loaded it closes itself a few seconds after it
+  starts on SteamOS, whatever the setting or loader name, so the plugin says so instead of offering an install.
+
 ## [2.2.23] - 2026-11-08
 
 ### 🐛 Fixed

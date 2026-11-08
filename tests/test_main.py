@@ -545,6 +545,17 @@ class Flow(unittest.TestCase):
         self.assertIn("BattlEye", r["error"])
         self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
 
+    def test_a_game_that_closes_with_optiscaler_on_steamos_is_refused(self):
+        os.rename(os.path.join(self.game, "game.exe"), os.path.join(self.game, "DOA6LR.exe"))
+        self.run_(self.p.scan_games())
+        state = self.run_(self.p.get_state())["state"]
+        game = next(g for g in state["games"] if g["appid"] == 42)
+        self.assertIn("closes itself", game["broken"])
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertFalse(r["ok"])
+        self.assertIn("closes itself", r["error"])
+        self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
+
 
 if __name__ == "__main__":
     unittest.main()

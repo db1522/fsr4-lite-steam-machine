@@ -159,6 +159,22 @@ def _walk(root):
         yield dirpath, dirs, files
 
 
+# Games OptiScaler can't run in on SteamOS, by exe name: installs are blocked with this reason. Each one tested on the
+# Steam Machine; the Compatibility List can still say "working" (that's Windows).
+NOT_WORKING = {
+    # 2026-11-08: closes itself (a clean exit, no crash) about 7 s after its first frames whenever OptiScaler is loaded,
+    # with the Oct 24 and Nov 8 nightlies, as dxgi.dll (winmm.dll crashes at once), with OptiScaler's overlay and
+    # input hooks, NVIDIA spoofing and DLSS inputs each turned off. Without OptiScaler it runs.
+    "doa6lr.exe": "This game closes itself a few seconds after it starts whenever OptiScaler is loaded on SteamOS, "
+                  "so installs are blocked.",
+}
+
+
+def not_working(exe_name):
+    """Why OptiScaler can't run in this game on SteamOS (NOT_WORKING), or ""."""
+    return NOT_WORKING.get((exe_name or "").lower(), "")
+
+
 def blocked_message(anticheat):
     """The FSR 4.1 Lite widget's words for a game with anti-cheat."""
     return f"{anticheat} found. Injecting OptiScaler could get your account banned, so installs are blocked."

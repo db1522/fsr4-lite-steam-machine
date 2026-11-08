@@ -209,6 +209,7 @@ class Plugin:
                                   "manual_optiscaler")}
         view["installed"] = entry is not None
         view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"], g["name"])
+        view["broken"] = sml_opti.not_working(g["exe_name"])
         view["compat"] = sml_opti.compat_text(g["name"], g["exe_name"])
         view["verdict"], view["detail"] = ("", "")
         if entry:
@@ -565,6 +566,8 @@ class Plugin:
                 return dk_rpc.fail("Download OptiScaler and AMD's FSR 4 files first.", await self._state())
             if game["anticheat"]:
                 return dk_rpc.fail(sml_opti.blocked_message(game["anticheat"]), await self._state())
+            if sml_opti.not_working(game["exe_name"]):
+                return dk_rpc.fail(sml_opti.not_working(game["exe_name"]), await self._state())
             if game["manual_optiscaler"]:
                 return dk_rpc.fail("OptiScaler is already in this game's folder from another install. Remove it "
                                    "first.", await self._state())

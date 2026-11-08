@@ -16,6 +16,7 @@ export interface Game {
   exe_name: string;
   upscalers: string[];  // what the game ships: FSR 3.1, FSR 2, DLSS, XeSS
   anticheat: string;  // its name, "" when none
+  broken?: string;  // why OptiScaler can't run in it on SteamOS (installs blocked), "" when it can
   nonsteam: boolean;
   manual_optiscaler: boolean;  // OptiScaler from another install is already there
   installed: boolean;
