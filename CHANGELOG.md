@@ -2,6 +2,13 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.23] - 2026-11-08
+
+### 🐛 Fixed
+- **Status:** a game no longer shows Active or "FSR 4.1 Lite ran" just because OptiScaler loaded. Newer OptiScaler
+  builds name the Lite model in their log as soon as they start, even when the game never upscales. Now Lite only
+  counts once AMD's FSR 4 file has loaded and the game's upscaler has started.
+
 ## [2.2.22] - 2026-11-07
 
 ### ✨ Added

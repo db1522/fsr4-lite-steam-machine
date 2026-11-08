@@ -514,7 +514,7 @@ class Plugin:
         if not game or game["nonsteam"]:
             return None
         log = await asyncio.to_thread(sml_opti.read_log, entry["exe_dir"])
-        if "ffxProvider_FSR4Lite_Int8" in log:
+        if sml_opti.lite_ran(log):
             return None  # Lite runs from where it is: never move a working setup
         # a whole session (a minute or more) with OptiScaler loaded and no device, swapchain or upscaler: a launcher
         if (started and time.time() - started >= 60 and log and not sml_opti.renders(log)
@@ -735,7 +735,7 @@ class Plugin:
             return dk_rpc.ok(lite=False, done=False, hint="OptiScaler hasn't loaded yet. When you quit, the plugin "
                              "tries the next loader name." if waited > 90 else "")
         log = await asyncio.to_thread(sml_opti.read_log, entry["exe_dir"])
-        if "ffxProvider_FSR4Lite_Int8" in log:
+        if sml_opti.lite_ran(log):
             return dk_rpc.ok(lite=True, done=False, summary=sml_opti.summary(log), minutes=int(waited // 60))
         verdict, detail = sml_opti.verdict(log)
         return dk_rpc.ok(lite=False, done=False, hint=detail if waited > 90 and verdict != "fsr4" else "")

@@ -13,6 +13,9 @@ import decky
 import main
 import sml_assets
 
+# a session where Lite really upscaled: AMD's file loaded and an upscaler was created (sml_opti.lite_ran)
+LITE_LOG = (b"Hooked the support check of ffxProvider_FSR4Lite_Int8 in amdxcffx64.dll\namdxcffx64.dll loaded from OptiScaler\nRender Resolution: 1280x720, Display Resolution 2560x1440\n")
+
 
 def binary(path):
     with open(path, "rb") as f:
@@ -89,7 +92,7 @@ class Flow(unittest.TestCase):
 
         # a session where OptiScaler hooked the Lite model
         self.run_(self.p.session_started(42))
-        touch(os.path.join(self.game, "OptiScaler.log"), b"... ffxProvider_FSR4Lite_Int8 created ...")
+        touch(os.path.join(self.game, "OptiScaler.log"), LITE_LOG)
         self.assertTrue(self.run_(self.p.session_check(42))["lite"])
         r = self.run_(self.p.session_ended(42, "WINEDLLOVERRIDES=winmm=n,b %command%"))
         self.assertEqual(r["verdict"], "lite")
@@ -253,7 +256,7 @@ class Flow(unittest.TestCase):
         self.assertEqual(self.run_(self.p.live_status(42))["status"], "idle")
         self.run_(self.p.session_started(42))
         self.assertEqual(self.run_(self.p.live_status(42))["status"], "starting")
-        touch(os.path.join(self.game, "OptiScaler.log"), b"ffxProvider_FSR4Lite_Int8")
+        touch(os.path.join(self.game, "OptiScaler.log"), LITE_LOG)
         self.assertEqual(self.run_(self.p.live_status(42))["status"], "active")
 
     def test_a_game_without_upscaler_files_can_still_be_set_up(self):
@@ -274,7 +277,7 @@ class Flow(unittest.TestCase):
         os.rename(os.path.join(self.game, "dxgi.dll"), os.path.join(self.game, "version.dll"))
         with mock.patch("sml_opti.repair", return_value=[]):  # the rename above is a stand-in, not a game update
             self.run_(self.p.session_started(42))
-        touch(os.path.join(self.game, "OptiScaler.log"), b"ffxProvider_FSR4Lite_Int8")
+        touch(os.path.join(self.game, "OptiScaler.log"), LITE_LOG)
         self.run_(self.p.session_ended(42, "WINEDLLOVERRIDES=version=n,b %command%"))
         self.assertEqual(self.p.loaders, {"game.exe": "version.dll"})
         self.assertTrue(os.path.isfile(os.path.join(self.settings, "loaders.json")))
@@ -390,7 +393,7 @@ class Flow(unittest.TestCase):
         self.run_(self.p.enable_game(4115450, ""))
         wrong = self.p._game(4115450)["exe_dir"]
         self.run_(self.p.session_started(4115450))
-        touch(os.path.join(wrong, "OptiScaler.log"), b"CheckQuirks Game's Exe: PBZ.exe\nffxProvider_FSR4Lite_Int8\n")
+        touch(os.path.join(wrong, "OptiScaler.log"), b"CheckQuirks Game's Exe: PBZ.exe\n" + LITE_LOG)
         r = self.run_(self.p.session_ended(4115450, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
         self.assertEqual(r["verdict"], "lite")
         self.assertNotIn("retry", r)
@@ -404,8 +407,7 @@ class Flow(unittest.TestCase):
         r = self.run_(self.p.session_check(42))
         self.assertFalse(r["lite"])
         self.assertIn("Pick an upscaler", r["hint"])
-        touch(os.path.join(self.game, "OptiScaler.log"), b"NVSDK_NGX_D3D12_CreateFeature\nRender Resolution: 1280x720, "
-                                                         b"Display Resolution 2560x1440\nffxProvider_FSR4Lite_Int8\n")
+        touch(os.path.join(self.game, "OptiScaler.log"), b"NVSDK_NGX_D3D12_CreateFeature\n" + LITE_LOG)
         r = self.run_(self.p.session_check(42))
         self.assertEqual((r["lite"], r["minutes"]), (True, 3))
         self.assertEqual(r["summary"], "DLSS → FSR 4.1.2 Lite, 1280×720 → 2560×1440 (Performance)")

@@ -565,11 +565,38 @@ class LaunchOptions(unittest.TestCase):
 class Verdict(unittest.TestCase):
     def test_reads_the_session(self):
         self.assertEqual(O.verdict("")[0], "none")
-        self.assertEqual(O.verdict("... hooking ffxProvider_FSR4Lite_Int8 ...")[0], "lite")
+        self.assertEqual(O.verdict(LITE_SESSION)[0], "lite")
         self.assertEqual(O.verdict("Loaded OptiScaler/amdxcffx64.dll")[0], "fsr4")
         self.assertEqual(O.verdict("FFX upscaler: render 1280x720 output 2560x1440")[0], "fsr3")
         self.assertEqual(O.verdict("OptiScaler v10 started")[0], "waiting")
         self.assertEqual(O.verdict("this GPU can't run any FSR 4 model")[0], "unsupported")
+
+    def test_the_lite_name_alone_is_not_proof(self):
+        # Newer nightlies name the Lite provider as they load, before any game upscales (DOA6 Last Round: the game
+        # never started an upscaler and AMD's file never loaded, yet the old check said Lite ran).
+        hooked_only = (HOOK_LINE.replace("amdxcffx64.dll", "amd_fidelityfx_upscaler_dx12.dll")
+                       + "[I] Init done\n[W] Config::CheckUpscalerFiles nvngx.dll not found!\n")
+        self.assertFalse(O.lite_ran(hooked_only))
+        self.assertEqual(O.verdict(hooked_only)[0], "waiting")
+        # AMD's file loaded but no upscaler yet: not proven
+        self.assertFalse(O.lite_ran(HOOK_LINE + LOADED_LINE))
+        # AMD's file failed to load: the resolutions come from FSR 3
+        failed = (HOOK_LINE.replace("amdxcffx64.dll", "amd_fidelityfx_upscaler_dx12.dll")
+                  + "[E] Failed to load amdxcffx64.dll\n" + RES_LINE)
+        self.assertFalse(O.lite_ran(failed))
+        self.assertEqual(O.verdict(failed)[0], "fsr3")
+        self.assertTrue(O.lite_ran(LITE_SESSION))
+        # an older nightly that logged only the driver context
+        self.assertTrue(O.lite_ran(HOOK_LINE + "[I] FSR4DriverDll::QueryProvider amdxcffx64.dll provider for 10000: 4.1.2 *\n"
+                                   "[I] FSR4DriverProviderDx12::CreateContext Created driver upscaler context, result: The operation was successful.\n"))
+
+
+# lines from real OptiScaler.logs on the Steam Machine (Resident Evil Requiem, 2026-11-08 nightly)
+HOOK_LINE = "[I] FSR4Models::Hook Hooked the support check of ffxProvider_FSR4Lite_Int8 in amdxcffx64.dll\n"
+LOADED_LINE = ("[I] `anonymous-namespace'::LoadDriverDll amdxcffx64.dll loaded from Z:\\home\\deck\\.local\\share\\Steam"
+               "\\steamapps\\common\\RESIDENT EVIL requiem BIOHAZARD requiem\\OptiScaler\\amdxcffx64.dll\n")
+RES_LINE = "[I] IFeature::SetInitParameters Render Resolution: 1920x1080, Display Resolution 3840x2160, Quality: 0\n"
+LITE_SESSION = HOOK_LINE + LOADED_LINE + "[I] ffxCreateContext_Dx12 context created: 1EE8\n" + RES_LINE
 
 
 if __name__ == "__main__":

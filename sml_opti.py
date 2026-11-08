@@ -1077,14 +1077,28 @@ def summary(log):
     return ", ".join(parts)
 
 
+def lite_ran(log):
+    """Whether this session's OptiScaler.log shows the Lite model really upscaling. Newer OptiScaler builds name
+    ffxProvider_FSR4Lite_Int8 as soon as they load ("Hooked the support check of ..."), even in a session where the
+    game never starts an upscaler, so the name alone proves nothing: AMD's FSR 4 file has to be loaded too, and an
+    upscaler has to have been created (its resolutions logged, or the driver context created)."""
+    if "ffxProvider_FSR4Lite_Int8" not in log:
+        return False
+    loaded = any((DX12_FSR4 in low or VK_FSR4 in low) and not re.search(r"fail|can't|cannot|not found|missing", low)
+                 for low in (line.lower() for line in log.splitlines()))
+    started = ("Created driver upscaler context" in log
+               or re.search(r"Render Resolution:\s*\d+x\d+,\s*Display Resolution", log) is not None)
+    return loaded and started
+
+
 def verdict(log):
     """(verdict, detail) from one session's OptiScaler.log:
-    lite: the Lite model was hooked; fsr4: FSR 4 loaded but Lite wasn't confirmed; fsr3: the upscaler ran without
+    lite: the Lite model upscaled (lite_ran); fsr4: FSR 4 loaded but Lite wasn't confirmed; fsr3: the upscaler ran without
     FSR 4 (also when OptiScaler couldn't load AMD's FSR 4 file); unsupported: OptiScaler says FSR 4 can't run;
     waiting: OptiScaler ran but the game's upscaler didn't start; none: no log (OptiScaler didn't load)."""
     if not log:
         return "none", "OptiScaler didn't load. The game may need a different loader name; play once more."
-    if "ffxProvider_FSR4Lite_Int8" in log:
+    if lite_ran(log):
         return "lite", "FSR 4.1 Lite ran last session."
     if "can't run any FSR 4 model" in log or "doesn't support FSR 4" in log:
         return "unsupported", "OptiScaler reports FSR 4 can't run here."
