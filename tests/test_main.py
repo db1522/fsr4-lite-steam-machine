@@ -165,6 +165,23 @@ class Flow(unittest.TestCase):
         self.assertTrue(first["ok"])
         self.assertEqual(first["state"]["opti_note"], "")
 
+    def test_a_new_plugin_release_is_told_once_every_6_hours_at_most(self):
+        told = lambda: [e for e in decky.emitted if e[0] == "plugin_update"]  # noqa: E731
+        before = len(told())
+        newer = {"ok": True, "update_available": True, "latest_version": "9.9.9"}
+        with mock.patch.object(self.p.updates, "check", return_value=newer) as check:
+            self.run_(self.p._check_release(now=1000))
+            self.assertEqual(len(told()), before + 1)
+            self.assertEqual(told()[-1][1], "FSR 4.1 Lite 9.9.9 is out")
+            self.run_(self.p._check_release(now=1000 + 3600))  # within 6 hours: GitHub isn't asked
+            self.assertEqual(check.call_count, 1)
+            self.run_(self.p._check_release(now=1000 + 7 * 3600))  # asked again, same version: no second notice
+            self.assertEqual(check.call_count, 2)
+            self.assertEqual(len(told()), before + 1)
+        with mock.patch.object(self.p.updates, "check", return_value={"ok": True, "update_available": False}):
+            self.run_(self.p._check_release(now=1000 + 14 * 3600))
+        self.assertEqual(len(told()), before + 1)
+
     def test_with_automatic_updates_off_games_keep_their_build(self):
         self.run_(self.p.enable_game(42, ""))
         self.run_(self.p.set_setting("auto_update", False))

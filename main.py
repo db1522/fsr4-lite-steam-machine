@@ -44,6 +44,7 @@ DEFAULT_SETTINGS = {"session_toast": True, "watermark": False, "overlay": False,
                     "overlay_pos": "topleft", "auto_update": True}
 NOT_INI = ("session_toast", "auto_update")  # settings that don't go into OptiScaler.ini
 UPDATE_LOOK_EVERY = 300  # how often set-up games are compared with the current build (GitHub is asked far less)
+PLUGIN_CHECK_EVERY = 6 * 3600  # a newer FSR 4.1 Lite release looked for in the background, like the widget's SelfUpdate
 CHOICES = {"overlay_size": tuple(sml_opti.OVERLAY_SIZES), "overlay_pos": tuple(sml_opti.OVERLAY_POSITIONS)}
 _ready = asyncio.Event()
 rpc = dk_rpc.boundary(decky.logger, _ready)
@@ -135,6 +136,9 @@ class Plugin:
             self.notice_path = os.path.join(settings_dir, "optiscaler.json")
             self.opti_note = ""  # the last check's outcome for the panel
             self.check_lock = asyncio.Lock()  # one check at a time: the 5-minute loop and Check now share a folder
+            # the plugin version the last "update available" notification named (one notification per version)
+            self.release_notice_path = os.path.join(settings_dir, "release.json")
+            self._plugin_checked = 0.0
             self.exes, self._watchers = {}, {}
             self.launchers = {}  # str(appid) -> exes OptiScaler showed never draw, never picked again
             self.seen = {}  # appid -> the game's processes the last watch saw, for the support report
@@ -231,7 +235,29 @@ class Plugin:
                 await self._check_builds(force=False)
             except Exception as e:  # noqa: BLE001 - the loop must survive anything
                 decky.logger.warning(f"nightly check: {e!r}")
+            try:
+                await self._check_release()
+            except Exception as e:  # noqa: BLE001
+                decky.logger.warning(f"release check: {e!r}")
             await asyncio.sleep(UPDATE_LOOK_EVERY)
+
+    async def _check_release(self, now=None):
+        """Every 6 hours: a newer FSR 4.1 Lite release on GitHub, told once per version with a notification. Nothing
+        is installed here: the card at the top of the plugin has the Update button, and Decky asks to confirm."""
+        now = time.time() if now is None else now
+        if self._plugin_checked and now - self._plugin_checked < PLUGIN_CHECK_EVERY:
+            return
+        self._plugin_checked = now
+        view = await asyncio.to_thread(self.updates.check)
+        latest = view.get("latest_version")
+        if not (view.get("ok") and view.get("update_available") and latest):
+            return
+        seen = await asyncio.to_thread(_read, self.release_notice_path, {})
+        if seen.get("notified") == latest:
+            return
+        await asyncio.to_thread(dk_fs.write_json, self.release_notice_path, {"notified": latest})
+        await decky.emit("plugin_update", f"FSR 4.1 Lite {latest} is out",
+                         "Open FSR 4.1 Lite and press Update. Your games stay set up.")
 
     async def _check_builds(self, force):
         """Looks for newer nightlies, then updates games when automatic updates are on. A line for the panel. One at a

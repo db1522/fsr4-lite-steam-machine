@@ -65,6 +65,8 @@ export default definePlugin(() => {
   // A new OptiScaler nightly went into the set-up games (backend auto-update): one notification per build.
   const gamesUpdated = (title: string, body: string) => notify(title, body);
   addEventListener<[string, string]>("games_updated", gamesUpdated);
+  // A newer FSR 4.1 Lite release (backend check every 6 hours): one notification per version.
+  addEventListener<[string, string]>("plugin_update", gamesUpdated);
 
   return {
     name: NAME,
@@ -74,6 +76,7 @@ export default definePlugin(() => {
     onDismount() {
       off(lifetime);
       removeEventListener("games_updated", gamesUpdated);
+      removeEventListener("plugin_update", gamesUpdated);
       [...watching.keys()].forEach(unwatch);
       closeUpdates();
     },

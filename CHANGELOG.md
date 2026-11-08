@@ -2,6 +2,13 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.19] - 2026-11-07
+
+### ✨ Added
+- **Updates:** the plugin checks GitHub for a new FSR 4.1 Lite version every 6 hours, the same as the Windows
+  widget, and sends one notification per version: open the plugin and press Update. You no longer have to open the
+  plugin to find out.
+
 ## [2.2.18] - 2026-11-07
 
 ### 🐛 Fixed
