@@ -2,6 +2,13 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.20] - 2026-11-07
+
+### 🐛 Fixed
+- **Now playing:** a game added to Steam after the plugin loaded (like a non-Steam game you just added) said "Not
+  found" with no Install button. The plugin now rescans your library by itself when the game you're playing isn't
+  in it, then shows Install.
+
 ## [2.2.19] - 2026-11-07
 
 ### ✨ Added
