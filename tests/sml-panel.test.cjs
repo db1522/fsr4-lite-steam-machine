@@ -51,6 +51,21 @@ test('with no game running the card says so', async () => {
   assert.ok(!dialogButton(tree, 'Install FSR 4.1 Lite'));
 });
 
+test('a running game the last scan missed (added to Steam later) is rescanned once and can be set up', async () => {
+  const gow = { ...game, appid: 2725409646, name: 'God of War', exe_name: 'GoW.exe', upscalers: ['DLSS'], nonsteam: true };
+  const h = panel({ appid: '2725409646', display_name: 'God of War' });
+  await open(h);
+  const scans = () => h.calls.filter(c => c.name === 'scan_games');
+  assert.equal(scans().length, 1, 'rescanned by itself');
+  h.respond('scan_games', ok(state({ games: [game, gow] })));
+  await settle();
+  const tree = h.render();
+  assert.ok(dialogButton(tree, 'Install FSR 4.1 Lite'), strings(tree));
+  h.render();
+  await settle();
+  assert.equal(scans().length, 1, 'only once');
+});
+
 test('a running game installs with one button and its launch option is saved', async () => {
   const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
   let tree = await open(h);

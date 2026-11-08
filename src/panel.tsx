@@ -220,6 +220,15 @@ export const Content: FC = () => {
     take(await scanGames());
     setScanning(false);
   };
+  // A running game the last scan doesn't know (added to Steam, or installed, since the plugin loaded): rescanned once
+  // by itself, so Now playing can set it up without a trip to Rescan library.
+  const rescannedFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (!visible || !state?.scanned || scanning || !Number.isFinite(runningAppid)) return;
+    if (state.games.some(g => g.appid === runningAppid) || rescannedFor.current === runningAppid) return;
+    rescannedFor.current = runningAppid;
+    rescan();
+  }, [visible, runningAppid, state?.scanned, state?.games.length]);
   // Check now: GitHub asked right away for a newer OptiScaler nightly, then every game that isn't running updated.
   const checkNow = async () => {
     if (checking) return;
@@ -300,8 +309,9 @@ export const Content: FC = () => {
       <div className="sml-note">Start a game, then open this menu to set it up.</div>
     </div>;
     if (!current) return <div className="sml-now">
-      {head(running.display_name, ["", "Not found"])}
-      <div className="sml-note">The scan didn't find this game's files. If you installed or updated it recently, rescan your library under More.</div>
+      {head(running.display_name, scanning ? ["", "Looking"] : ["", "Not found"])}
+      <div className="sml-note">{scanning ? "Looking for this game in your library…"
+        : "The scan didn't find this game's files. If you installed or updated it recently, rescan your library under More."}</div>
     </div>;
     const now = live && live.appid === current.appid ? live : null;
     const blocked = (!!current.anticheat && !current.installed) || (current.manual_optiscaler && !current.installed);
