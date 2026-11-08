@@ -14,6 +14,11 @@ import main
 import sml_assets
 
 
+def binary(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
 def touch(path, data=b"x"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
@@ -51,7 +56,7 @@ class Flow(unittest.TestCase):
         self.loop.run_until_complete(self.p._scan_task)
 
     def tearDown(self):
-        for task in list(self.p._watchers.values()):
+        for task in [*self.p._watchers.values(), self.p._updater]:
             task.cancel()
         self.loop.run_until_complete(asyncio.sleep(0))
         self.loop.close()
@@ -94,6 +99,57 @@ class Flow(unittest.TestCase):
         self.assertEqual(r["launch_options"], "")
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
         self.assertFalse(self.run_(self.p.get_state())["state"]["games"][0]["installed"])
+
+    def test_a_new_optiscaler_nightly_goes_into_games_that_are_not_running(self):
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertTrue(r["ok"], r)
+        old = sml_assets.current(self.data)
+        with mock.patch("sml_assets.update_optiscaler", return_value=(old, False)):
+            self.assertEqual(self.run_(self.p.check_optiscaler())["message"],
+                             "Up to date: OptiScaler v10.0.0-pre1 (Oct 24, 2026).")
+        with open(os.path.join(self.game, "OptiScaler.ini"), encoding="utf-8") as f:
+            ini = f.read()
+        # a newer nightly arrives
+        new = "OptiScaler_v10.0.0-pre2_20261120"
+        touch(os.path.join(self.data, "optiscaler", new, "OptiScaler.dll"), b"new build")
+        touch(os.path.join(self.data, "optiscaler", new, "OptiScaler.ini"), b"[FSR]\nFsr4Model=auto\n")
+        touch(os.path.join(self.data, "optiscaler", new, "D3D12_Optiscaler", "D3D12Core.dll"), b"new file")
+        touch(os.path.join(self.data, "optiscaler", "latest.txt"), new.encode())
+        emitted = lambda: [e for e in decky.emitted if e[0] == "games_updated"]  # noqa: E731
+        before = len(emitted())
+        with mock.patch("sml_assets.update_optiscaler", return_value=(new, True)):
+            # while the game runs it waits
+            self.p.sessions[42] = time.time()
+            r = self.run_(self.p.check_optiscaler())
+            self.assertEqual(r["message"], "1 running game updates once it's closed.")
+            self.assertEqual(binary(os.path.join(self.game, "dxgi.dll")), b"opti")
+            # closed: it gets the new build under its loader name, its own settings kept, one notification
+            del self.p.sessions[42]
+            r = self.run_(self.p.check_optiscaler())
+            self.assertEqual(r["message"], "Updated 1 game.")
+            self.assertEqual(binary(os.path.join(self.game, "dxgi.dll")), b"new build")
+            self.assertTrue(os.path.isfile(os.path.join(self.game, "D3D12_Optiscaler", "D3D12Core.dll")))
+            with open(os.path.join(self.game, "OptiScaler.ini"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), ini)
+            self.assertEqual(len(emitted()), before + 1)
+            self.assertIn("1 game now uses OptiScaler v10.0.0-pre2 (Nov 20, 2026)", emitted()[-1][2])
+            self.run_(self.p.check_optiscaler())
+            self.assertEqual(len(emitted()), before + 1, "one notification per build")
+        self.assertEqual(self.run_(self.p.diagnose(42))["report"]["opti_build"],
+                         "OptiScaler v10.0.0-pre2 (Nov 20, 2026)")
+        # uninstalling still leaves the game as it was
+        self.run_(self.p.disable_game(42, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+        self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
+
+    def test_with_automatic_updates_off_games_keep_their_build(self):
+        self.run_(self.p.enable_game(42, ""))
+        self.run_(self.p.set_setting("auto_update", False))
+        new = "OptiScaler_v10.0.0-pre2_20261120"
+        touch(os.path.join(self.data, "optiscaler", new, "OptiScaler.dll"), b"new build")
+        touch(os.path.join(self.data, "optiscaler", "latest.txt"), new.encode())
+        with mock.patch("sml_assets.update_optiscaler", return_value=(new, True)):
+            self.run_(self.p.check_optiscaler())
+        self.assertEqual(binary(os.path.join(self.game, "dxgi.dll")), b"opti")
 
     def test_live_status_on_the_running_game(self):
         self.run_(self.p.session_started(42))
@@ -299,6 +355,7 @@ class Flow(unittest.TestCase):
         again = main.Plugin()
         self.run_(again._main())
         self.run_(again._scan_task)
+        again._updater.cancel()
         self.assertEqual(again._game(4115450)["exe_dir"], game_dir)
         self.assertEqual(again.launchers, {"4115450": ["steam/PBZ.exe"]})
         # the report lists every other OptiScaler.log in the folder
@@ -382,6 +439,7 @@ class Flow(unittest.TestCase):
         again = main.Plugin()
         self.run_(again._main())
         self.run_(again._scan_task)
+        again._updater.cancel()
         with open(ini, encoding="utf-8") as f:
             self.assertIn("OptiDllPath=", f.read())
 

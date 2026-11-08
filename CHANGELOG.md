@@ -2,6 +2,21 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.17] - 2026-11-07
+
+### ✨ Added
+- **OptiScaler:** the newest OptiScaler nightly, always, the same as the Windows widget. The plugin looks for a new
+  build every 6 hours and puts it in every game you set up that isn't running. Each game keeps its loader name and
+  settings, and one notification tells you. A game that's running gets it once you close it.
+- **OptiScaler:** every download is checked against the SHA-256 GitHub publishes for it, and a build that can't be
+  told to run the Lite model is never used.
+- **Settings:** "Update OptiScaler automatically" (on by default), with the build in use, and "Check for a newer
+  OptiScaler".
+- **Check setup:** which OptiScaler build the game has. The support report shows it too.
+
+### 🔧 Changed
+- **REFramework:** the newest nightly, looked for once a day, and RE Engine games set up with it get each new one.
+
 ## [2.2.16] - 2026-11-07
 
 ### 🐛 Fixed

@@ -38,9 +38,12 @@ try:
 except (OSError, ValueError, KeyError):
     VERSION = "0.0.0"
 # session_toast: a notification in the game once Lite runs; watermark: AMD's FSR 4 watermark; overlay: OptiScaler's
-# FPS line with the upscaler and render -> output resolution.
+# FPS line with the upscaler and render -> output resolution; auto_update: each new OptiScaler nightly copied into
+# every set-up game that isn't running (the widget's AutoUpdateGames, on by default).
 DEFAULT_SETTINGS = {"session_toast": True, "watermark": False, "overlay": False, "overlay_size": "large",
-                    "overlay_pos": "topleft"}
+                    "overlay_pos": "topleft", "auto_update": True}
+NOT_INI = ("session_toast", "auto_update")  # settings that don't go into OptiScaler.ini
+UPDATE_LOOK_EVERY = 300  # how often set-up games are compared with the current build (GitHub is asked far less)
 CHOICES = {"overlay_size": tuple(sml_opti.OVERLAY_SIZES), "overlay_pos": tuple(sml_opti.OVERLAY_POSITIONS)}
 _ready = asyncio.Event()
 rpc = dk_rpc.boundary(decky.logger, _ready)
@@ -128,6 +131,9 @@ class Plugin:
             # str(appid) -> the exe the game was seen running, relative to its folder (the widget installs next to
             # the running game's exe; folder layouts like Phantom Blade Zero's platform/steam/PBZ.exe fool a guess)
             self.exes_path = os.path.join(settings_dir, "exes.json")
+            # the OptiScaler build the last "games updated" notification named (one notification per build)
+            self.notice_path = os.path.join(settings_dir, "optiscaler.json")
+            self.opti_note = ""  # the last check's outcome for the panel
             self.exes, self._watchers = {}, {}
             self.launchers = {}  # str(appid) -> exes OptiScaler showed never draw, never picked again
             self.seen = {}  # appid -> the game's processes the last watch saw, for the support report
@@ -169,6 +175,7 @@ class Plugin:
             await asyncio.to_thread(self._refresh_settings)
             self.legacy = await asyncio.to_thread(self._legacy_entries)
             self._scan_task = asyncio.create_task(self.scan_games())
+            self._updater = asyncio.create_task(self._update_loop())
         finally:
             _ready.set()
 
@@ -200,12 +207,116 @@ class Plugin:
         return view
 
     async def _state(self):
+        build = await asyncio.to_thread(sml_assets.current, _data_dir())
         return {
             "version": VERSION, "home": _home(), "assets_ready": self.assets_ok,
             "download": dict(self.download), "settings": dict(self.settings), "scanned": self.scanned,
             "games": [self._view(g) for g in self.games], "legacy": list(self.legacy),
-            "optiscaler": sml_assets.OPTISCALER["build"],
+            "optiscaler": sml_assets.label(build or sml_assets.OPTISCALER["name"]), "opti_note": self.opti_note,
         }
+
+    # ---- OptiScaler and REFramework nightlies (the widget's OptiScalerSource + StartAutoUpdate) ----
+
+    def _builds(self):
+        """The builds an install copies, recorded in the game's manifest so update_opti knows what it has."""
+        return {"build": sml_assets.current(_data_dir()), "ref_build": sml_assets.reframework_build(_data_dir())}
+
+    async def _update_loop(self):
+        """Every few minutes: a newer nightly (GitHub is asked at most every 6 hours, REFramework once a day), then
+        every set-up game that isn't running brought up to it. A game that was running gets it once it's closed."""
+        await asyncio.sleep(20)
+        while True:
+            try:
+                await self._check_builds(force=False)
+            except Exception as e:  # noqa: BLE001 - the loop must survive anything
+                decky.logger.warning(f"nightly check: {e!r}")
+            await asyncio.sleep(UPDATE_LOOK_EVERY)
+
+    async def _check_builds(self, force):
+        """Looks for newer nightlies, then updates games when automatic updates are on. A line for the panel."""
+        if not self.assets_ok:
+            return ""
+        data = _data_dir()
+        notice = await asyncio.to_thread(_read, self.notice_path, {})
+        if not notice.get("notified"):  # first run with nightlies: the build already here is no news
+            await asyncio.to_thread(dk_fs.write_json, self.notice_path,
+                                    {"notified": await asyncio.to_thread(sml_assets.current, data)})
+        try:
+            build, changed = await asyncio.to_thread(sml_assets.update_optiscaler, data, SEVENZIP, force)
+            if changed:
+                decky.logger.info(f"new OptiScaler build: {build}")
+            self.opti_note = ""
+        except Exception as e:  # noqa: BLE001 - shown in the panel, the current build stays in use
+            self.opti_note = f"Couldn't check for a newer OptiScaler ({e}). Using the one you have."
+            decky.logger.warning(f"OptiScaler check: {e!r}")
+        if any(e.get("reframework") for e in self.registry.values()) or sml_assets.reframework_build(data):
+            try:
+                await asyncio.to_thread(sml_assets.update_reframework, data, force)
+            except Exception as e:  # noqa: BLE001
+                decky.logger.warning(f"REFramework check: {e!r}")
+        if not self.settings["auto_update"]:
+            return self.opti_note
+        updated, running = await self._update_games()
+        build = await asyncio.to_thread(sml_assets.current, data)
+        notice = await asyncio.to_thread(_read, self.notice_path, {})
+        if updated and notice.get("notified") != build:
+            await asyncio.to_thread(dk_fs.write_json, self.notice_path, {"notified": build})
+            games = "1 game now uses" if updated == 1 else f"{updated} games now use"
+            await decky.emit("games_updated", "FSR 4.1 Lite: games updated",
+                             f"{games} {sml_assets.label(build)}. Their settings are unchanged.")
+        if self.opti_note:
+            return self.opti_note
+        parts = []
+        if updated:
+            parts.append("Updated 1 game." if updated == 1 else f"Updated {updated} games.")
+        if running:
+            parts.append("1 running game updates once it's closed." if running == 1
+                         else f"{running} running games update once they're closed.")
+        return " ".join(parts)
+
+    async def _update_games(self):
+        """Every set-up game that isn't running brought to the current OptiScaler and REFramework builds, keeping its
+        settings. Returns (games updated, games skipped because they run)."""
+        data = _data_dir()
+        build, package = sml_assets.current(data), sml_assets.package_dir(data)
+        ref, ref_dll = sml_assets.reframework_build(data), sml_assets.reframework_path(data)
+        if not build:
+            return 0, 0
+        updated = running = 0
+        async with self.lock:
+            for key, entry in list(self.registry.items()):
+                if not entry.get("proxy"):
+                    continue
+                manifest = await asyncio.to_thread(sml_opti.load_manifest, entry["exe_dir"])
+                if not manifest:
+                    continue
+                stale = manifest.get("opti_build") != build or bool(
+                    manifest.get("reframework") and ref and manifest.get("ref_build") != ref)
+                if not stale:
+                    continue
+                appid = int(key) if key.isdigit() else None
+                game = self._game(appid) if appid is not None else None
+                busy = appid in self.sessions
+                if not busy and game:
+                    busy = bool(await asyncio.to_thread(sml_opti.running_processes, game["install_dir"]))
+                if busy:
+                    running += 1
+                    continue
+                try:
+                    did = await asyncio.to_thread(sml_opti.update_opti, entry["exe_dir"], package, build)
+                    did = await asyncio.to_thread(sml_opti.update_reframework, entry["exe_dir"], ref_dll, ref) or did
+                    if did and manifest.get("opti_build"):
+                        updated += 1  # a game set up before nightly updates only gets its build noted
+                except OSError as e:
+                    decky.logger.warning(f"update failed in {entry['exe_dir']} ({dk_fs.shown(e)})")
+        return updated, running
+
+    @rpc
+    async def check_optiscaler(self) -> dict:
+        """Check now: GitHub asked right away for a newer nightly, then every game that isn't running updated."""
+        note = await self._check_builds(force=True)
+        build = sml_assets.label(await asyncio.to_thread(sml_assets.current, _data_dir()))
+        return dk_rpc.ok(await self._state(), message=note or f"Up to date: {build}.")
 
     @rpc
     async def get_state(self) -> dict:
@@ -345,7 +456,7 @@ class Plugin:
             manifest = await asyncio.to_thread(
                 sml_opti.install, game["exe_dir"], game["exe_name"], sml_assets.package_dir(_data_dir()),
                 sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), proxy, game["upscalers"], None,
-                ref if entry.get("reframework") and os.path.isfile(ref) else None)
+                ref if entry.get("reframework") and os.path.isfile(ref) else None, **self._builds())
         except sml_opti.InstallError as e:
             await asyncio.to_thread(self._save_registry)
             return {"managed": True, "verdict": "none", "detail": str(e), "launch_options": restored}
@@ -410,7 +521,7 @@ class Plugin:
                 manifest = await asyncio.to_thread(
                     sml_opti.install, game["exe_dir"], game["exe_name"], sml_assets.package_dir(_data_dir()),
                     sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), entry.get("next_proxy"),
-                    game["upscalers"], self.loaders.get(game["exe_name"].lower()), reframework)
+                    game["upscalers"], self.loaders.get(game["exe_name"].lower()), reframework, **self._builds())
             except sml_opti.InstallError as e:
                 return dk_rpc.fail(str(e), await self._state())
             original = entry.get("launch_original", launch_options)
@@ -459,7 +570,7 @@ class Plugin:
         async with self.lock:
             self.settings[key] = value
             await asyncio.to_thread(dk_fs.write_json, self.settings_path, self.settings)
-            if key != "session_toast":
+            if key not in NOT_INI:
                 for entry in self.registry.values():
                     if entry.get("proxy"):
                         await asyncio.to_thread(sml_opti.apply_settings, entry["exe_dir"],
@@ -576,7 +687,7 @@ class Plugin:
                         manifest = await asyncio.to_thread(
                             sml_opti.install, exe_dir, game["exe_name"], sml_assets.package_dir(_data_dir()),
                             sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), nxt, game["upscalers"],
-                            None, ref if ref and os.path.isfile(ref) else None)
+                            None, ref if ref and os.path.isfile(ref) else None, **self._builds())
                     except sml_opti.InstallError as e:
                         await asyncio.to_thread(self._save_registry)
                         return dk_rpc.ok(managed=True, verdict="none", detail=str(e), launch_options=restored)
@@ -630,6 +741,8 @@ class Plugin:
             "upscalers": game.get("upscalers", []), "anticheat": game.get("anticheat", ""),
             "proton": self._proton(game) if game else "",
             "verdict": entry.get("verdict", ""), "detail": entry.get("detail", ""),
+            "opti_build": sml_assets.label((manifest or {}).get("opti_build", "")),
+            "opti_current": sml_assets.label(sml_assets.current(_data_dir())),
             "log_lines": [l for l in log.splitlines() if any(k in l for k in (
                 "FSR4", "Fsr4", "amdxcffx64", "amdvkffx64", "Lite", "upscaler", "Upscaler", "error", "Error"))][-12:],
         }
@@ -697,7 +810,8 @@ class Plugin:
         except OSError:
             ini = []
         text = "\n".join([
-            f"FSR 4.1 Lite {VERSION} support report", f"OptiScaler: {sml_assets.OPTISCALER['build']}",
+            f"FSR 4.1 Lite {VERSION} support report",
+            f"OptiScaler: {d['opti_current']} (this game: {d['opti_build'] or 'set up before nightly updates'})",
             f"Game: {d['name']} ({appid})", f"Exe: {d['exe_dir']}/{d['exe_name']}", f"Loader: {d['proxy']}",
             f"Proton: {d['proton']}", f"Upscalers found: {', '.join(d['upscalers']) or 'none'}",
             f"Files in place: {d['files_ok']} {d['missing']}", f"Last verdict: {d['verdict']} {d['detail']}",
@@ -745,8 +859,9 @@ class Plugin:
             return
         self._cancel = True
         self.updates.close()
-        if self._scan_task:
-            self._scan_task.cancel()
+        for task in (self._scan_task, getattr(self, "_updater", None)):
+            if task:
+                task.cancel()
 
     async def _uninstall(self):
         # Decky runs this on every plugin update too: games stay set up; "Uninstall from all games" is the cleanup.

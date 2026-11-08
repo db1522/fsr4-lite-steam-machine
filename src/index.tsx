@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Rayekkk
 // Copyright (c) 2026 Steam Machine Life (changes)
 
-import { definePlugin } from "@decky/api";
+import { addEventListener, definePlugin, removeEventListener } from "@decky/api";
 import { staticClasses } from "@decky/ui";
 import { getState, off, readLaunchOptions, saveLaunchOptions, sessionCheck, sessionEnded, sessionStarted } from "./api";
 import { closeUpdates, Content } from "./panel";
@@ -62,6 +62,10 @@ export default definePlugin(() => {
     }
   });
 
+  // A new OptiScaler nightly went into the set-up games (backend auto-update): one notification per build.
+  const gamesUpdated = (title: string, body: string) => notify(title, body);
+  addEventListener<[string, string]>("games_updated", gamesUpdated);
+
   return {
     name: NAME,
     titleView: <div className={staticClasses.Title}>{NAME}</div>,
@@ -69,6 +73,7 @@ export default definePlugin(() => {
     icon: <Fsr4Icon />,
     onDismount() {
       off(lifetime);
+      removeEventListener("games_updated", gamesUpdated);
       [...watching.keys()].forEach(unwatch);
       closeUpdates();
     },

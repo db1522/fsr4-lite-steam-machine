@@ -137,6 +137,21 @@ test('a game set up this session shows Active in Your games while Lite runs, not
   assert.deepEqual(chips.sort(), ['Active', 'Not played yet'], 'the running game is live, the other keeps its last session');
 });
 
+test('OptiScaler updates: a switch, the build in use and Check now', async () => {
+  const h = panel(undefined);
+  const tree = await open(h, state({ optiscaler: 'OptiScaler v10.0.0-pre2 (Nov 7, 2026)', opti_note: '',
+    settings: { session_toast: true, watermark: false, overlay: false, auto_update: true } }));
+  const toggle = all(tree).find(n => n.type === 'ToggleField' && n.props.label === 'Update OptiScaler automatically');
+  assert.ok(toggle, 'the switch is in Settings');
+  assert.equal(toggle.props.checked, true);
+  assert.match(toggle.props.description, /OptiScaler v10\.0\.0-pre2 \(Nov 7, 2026\)/);
+  const row = all(tree).find(n => n.type === 'Field' && JSON.stringify(n.props.label ?? '').includes('Check for a newer OptiScaler'));
+  assert.ok(row, 'Check now is there');
+  row.props.onActivate();
+  await settle();
+  assert.ok(h.calls.some(c => c.name === 'check_optiscaler'));
+});
+
 test('a newer version on GitHub shows on the main page, not only in About', async () => {
   const h = panel(undefined);
   await open(h);

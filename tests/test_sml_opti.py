@@ -237,34 +237,67 @@ class REFramework(unittest.TestCase):
         self.assertEqual(read(os.path.join(self.game, "dinput8.dll"), "rb"), b"the player's own mod")
 
 
+REF_RELEASE = {"tag_name": "nightly-01440-abc", "assets": [
+    {"name": "REFramework.zip", "size": 1234, "digest": "sha256:" + "a" * 64,
+     "browser_download_url": "https://github.com/praydog/REFramework-nightly/releases/download/nightly-01440-abc/"
+                             "REFramework.zip"}]}
+
+
 class REFrameworkDownload(unittest.TestCase):
-    def fake_download(self, members):
+    def fake_download(self, members, expect):
         def download(url, dest, limit, sha256, **kw):
-            import sml_assets
-            self.assertEqual((url, limit, sha256), (sml_assets.REFRAMEWORK["url"], sml_assets.REFRAMEWORK["size"],
-                                                    sml_assets.REFRAMEWORK["sha256"]))  # only the pinned build
+            self.assertEqual((url, limit, sha256), expect)
             import zipfile
             with zipfile.ZipFile(dest, "w") as z:
                 for name, data in members.items():
                     z.writestr(name, data)
         return download
 
-    def test_only_dinput8_is_kept_and_older_builds_go(self):
+    def test_the_newest_nightly_is_used_checked_by_githubs_sha256_and_only_dinput8_is_kept(self):
         from unittest import mock
         import sml_assets
         data = tempfile.mkdtemp()
-        touch(os.path.join(data, "reframework-01000", "dinput8.dll"))
-        with mock.patch("dk_net.download", self.fake_download({"dinput8.dll": b"ref", "VR/openvr_api.dll": b"vr",
-                                                               "VR/dinput8.dll": b"vr build"})):
+        touch(os.path.join(data, "reframework-01433", "dinput8.dll"))  # the pinned build from before 2.2.17
+        asset = REF_RELEASE["assets"][0]
+        with mock.patch("sml_assets._api", return_value=REF_RELEASE), \
+                mock.patch("dk_net.download", self.fake_download(
+                    {"dinput8.dll": b"ref", "VR/openvr_api.dll": b"vr", "VR/dinput8.dll": b"vr build"},
+                    (asset["browser_download_url"], 1234, "a" * 64))):
             path = sml_assets.fetch_reframework(data)
         self.assertEqual(read(path, "rb"), b"ref")
-        self.assertEqual(sorted(os.listdir(data)), [sml_assets.REFRAMEWORK["folder"]])
-        self.assertEqual(os.listdir(os.path.dirname(path)), ["dinput8.dll"])
+        self.assertEqual(sml_assets.reframework_build(data), "nightly-01440-abc")
+        self.assertEqual(sorted(os.listdir(data)), ["reframework"])
+        self.assertNotIn("openvr_api.dll", os.listdir(os.path.dirname(path)))
+
+    def test_without_githubs_api_the_pinned_build_is_used(self):
+        from unittest import mock
+        import dk_net
+        import sml_assets
+        data = tempfile.mkdtemp()
+        R = sml_assets.REFRAMEWORK
+        with mock.patch("sml_assets._api", side_effect=dk_net.NetError("rate limited")), \
+                mock.patch("dk_net.download", self.fake_download({"dinput8.dll": b"ref"},
+                                                                 (R["url"], R["size"], R["sha256"]))):
+            sml_assets.fetch_reframework(data)
+        self.assertEqual(sml_assets.reframework_build(data), R["tag"])
+
+    def test_a_newer_nightly_is_looked_for_once_a_day(self):
+        from unittest import mock
+        import sml_assets
+        data = tempfile.mkdtemp()
+        with mock.patch("sml_assets._api", return_value=REF_RELEASE) as api, \
+                mock.patch("dk_net.download", self.fake_download({"dinput8.dll": b"ref"}, mock.ANY)):
+            sml_assets.update_reframework(data, now=1000)
+            self.assertEqual(sml_assets.update_reframework(data, now=1000 + 3600), ("nightly-01440-abc", False))
+            self.assertEqual(api.call_count, 1)
+            sml_assets.update_reframework(data, now=1000 + 25 * 3600)
+            self.assertEqual(api.call_count, 2)
 
     def test_a_zip_without_dinput8_is_refused(self):
         from unittest import mock
         import sml_assets
-        with mock.patch("dk_net.download", self.fake_download({"readme.txt": b"no dll"})):
+        with mock.patch("sml_assets._api", return_value=REF_RELEASE), \
+                mock.patch("dk_net.download", self.fake_download({"readme.txt": b"no dll"}, mock.ANY)):
             with self.assertRaises(RuntimeError):
                 sml_assets.fetch_reframework(tempfile.mkdtemp())
 

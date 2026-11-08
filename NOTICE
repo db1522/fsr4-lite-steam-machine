@@ -24,7 +24,7 @@ bin/amdxc64_native.dll: built by Steam Machine Life from shim/src (LGPL-2.1-or-l
 FSR 4.1 Lite 2.0 and later:
 - bin/7zz is 7-Zip 25.01 for Linux x64 (7zzs, static) by Igor Pavlov, unmodified, under the GNU LGPL with the unRAR
   restriction (bin/7zz-License.txt). Source: https://github.com/ip7z/7zip and https://www.7-zip.org.
-- OptiScaler (GPL-3.0, cdozdil and contributors) is not included. The plugin downloads a pinned build from
+- OptiScaler (GPL-3.0, cdozdil and contributors) is not included. The plugin downloads the newest nightly build from
   https://github.com/optiscaler/OptiScaler-nightly at setup, unmodified; its source is at
   https://github.com/optiscaler/OptiScaler.
 - AMD's FSR 4 files (amdxcffx64.dll, amdvkffx64.dll) are not included. The plugin downloads AMD's signed files,
@@ -34,5 +34,5 @@ FSR 4.1 Lite 2.0 and later:
   Compatibility List (https://github.com/optiscaler/OptiScaler/wiki/Compatibility-List), made by scripts/compat.py.
   All credit to the OptiScaler community who keep it.
 - REFramework (MIT, praydog) is not included. For the Capcom RE Engine games OptiScaler needs it in, the plugin
-  downloads a pinned build from https://github.com/praydog/REFramework-nightly, unmodified, and uses its dinput8.dll;
+  downloads the newest nightly from https://github.com/praydog/REFramework-nightly, unmodified, and uses its dinput8.dll;
   its source is at https://github.com/praydog/REFramework.

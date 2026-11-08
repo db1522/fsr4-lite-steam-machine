@@ -33,18 +33,20 @@ export interface State {
   home: string;
   assets_ready: boolean;
   download: Download;
-  settings: { session_toast: boolean; watermark: boolean; overlay: boolean;
+  settings: { session_toast: boolean; watermark: boolean; overlay: boolean; auto_update: boolean;
     overlay_size: "small" | "medium" | "large" | "xlarge" | "huge"; overlay_pos: "topleft" | "topright" | "bottomleft" | "bottomright" };
   scanned: boolean;
   games: Game[];
   legacy: number[];  // games still set up by FSR 4.1 Lite 1.x
-  optiscaler: string;
+  optiscaler: string;  // the OptiScaler build new setups get, "OptiScaler v10.0.0-pre1 (Nov 7, 2026)"
+  opti_note: string;   // why the last check for a newer build failed, if it did
 }
 
 export interface Diagnosis {
   name: string; installed: boolean; exe_dir: string; exe_name: string; proxy: string;
   files_ok: boolean; missing: string[]; upscalers: string[]; anticheat: string; proton: string;
   verdict: Verdict; detail: string; log_lines: string[];
+  opti_build: string; opti_current: string;  // the game's OptiScaler build and the newest one here
 }
 
 export type StateResult = Result<State>;
@@ -64,6 +66,7 @@ export const enableGame = rpc<[number, string], ToggleResult>("enable_game");
 export const disableGame = rpc<[number, string], ToggleResult>("disable_game");
 export const cleanupLegacy = rpc<[number, string], ToggleResult>("cleanup_legacy");
 export const setSetting = rpc<[string, boolean | string], StateResult>("set_setting");
+export const checkOptiscaler = rpc<[], StateResult & { message?: string }>("check_optiscaler");
 export const diagnose = rpc<[number], Result<never> & { report?: Diagnosis }>("diagnose");
 export const saveReport = rpc<[number], Result<never> & { saved?: string }>("save_report");
 export const sessionStarted = rpc<[number], Result<never> & { managed?: boolean }>("session_started");

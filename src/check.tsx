@@ -29,6 +29,9 @@ export function checks(d: Diagnosis, options: string): Check[] {
   out.push(d.files_ok
     ? { tone: "good", title: "OptiScaler in place", detail: `Next to ${d.exe_name}, loading as ${d.proxy}.` }
     : { tone: "bad", title: "Files missing", detail: "A game update or Steam's file check removed them. Press Fix setup." });
+  if (d.opti_build) out.push(d.opti_build === d.opti_current
+    ? { tone: "good", title: d.opti_build, detail: "The newest OptiScaler build here." }
+    : { tone: "good", title: d.opti_build, detail: `Gets ${d.opti_current} once the game is closed.` });
   const name = d.proxy.replace(/\.dll$/i, "");
   out.push(new RegExp(`WINEDLLOVERRIDES=\\S*\\b${name}=n,b`).test(options)
     ? { tone: "good", title: "Launch option set", detail: "Proton loads OptiScaler." }

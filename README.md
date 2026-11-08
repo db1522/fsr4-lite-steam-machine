@@ -57,6 +57,7 @@ All tested on my own Steam Machine. Set the game up from Now playing, restart it
 - Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
 - It sorts itself out. If OptiScaler doesn't load in a game, the plugin sets it up under the next file name OptiScaler can load as and asks for one more session.
 - Check setup, a page per game that checks the files, the launch option, Proton and the last session, with a Fix setup button and a report you can save to Downloads.
+- OptiScaler's newest nightly, always. The plugin checks for a new build every 6 hours, the same as the Windows widget, and puts it in every game you set up that isn't running. Each game keeps its settings, and one notification tells you. Turn it off in Settings if you'd rather stay put.
 - OptiScaler's FPS and resolution overlay, and AMD's watermark, each one switch for every game.
 
 ## Requirements
@@ -65,7 +66,7 @@ All tested on my own Steam Machine. Set the game up from Now playing, restart it
 - A game that ships FSR 2, FSR 3.1, native FSR 4, DLSS or XeSS, in DirectX 12, DirectX 11 or Vulkan
 - Proton Experimental is what I test with; any recent Proton should work
 
-The plugin downloads about 205 MB once: OptiScaler from its own GitHub, and AMD's signed FSR 4.1.2 files. Nothing from AMD or OptiScaler is in this repository or the release.
+The plugin downloads about 205 MB once: OptiScaler's newest nightly from its own GitHub, and AMD's signed FSR 4.1.2 files. After that, only new OptiScaler builds (about 55 MB each). Nothing from AMD or OptiScaler is in this repository or the release.
 
 ## Install
 

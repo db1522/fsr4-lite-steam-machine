@@ -15,7 +15,7 @@ import { canInstallUpdates, installUpdate } from "./installer";
 import { keepInView, onFocusReveal, openWeb, toTop } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, downloadAssets, downloadProgress, enableGame, Game,
-  getState, Live, liveStatus, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
+  checkOptiscaler, getState, Live, liveStatus, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
   StateResult,
 } from "./api";
 import { errorText } from "./result";
@@ -112,6 +112,7 @@ export const Content: FC = () => {
   const [state, setStateRaw] = useState<State | null>(lastState);
   const [busy, setBusy] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [bulk, setBulk] = useState("");
   const [error, setError] = useState("");
   const [failed, setFailed] = useState<Record<string, string>>({});
@@ -218,6 +219,14 @@ export const Content: FC = () => {
     setScanning(true);
     take(await scanGames());
     setScanning(false);
+  };
+  // Check now: GitHub asked right away for a newer OptiScaler nightly, then every game that isn't running updated.
+  const checkNow = async () => {
+    if (checking) return;
+    setChecking(true);
+    const r = take(await checkOptiscaler());
+    setChecking(false);
+    if (r.ok && r.message) notify("OptiScaler", r.message);
   };
   const navigate = (next: "about" | "check" | null) => setPage(next);
 
@@ -462,6 +471,13 @@ export const Content: FC = () => {
           <ToggleField label="Show AMD's watermark" description="For checks and screenshots."
             checked={settings.watermark} onChange={async on => take(await setSetting("watermark", on))} />
         </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField label="Update OptiScaler automatically"
+            description={`Each new nightly goes into your games, keeping their settings. Now: ${state.optiscaler}.`}
+            checked={settings.auto_update} onChange={async on => take(await setSetting("auto_update", on))} />
+        </PanelSectionRow>
+        {state.assets_ready && linkRow(checking ? "Checking…" : "Check for a newer OptiScaler", checkNow)}
+        {state.opti_note && <PanelSectionRow><div className="sml-note bad">{state.opti_note}</div></PanelSectionRow>}
       </PanelSection>
 
       <div className="sml-sect">More</div>

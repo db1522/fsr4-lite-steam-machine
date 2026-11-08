@@ -476,17 +476,18 @@ def _sha(path):
 
 
 def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, upscalers=None, remembered=None,
-            reframework=None):
+            reframework=None, build="", ref_build=""):
     """Copies OptiScaler (OptiScaler.dll under the proxy name), the FSR 4 files into its subfolder and the settings,
     plus the game's input settings when its upscalers are given (game_inputs), and REFramework's dinput8.dll when its
     path is given (the widget's AddREFramework; a dinput8.dll the game already has is left alone).
-    Returns the manifest: created files, backed-up files, proxy name, and "reframework" true when it was added.
+    Returns the manifest: created files, backed-up files, proxy name, "reframework" true when it was added, and the
+    OptiScaler and REFramework builds it copied (opti_build, ref_build: update_opti brings them up to date).
     Rolls back on failure."""
     proxy = proxy or pick_proxy(exe_dir, exe_name, remembered=remembered)
     if not proxy:
         raise InstallError("Every name OptiScaler can load under is already taken in this game's folder.")
     meta = os.path.join(exe_dir, META)
-    manifest = {"proxy": proxy, "created": [], "backups": [], "exe_name": exe_name}
+    manifest = {"proxy": proxy, "created": [], "backups": [], "exe_name": exe_name, "opti_build": build}
     plan = []
     for dirpath, _dirs, files in os.walk(package_dir):
         for f in files:
@@ -499,6 +500,7 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
     if reframework and not os.path.lexists(os.path.join(exe_dir, "dinput8.dll")):
         plan.append((reframework, "dinput8.dll"))
         manifest["reframework"] = True
+        manifest["ref_build"] = ref_build
         # REFramework's own files from before (the player's earlier REFramework) are kept at uninstall
         manifest["reframework_preexisting"] = reframework_artifacts(exe_dir)
     try:
@@ -531,6 +533,56 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
             pass
         raise InstallError(f"Couldn't copy OptiScaler into the game folder ({e.strerror or e}).") from e
     return manifest
+
+
+def _place(exe_dir, meta, manifest, src, rel):
+    """src copied to rel in the game folder, tracked like install's files: a file that isn't ours yet is backed up
+    first, so uninstall puts it back."""
+    dst = os.path.join(exe_dir, rel)
+    if rel not in manifest["created"]:
+        if os.path.lexists(dst):
+            backup = os.path.join(meta, "backup", rel)
+            os.makedirs(os.path.dirname(backup), exist_ok=True)
+            shutil.move(dst, backup)
+            manifest["backups"].append(rel)
+        manifest["created"].append(rel)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    tmp = dst + ".fsr4lite-new"
+    shutil.copyfile(src, tmp)
+    os.replace(tmp, dst)
+
+
+def update_opti(exe_dir, package_dir, build):
+    """Brings a set-up game to another OptiScaler build (the widget's Installer.UpdateOpti): every file of the build
+    copied over, OptiScaler.dll under the game's loader name, OptiScaler.ini left alone so the game keeps its
+    settings. False when the game already has that build or isn't set up here."""
+    manifest = load_manifest(exe_dir)
+    if not manifest or not manifest.get("proxy") or not build or manifest.get("opti_build") == build:
+        return False
+    meta = os.path.join(exe_dir, META)
+    for dirpath, _dirs, files in os.walk(package_dir):
+        for f in files:
+            rel = os.path.relpath(os.path.join(dirpath, f), package_dir)
+            if f.lower() in SKIP_PACKAGE_FILES or f.startswith("!!") or rel.lower() == "optiscaler.ini":
+                continue
+            _place(exe_dir, meta, manifest, os.path.join(dirpath, f),
+                   manifest["proxy"] if rel.lower() == "optiscaler.dll" else rel)
+    manifest["opti_build"] = build
+    _save(meta, manifest)
+    return True
+
+
+def update_reframework(exe_dir, dll, tag):
+    """A game that got REFramework from the plugin brought to another REFramework nightly (the widget's
+    RefreshREFramework). False when it didn't get it from us or already has it."""
+    manifest = load_manifest(exe_dir)
+    if not manifest or not manifest.get("reframework") or not tag or manifest.get("ref_build") == tag \
+            or not os.path.isfile(dll):
+        return False
+    _place(exe_dir, os.path.join(exe_dir, META), manifest, dll, "dinput8.dll")
+    manifest["ref_build"] = tag
+    _save(os.path.join(exe_dir, META), manifest)
+    return True
 
 
 def _set_lines(path, values):
