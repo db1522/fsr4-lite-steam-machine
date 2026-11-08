@@ -2,6 +2,14 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.21] - 2026-11-07
+
+### 🐛 Fixed
+- **Non-Steam games:** a game added as a non-Steam .exe that tells Steam it's a Steam game (God of War runs as
+  Steam's app 1593500, not as your shortcut) said "Not found" on Now playing. The plugin now finds it by the .exe
+  that's running, the way the Windows widget finds the game on screen, and the Install button shows. Notifications
+  and the restart badge follow the same game.
+
 ## [2.2.20] - 2026-11-07
 
 ### 🐛 Fixed
