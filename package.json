@@ -1,6 +1,6 @@
 {
   "name": "fsr4-lite",
-  "version": "2.2.17",
+  "version": "2.2.18",
   "description": "Decky plugin: AMD FSR 4.1 Lite in any game on the Steam Machine, through OptiScaler (Steam Machine Life)",
   "license": "BSD-3-Clause",
   "type": "module",

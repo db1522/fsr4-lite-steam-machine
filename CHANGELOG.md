@@ -2,6 +2,12 @@
 
 All notable changes to FSR4 Injector, newest first.
 
+## [2.2.18] - 2026-11-07
+
+### 🐛 Fixed
+- **OptiScaler:** "Couldn't check for a newer OptiScaler" right after an update. Two checks could run at once, and
+  the first one cleaned up the second one's download. Checks now run one at a time. The update itself always worked.
+
 ## [2.2.17] - 2026-11-07
 
 ### ✨ Added
