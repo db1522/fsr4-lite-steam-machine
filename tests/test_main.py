@@ -141,6 +141,30 @@ class Flow(unittest.TestCase):
         self.run_(self.p.disable_game(42, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
 
+    def test_two_checks_at_once_run_one_after_the_other(self):
+        # the 5-minute check and Check now landing together: the second used to lose its download folder
+        import threading
+        running, overlapped = [0], []
+        lock = threading.Lock()
+        old = sml_assets.current(self.data)
+
+        def slow_update(*a, **k):
+            with lock:
+                running[0] += 1
+                overlapped.append(running[0] > 1)
+            time.sleep(0.2)
+            with lock:
+                running[0] -= 1
+            return old, False
+
+        async def both():
+            return await asyncio.gather(self.p.check_optiscaler(), self.p._check_builds(force=False))
+        with mock.patch("sml_assets.update_optiscaler", side_effect=slow_update):
+            first, _ = self.run_(both())
+        self.assertEqual(overlapped, [False, False])
+        self.assertTrue(first["ok"])
+        self.assertEqual(first["state"]["opti_note"], "")
+
     def test_with_automatic_updates_off_games_keep_their_build(self):
         self.run_(self.p.enable_game(42, ""))
         self.run_(self.p.set_setting("auto_update", False))

@@ -134,6 +134,7 @@ class Plugin:
             # the OptiScaler build the last "games updated" notification named (one notification per build)
             self.notice_path = os.path.join(settings_dir, "optiscaler.json")
             self.opti_note = ""  # the last check's outcome for the panel
+            self.check_lock = asyncio.Lock()  # one check at a time: the 5-minute loop and Check now share a folder
             self.exes, self._watchers = {}, {}
             self.launchers = {}  # str(appid) -> exes OptiScaler showed never draw, never picked again
             self.seen = {}  # appid -> the game's processes the last watch saw, for the support report
@@ -233,7 +234,12 @@ class Plugin:
             await asyncio.sleep(UPDATE_LOOK_EVERY)
 
     async def _check_builds(self, force):
-        """Looks for newer nightlies, then updates games when automatic updates are on. A line for the panel."""
+        """Looks for newer nightlies, then updates games when automatic updates are on. A line for the panel. One at a
+        time: a second check waiting here finds the build the first one fetched."""
+        async with self.check_lock:
+            return await self._check_builds_now(force)
+
+    async def _check_builds_now(self, force):
         if not self.assets_ok:
             return ""
         data = _data_dir()

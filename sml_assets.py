@@ -233,8 +233,8 @@ def _unpack_optiscaler(data, sevenzip, spec, progress=None, cancelled=None, base
         shutil.rmtree(target, ignore_errors=True)
         os.replace(out, target)
     _write(os.path.join(root, "latest.txt"), spec["name"])
-    for name in os.listdir(root):
-        if name != spec["name"] and os.path.isdir(os.path.join(root, name)):
+    for name in os.listdir(root):  # older builds; another download's temporary folder (tmp...) is left to it
+        if name != spec["name"] and not name.startswith("tmp") and os.path.isdir(os.path.join(root, name)):
             shutil.rmtree(os.path.join(root, name), ignore_errors=True)
     shutil.rmtree(os.path.join(data, OPTISCALER["folder"]), ignore_errors=True)
     return spec["name"]
