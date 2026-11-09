@@ -206,6 +206,10 @@ class REFramework(unittest.TestCase):
             self.assertFalse(O.needs_reframework(name, exe), name)
         self.assertIn("REFramework", O.tips("re4.exe", ["DLSS", "FSR 3.1"], "Resident Evil 4"))
 
+    def test_crimson_desert_says_to_change_settings_with_lite_off(self):
+        tip = O.tips("CrimsonDesert.exe", ["DLSS", "FSR 3.1", "XeSS"], "Crimson Desert Enhanced")
+        self.assertIn("Turn FSR 4.1 Lite off, change your settings, then turn it back on", tip)
+
     def setUp(self):
         t = tempfile.mkdtemp()
         self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")

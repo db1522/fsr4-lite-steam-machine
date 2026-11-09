@@ -120,6 +120,12 @@ GAME_TIPS = {
     # OptiScaler's Compatibility List: "Recommended to disable spoofing" (GAME_INI), so DLSS may not be offered
     "acblackflag.exe": "In Black Flag Resynced, pick FSR as the upscaler.",
     "acmirage.exe": "In Assassin's Creed Mirage, pick FSR or XeSS as the upscaler.",
+    # Steam Machine, 2026-11-09 (Nov 9 nightly): any graphics setting applied with OptiScaler loaded ends in a GPU page
+    # fault and the game closes. It happens with FSR 4 Lite, FSR 3.1 or no upscaler, with the overlay or FFX inputs
+    # off and with amdxc64 not loaded; never without OptiScaler. Playing is fine.
+    "crimsondesert.exe": "In Crimson Desert, changing graphics settings with FSR 4.1 Lite on closes the game. Turn FSR "
+                         "4.1 Lite off, change your settings, then turn it back on. Pick AMD FSR Upscaling 4.1 as the "
+                         "upscaler.",
 }
 # Ubisoft Connect games: OptiScaler's overlay (its menu and FPS display) closes them at launch, next to Ubisoft
 # Connect's own overlay. Seen on the Steam Machine 2026-11-08 in AC Black Flag Resynced and AC Mirage: the game exits

@@ -2,6 +2,13 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.31] - 2026-11-09
+
+### ✨ Added
+- **Games:** a tip on Crimson Desert's card. Changing its graphics settings while OptiScaler is loaded closes the game,
+  whatever upscaler runs, so turn FSR 4.1 Lite off, change your settings, then turn it back on. Playing with FSR 4.1
+  Lite on is fine.
+
 ## [2.2.30] - 2026-11-09
 
 ### 🐛 Fixed
