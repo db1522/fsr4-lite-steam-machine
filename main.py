@@ -208,7 +208,7 @@ class Plugin:
         view = {k: g[k] for k in ("appid", "name", "exe_name", "upscalers", "anticheat", "nonsteam",
                                   "manual_optiscaler")}
         view["installed"] = entry is not None
-        view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"], g["name"])
+        view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"], g["name"], g.get("ubisoft", False))
         view["broken"] = sml_opti.not_working(g["exe_name"])
         view["compat"] = sml_opti.compat_text(g["name"], g["exe_name"])
         view["verdict"], view["detail"] = ("", "")

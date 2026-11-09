@@ -237,6 +237,46 @@ class REFramework(unittest.TestCase):
         self.assertEqual(read(os.path.join(self.game, "dinput8.dll"), "rb"), b"the player's own mod")
 
 
+class GameIni(unittest.TestCase):
+    def setUp(self):
+        t = tempfile.mkdtemp()
+        self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
+        touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
+        touch(os.path.join(self.pkg, "OptiScaler.ini"),
+              b"[Menu]\r\nOverlayMenu=auto\r\nShowFps=auto\r\n[Spoofing]\r\nDxgi=auto\r\n")
+        touch(os.path.join(self.game, "ACBlackFlag.exe"), b"game")
+        touch(os.path.join(self.game, "upc_r2_loader64.dll"), b"ubisoft connect")
+
+    def test_black_flag_gets_the_overlay_and_spoofing_off_and_keeps_them_on_refresh(self):
+        self.assertTrue(O.analyze(self.game)["ubisoft"])
+        O.install(self.game, "ACBlackFlag.exe", self.pkg, [], {"overlay": True})
+        ini = os.path.join(self.game, "OptiScaler.ini")
+        self.assertIn("OverlayMenu=false", read(ini))
+        self.assertIn("Dxgi=false", read(ini))
+        O.set_ini(ini, [("Menu", "OverlayMenu", "auto")])
+        O.apply_settings(self.game, {"overlay": True})  # the plugin's settings refresh, at load or a settings change
+        self.assertIn("OverlayMenu=false", read(ini))
+        tip = O.tips("ACBlackFlag.exe", ["FSR 3.1"], "Assassin's Creed Black Flag Resynced", True)
+        self.assertIn("pick FSR", tip)
+        self.assertIn("Ubisoft Connect games", tip)
+
+    def test_any_ubisoft_connect_game_gets_the_overlay_off_but_keeps_spoofing(self):
+        os.rename(os.path.join(self.game, "ACBlackFlag.exe"), os.path.join(self.game, "ACShadows.exe"))
+        os.rename(os.path.join(self.game, "upc_r2_loader64.dll"), os.path.join(self.game, "UPLAY_R1_LOADER64.DLL"))
+        O.install(self.game, "ACShadows.exe", self.pkg, [], {})
+        ini = read(os.path.join(self.game, "OptiScaler.ini"))
+        self.assertIn("OverlayMenu=false", ini)
+        self.assertIn("Dxgi=auto", ini)
+
+    def test_other_games_keep_the_overlay(self):
+        os.rename(os.path.join(self.game, "ACBlackFlag.exe"), os.path.join(self.game, "game.exe"))
+        os.remove(os.path.join(self.game, "upc_r2_loader64.dll"))
+        self.assertFalse(O.analyze(self.game)["ubisoft"])
+        O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertIn("OverlayMenu=auto", read(os.path.join(self.game, "OptiScaler.ini")))
+        self.assertNotIn("Ubisoft", O.tips("game.exe", ["FSR 3.1"], "Game", False))
+
+
 class OptiPatcher(unittest.TestCase):
     def test_the_games_the_list_marks_get_it(self):
         self.assertTrue(O.needs_optipatcher("DOOM Eternal", "DOOMEternalx64vk.exe"))

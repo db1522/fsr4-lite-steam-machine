@@ -2,6 +2,15 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.27] - 2026-11-08
+
+### 🐛 Fixed
+- **Games:** Ubisoft Connect games start again, like Assassin's Creed Black Flag Resynced and Mirage. OptiScaler's
+  overlay closed them at launch next to Ubisoft's own overlay, so its menu and FPS overlay are now off in any game
+  that runs Ubisoft Connect. Black Flag Resynced and Mirage also get NVIDIA spoofing off, as OptiScaler's
+  Compatibility List recommends: pick FSR in them and they run FSR 4.1.2 Lite. Games already set up get the fix when
+  the plugin loads.
+
 ## [2.2.26] - 2026-11-08
 
 ### 🐛 Fixed

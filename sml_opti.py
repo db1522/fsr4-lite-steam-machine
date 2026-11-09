@@ -115,6 +115,24 @@ GAME_TIPS = {
     # OptiScaler's Compatibility List: DLSS input; the game only lists DLSS after a restart with its upscaler off
     "enshrouded.exe": "In Enshrouded, pick DLSS as the upscaler. If DLSS isn't listed, turn the upscaler off, restart "
                       "the game, then pick DLSS.",
+    # OptiScaler's Compatibility List: "Recommended to disable spoofing" (GAME_INI), so DLSS may not be offered
+    "acblackflag.exe": "In Black Flag Resynced, pick FSR as the upscaler.",
+    "acmirage.exe": "In Assassin's Creed Mirage, pick FSR or XeSS as the upscaler.",
+}
+# Ubisoft Connect games: OptiScaler's overlay (its menu and FPS display) closes them at launch, next to Ubisoft
+# Connect's own overlay. Seen on the Steam Machine 2026-11-08 in AC Black Flag Resynced and AC Mirage: the game exits
+# 0.1 s after OptiScaler builds its overlay (CreateRenderTargetDx12) and runs with OverlayMenu=false. The list says the
+# same for AC Shadows ("Need to disable Ubisoft overlay"). Found by Ubisoft Connect's API loader next to the exe.
+UBISOFT_FILES = {"upc_r2_loader64.dll", "uplay_r1_loader64.dll", "uplay_r2_loader64.dll"}
+UBISOFT_INI = [("Menu", "OverlayMenu", "false")]
+UBISOFT_TIP = ("OptiScaler's menu and FPS overlay stay off in Ubisoft Connect games: next to Ubisoft's overlay they "
+               "close the game at launch.")
+# OptiScaler.ini values a game needs on SteamOS, by exe name: set at install and on every settings refresh, after the
+# player's own settings, so they win.
+GAME_INI = {
+    # the Compatibility List's "Recommended to disable spoofing"; their FSR 3.1 input runs Lite (Steam Machine, 2026-11-08)
+    "acblackflag.exe": [("Spoofing", "Dxgi", "false")],
+    "acmirage.exe": [("Spoofing", "Dxgi", "false")],
 }
 # Capcom RE Engine games where OptiScaler needs REFramework (hooks the engine early, past Capcom's integrity checks):
 # the "Requires REFramework" rows of OptiScaler's community Compatibility List
@@ -244,6 +262,7 @@ def analyze(install_dir, exe_path=None):
         "unreal": parts[-2:] in (["binaries", "win64"], ["binaries", "wingdk"]),
         "upscalers": sorted(upscalers), "anticheat": anticheat or "",
         "manual_optiscaler": _manual_optiscaler(exe_dir),
+        "ubisoft": ubisoft_connect(exe_dir),
     }
 
 
@@ -368,7 +387,15 @@ def reframework_artifacts(exe_dir):
                   re.match(r"^(re\d*_?framework.*|[a-z0-9]+_fw_(config|log).*)\.(txt|log|json)$", n, re.I))
 
 
-def tips(exe_name, upscalers, game_name=""):
+def ubisoft_connect(exe_dir):
+    """Ubisoft Connect's API loader is next to the game's exe (UBISOFT_FILES)."""
+    try:
+        return any(n.lower() in UBISOFT_FILES for n in os.listdir(exe_dir))
+    except OSError:
+        return False
+
+
+def tips(exe_name, upscalers, game_name="", ubisoft=False):
     """The widget's game card lines: no upscaler files, REFramework, and the game's own rule."""
     parts = []
     if not upscalers:
@@ -380,6 +407,8 @@ def tips(exe_name, upscalers, game_name=""):
         parts.append(OPTIPATCHER_TIP)
     if GAME_TIPS.get((exe_name or "").lower()):
         parts.append(GAME_TIPS[(exe_name or "").lower()])
+    if ubisoft:
+        parts.append(UBISOFT_TIP)
     return " ".join(parts)
 
 
@@ -555,7 +584,7 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
         ini = os.path.join(exe_dir, "OptiScaler.ini")
         if "OptiScaler.ini" not in manifest["created"]:
             manifest["created"].append("OptiScaler.ini")
-        set_ini(ini, ini_settings(**settings) + game_values(exe_dir) + (
+        set_ini(ini, ini_settings(**settings) + game_values(exe_dir, exe_name) + (
             game_inputs(exe_dir, exe_name, upscalers) if upscalers is not None else []))
         if manifest.get("reframework") and REFRAMEWORK_CONFIG not in manifest["reframework_preexisting"]:
             # REFramework opens its menu on every launch; with RememberMenuState it starts closed (Insert opens it)
@@ -1137,9 +1166,13 @@ def opti_dll_path(exe_dir):
     return "Z:" + path.replace("/", "\\") if path.startswith("/") else path
 
 
-def game_values(exe_dir):
-    """The settings every set-up game gets for its folder."""
-    return [("Libraries", "OptiDllPath", opti_dll_path(exe_dir))]
+def game_values(exe_dir, exe_name=None):
+    """The settings every set-up game gets for its folder, plus the game's own (GAME_INI). Without exe_name, the one
+    the setup's manifest names."""
+    if exe_name is None:
+        exe_name = (load_manifest(exe_dir) or {}).get("exe_name", "")
+    return ([("Libraries", "OptiDllPath", opti_dll_path(exe_dir))] + GAME_INI.get((exe_name or "").lower(), []) +
+            (UBISOFT_INI if ubisoft_connect(exe_dir) else []))
 
 
 MODES = ((1.0, "Native AA"), (1.5, "Quality"), (1.7, "Balanced"), (2.0, "Performance"), (3.0, "Ultra Performance"))
