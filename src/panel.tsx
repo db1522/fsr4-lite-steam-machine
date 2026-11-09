@@ -8,7 +8,7 @@
 import { useQuickAccessVisible } from "@decky/api";
 import { DialogButton, DropdownItem, Field, Focusable, PanelSection, PanelSectionRow, Router, ToggleField } from "@decky/ui";
 import { FC, Fragment, ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { INSTALL_HINT, UpdateController, UpdateSection } from "./about";
+import { INSTALL_HINT, UpdateController, UpdateDownload, UpdateSection } from "./about";
 import { CSS, steamCss } from "./style";
 import { CheckPage } from "./check";
 import { canInstallUpdates, installUpdate } from "./installer";
@@ -167,6 +167,20 @@ export const Content: FC = () => {
   useEffect(() => {
     if (visible && !autoChecked) { autoChecked = true; upd.run("check"); }
   }, [visible]);
+  // The card at the top hands the downloaded update to Decky itself (before 2.2.29 only the About page did, so the card
+  // sat on "Installing…"). Decky's confirmation opens on the main screen, behind the Quick Access menu.
+  const [cardInstall, setCardInstall] = useState<{ version: string; state: "pending" | "sent" | "manual" } | null>(null);
+  const cardDownload = page === null && updState.download?.path ? updState.download : undefined;
+  const sendToDecky = (d: UpdateDownload) => {
+    setCardInstall({ version: d.version ?? "", state: "pending" });
+    installUpdate(d.path ?? "", d.version ?? "", d.sha256 ?? "")
+      .then(ok => setCardInstall({ version: d.version ?? "", state: ok ? "sent" : "manual" }));
+  };
+  useEffect(() => {
+    if (!cardDownload?.version || !canInstallUpdates() || cardInstall?.version === cardDownload.version) return;
+    sendToDecky(cardDownload);
+  }, [cardDownload?.path, cardDownload?.version]);
+  const cardState = cardDownload && cardInstall && cardInstall.version === cardDownload.version ? cardInstall.state : null;
 
   // Download progress, a few times a second while it runs.
   useEffect(() => {
@@ -420,10 +434,18 @@ export const Content: FC = () => {
         <div className="sml-note" style={{ marginBottom: 12 }}>
           You have {state.version}. It downloads from GitHub and Decky installs it; your games stay set up.
         </div>
-        <DialogButton onGamepadFocus={keepInView} className="sml-primary"
+        {cardState === "sent" ? <>
+          <div className="sml-note">Decky asks you to confirm on the main screen. Close the Quick Access menu to see it.</div>
+          <DialogButton onGamepadFocus={keepInView} className="sml-primary" style={{ marginTop: 12 }}
+            onClick={() => cardDownload && sendToDecky(cardDownload)}>Ask Decky again</DialogButton>
+        </> : cardState === "manual" || (cardDownload && !canInstallUpdates()) ? <>
+          <div className="sml-note bad">Decky didn't take the update. It's saved in Downloads. {INSTALL_HINT}</div>
+          {canInstallUpdates() && <DialogButton onGamepadFocus={keepInView} className="sml-primary" style={{ marginTop: 12 }}
+            onClick={() => cardDownload && sendToDecky(cardDownload)}>Try installing again</DialogButton>}
+        </> : <DialogButton onGamepadFocus={keepInView} className="sml-primary" disabled={updState.busy === "download" || !!cardDownload}
           onClick={() => upd.run("download", updState.check?.latest_version)}>
-          {updState.busy === "download" ? "Downloading…" : updState.download?.path ? "Installing…" : `Update to ${updState.check.latest_version}`}
-        </DialogButton>
+          {updState.busy === "download" ? "Downloading…" : cardDownload ? "Installing…" : `Update to ${updState.check.latest_version}`}
+        </DialogButton>}
         {updState.error && <div className="sml-note bad">{updState.error}</div>}
       </div></PanelSectionRow></PanelSection>}
 

@@ -214,6 +214,33 @@ test('right after an install, Restart now closes the game and starts it again, a
   assert.deepEqual(steps, [['close', '1091500'], ['start', '1091500']]);
 });
 
+test("the update card hands the download to Decky itself and says where Decky's dialog is", async () => {
+  const h = panel(undefined);
+  const sent = [];
+  h.window.DeckyBackend = { call: async (...a) => { sent.push(a); } };
+  await open(h);
+  h.respond('check_for_updates', { ok: true, current_version: '2.2.0', latest_version: '2.3.0', update_available: true, download_available: true });
+  await settle();
+  dialogButton(h.render(), 'Update to 2.3.0').props.onClick();
+  await settle();
+  const sha = 'b'.repeat(64);
+  h.respond('perform_update', { ok: true, version: '2.3.0', path: '/home/deck/Downloads/FSR4Lite-2.3.0.zip', sha256: sha });
+  for (let i = 0; i < 4; i++) { await settle(); h.render(); }
+  assert.deepEqual(sent, [['utilities/install_plugin', 'file:///home/deck/Downloads/FSR4Lite-2.3.0.zip', 'FSR 4.1 Lite', '2.3.0', sha, 2]],
+    'sent once, without opening About');
+  let tree = h.render();
+  assert.match(strings(tree), /Close the Quick Access menu to see it/);
+  dialogButton(tree, 'Ask Decky again').props.onClick();
+  for (let i = 0; i < 3; i++) { await settle(); h.render(); }
+  assert.equal(sent.length, 2);
+  h.window.DeckyBackend.call = async () => { throw new Error('no route'); };
+  dialogButton(h.render(), 'Ask Decky again').props.onClick();
+  for (let i = 0; i < 3; i++) { await settle(); h.render(); }
+  tree = h.render();
+  assert.match(strings(tree), /Decky didn't take the update\. It's saved in Downloads\./);
+  assert.ok(dialogButton(tree, 'Try installing again'));
+});
+
 test('a newer version on GitHub shows on the main page, not only in About', async () => {
   const h = panel(undefined);
   await open(h);

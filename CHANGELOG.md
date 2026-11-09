@@ -2,6 +2,13 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.29] - 2026-11-08
+
+### 🐛 Fixed
+- **Updates:** the Update card at the top of the plugin installs again. It only downloaded the update and then sat
+  on "Installing…", because only the About page handed the download to Decky. Now the card does it too, and it tells
+  you to close the Quick Access menu, since Decky's confirmation opens behind it. Ask Decky again shows it once more.
+
 ## [2.2.28] - 2026-11-08
 
 ### 🔧 Changed
