@@ -159,7 +159,11 @@ REFRAMEWORK_CONFIG = "re2_fw_config.txt"  # the same name in every game
 # game's OptiScaler folder (dllmain.cpp). 2.2.25 put it in plugins/ next to the exe, which OptiScaler never reads;
 # move_old_optipatcher moves those setups.
 OPTIPATCHER_INI = [("Plugins", "LoadAsiPlugins", "true")]
-OPTIPATCHER_TIP = "On AMD this game only offers DLSS with OptiPatcher, so the plugin adds it too."
+# OptiPatcher only makes the game offer DLSS on AMD. In a DLSS-only game that's the way to Lite; in one that also ships
+# FSR or XeSS (Black Myth: Wukong, FSR 4 to Lite on 2026-11-09) it's a choice, and the tip says so.
+OPTIPATCHER_TIP = "On AMD this game only offers DLSS with OptiPatcher, so the plugin adds it. Pick DLSS in the game."
+OPTIPATCHER_EXTRA_TIP = ("The plugin also adds OptiPatcher, so the game offers DLSS on AMD. You don't need it: {pick} "
+                         "runs FSR 4.1 Lite too.")
 NO_UPSCALER_TIP = ("No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells "
                    "OptiScaler to search for it (the game loads a little slower). Install, restart the game and turn on "
                    "FSR in its settings. FSR 1 can't be upgraded.")
@@ -485,7 +489,8 @@ def tips(exe_name, upscalers, game_name="", ubisoft=False):
     if needs_reframework(game_name, exe_name):
         parts.append(REFRAMEWORK_TIP)
     if needs_optipatcher(game_name, exe_name):
-        parts.append(OPTIPATCHER_TIP)
+        others = [u for u in ("FSR", "XeSS") if any(x.startswith(u) for x in upscalers or [])]
+        parts.append(OPTIPATCHER_EXTRA_TIP.format(pick=" or ".join(others)) if others else OPTIPATCHER_TIP)
     if GAME_TIPS.get((exe_name or "").lower()):
         parts.append(GAME_TIPS[(exe_name or "").lower()])
     if ubisoft:

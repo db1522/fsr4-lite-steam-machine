@@ -2,6 +2,13 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.35] - 2026-11-09
+
+### 🔧 Changed
+- **Games:** the OptiPatcher tip says when you need DLSS. In a game that only offers DLSS, it tells you to pick DLSS.
+  In a game that also ships FSR or XeSS, like Black Myth: Wukong, it says OptiPatcher is optional: FSR or XeSS runs
+  FSR 4.1 Lite too. Before, every game said DLSS was the only option on AMD.
+
 ## [2.2.34] - 2026-11-09
 
 ### ✨ Added

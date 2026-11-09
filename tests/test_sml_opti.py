@@ -284,6 +284,16 @@ class GameIni(unittest.TestCase):
 
 
 class OptiPatcher(unittest.TestCase):
+    def test_the_tip_says_dlss_is_the_way_only_when_the_game_has_nothing_else(self):
+        only = O.tips("Palworld-Win64-Shipping.exe", ["DLSS"], "Palworld")
+        self.assertIn("only offers DLSS with OptiPatcher", only)
+        self.assertIn("Pick DLSS in the game", only)
+        wukong = O.tips("b1-Win64-Shipping.exe", ["DLSS", "FSR 3.1", "XeSS"], "Black Myth: Wukong")
+        self.assertNotIn("only offers DLSS", wukong)
+        self.assertIn("You don't need it: FSR or XeSS runs FSR 4.1 Lite too.", wukong)
+        self.assertIn("FSR runs FSR 4.1 Lite too",
+                      O.tips("b1-Win64-Shipping.exe", ["DLSS", "FSR 2"], "Black Myth: Wukong"))
+
     def test_the_games_the_list_marks_get_it(self):
         self.assertTrue(O.needs_optipatcher("DOOM Eternal", "DOOMEternalx64vk.exe"))
         self.assertFalse(O.needs_optipatcher("Horizon Zero Dawn Complete Edition", "HorizonZeroDawn.exe"))
