@@ -803,6 +803,67 @@ LOADED_LINE = ("[I] `anonymous-namespace'::LoadDriverDll amdxcffx64.dll loaded f
                "\\steamapps\\common\\RESIDENT EVIL requiem BIOHAZARD requiem\\OptiScaler\\amdxcffx64.dll\n")
 RES_LINE = "[I] IFeature::SetInitParameters Render Resolution: 1920x1080, Display Resolution 3840x2160, Quality: 0\n"
 LITE_SESSION = HOOK_LINE + LOADED_LINE + "[I] ffxCreateContext_Dx12 context created: 1EE8\n" + RES_LINE
+# 007 First Light (2026-11-09 nightly): this line, thousands of times a second, after the Lite proof
+FLOOD = ("[00:50:38.250975] [I] Amdxc64Hooks::hkAmdExtD3DCreateInterface IAmdExtD3DFactory queried, returning custom "
+         "AmdExtD3DFactory: 5B1BB270, real: 6FFFE82A3070\n")
+
+
+class FloodedLog(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.log = os.path.join(self.dir, "OptiScaler.log")
+        O._logs.clear()
+
+    def write(self, text, mode="w"):
+        with open(self.log, mode, encoding="utf-8", newline="") as f:
+            f.write(text)
+
+    def test_the_lite_proof_is_found_under_a_flood(self):
+        self.write("[00:49:15.154621] [I] OptiScaler v10 session 1\n" + LITE_SESSION + FLOOD * 60_000)  # ~8 MB
+        self.assertGreater(os.path.getsize(self.log), 4 * 1024 * 1024)
+        log = O.read_log(self.dir)
+        self.assertEqual(O.verdict(log)[0], "lite")
+        self.assertEqual(log.count("hkAmdExtD3DCreateInterface"), O.LOG_REPEATS)
+        self.assertIn(f"{60_000 - O.LOG_REPEATS} repeated lines left out", O.log_note(self.dir))
+        # later lines are read without starting over
+        self.write(FLOOD * 10 + "[00:51:00.000000] [I] later line\n", "a")
+        self.assertIn("later line", O.read_log(self.dir))
+        self.assertIn(f"{60_010 - O.LOG_REPEATS} repeated", O.log_note(self.dir))
+
+    def test_a_new_session_starts_over(self):
+        self.write("[00:49:15.154621] [I] OptiScaler v10 session 1\n" + LITE_SESSION)
+        self.assertEqual(O.verdict(O.read_log(self.dir))[0], "lite")
+        self.write("[01:12:00.000000] [I] OptiScaler v10 session 2\n" + "[I] Init done\n" * 3)
+        self.assertEqual(O.verdict(O.read_log(self.dir))[0], "waiting")
+
+    def test_a_huge_log_is_emptied_and_what_mattered_stays(self):
+        self.write("[00:49:15.154621] [I] OptiScaler v10 session 1\n" + LITE_SESSION + FLOOD * 1000)
+        self.assertFalse(O.trim_log(self.dir, cap=10 * 1024 * 1024))
+        self.assertTrue(O.trim_log(self.dir, cap=64 * 1024))
+        self.assertEqual(os.path.getsize(self.log), 0)
+        self.write(FLOOD * 5 + "[00:55:00.000000] [I] after the trim\n", "a")  # OptiScaler keeps writing
+        log = O.read_log(self.dir)
+        self.assertEqual(O.verdict(log)[0], "lite")
+        self.assertIn("after the trim", log)
+        self.assertIn("so it was emptied here", log)
+        self.assertIn("emptied 1 times", O.log_note(self.dir))
+        # the next session is its own
+        self.write("[02:00:00.000000] [I] OptiScaler v10 session 2\n[I] Init done\n")
+        self.assertEqual(O.verdict(O.read_log(self.dir))[0], "waiting")
+
+    def test_a_long_log_keeps_its_start_and_end(self):
+        lines = "".join(f"[00:49:15.{i:06d}] [I] line number {i}\n" for i in range(60_000))
+        self.write(LITE_SESSION + lines)
+        log = O.read_log(self.dir, limit=64 * 1024)
+        self.assertLessEqual(len(log), 64 * 1024 + 100)
+        self.assertEqual(O.verdict(log)[0], "lite")
+        self.assertIn("line number 59999", log)
+        self.assertIn("part of the log left out here", log)
+
+    def test_no_log(self):
+        self.assertEqual(O.read_log(self.dir), "")
+        self.assertFalse(O.trim_log(self.dir))
+        self.assertEqual(O.log_note(self.dir), "")
 
 
 if __name__ == "__main__":

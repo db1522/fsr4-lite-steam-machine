@@ -43,6 +43,7 @@ except (OSError, ValueError, KeyError):
 DEFAULT_SETTINGS = {"session_toast": True, "watermark": False, "overlay": False, "overlay_size": "large",
                     "overlay_pos": "topleft", "auto_update": True}
 NOT_INI = ("session_toast", "auto_update")  # settings that don't go into OptiScaler.ini
+LOG_LOOK_EVERY = 30  # a running game's OptiScaler.log checked for its size (sml_opti.trim_log)
 UPDATE_LOOK_EVERY = 300  # how often set-up games are compared with the current build (GitHub is asked far less)
 PLUGIN_CHECK_EVERY = 3600  # a newer FSR 4.1 Lite release looked for in the background: one small GitHub API call an hour
 CHOICES = {"overlay_size": tuple(sml_opti.OVERLAY_SIZES), "overlay_pos": tuple(sml_opti.OVERLAY_POSITIONS)}
@@ -186,6 +187,7 @@ class Plugin:
             self.legacy = await asyncio.to_thread(self._legacy_entries)
             self._scan_task = asyncio.create_task(self.scan_games())
             self._updater = asyncio.create_task(self._update_loop())
+            self._log_guard = asyncio.create_task(self._log_loop())
         finally:
             _ready.set()
 
@@ -250,6 +252,21 @@ class Plugin:
             except Exception as e:  # noqa: BLE001
                 decky.logger.warning(f"repair: {e!r}")
             await asyncio.sleep(UPDATE_LOOK_EVERY)
+
+    async def _log_loop(self):
+        """While set-up games run: an OptiScaler.log past sml_opti.LOG_TRIM is emptied (007 First Light fills one with
+        a gigabyte every few minutes), after the plugin has read what it needs from it."""
+        while True:
+            await asyncio.sleep(LOG_LOOK_EVERY)
+            for appid in list(self.sessions):
+                entry = self.registry.get(str(appid)) or {}
+                if not entry.get("proxy"):
+                    continue
+                try:
+                    if await asyncio.to_thread(sml_opti.trim_log, entry["exe_dir"]):
+                        decky.logger.info(f"app {appid}: OptiScaler.log passed {sml_opti.LOG_TRIM} bytes, emptied")
+                except Exception as e:  # noqa: BLE001 - the loop must survive anything
+                    decky.logger.warning(f"log trim: {e!r}")
 
     async def _repair(self, appid, entry, running):
         """One game's setup put back after a game update or Steam's file check undid it, with a notification. True
@@ -939,6 +956,11 @@ class Plugin:
                     *sml_opti.read_log(os.path.dirname(path), 64 * 1024).splitlines()[-150:]]
         return out
 
+    @staticmethod
+    def _log_ends(log):
+        lines = log.splitlines()
+        return lines if len(lines) <= 600 else lines[:250] + ["[...]"] + lines[-350:]
+
     @rpc
     async def save_report(self, appid: int) -> dict:
         return await asyncio.to_thread(self._save_report, appid)
@@ -947,6 +969,7 @@ class Plugin:
         d = self._diagnose(appid)
         exe_dir = d["exe_dir"]
         log = sml_opti.read_log(exe_dir, 256 * 1024) if exe_dir else ""
+        note = sml_opti.log_note(exe_dir) if exe_dir else ""
         try:
             with open(os.path.join(exe_dir, "OptiScaler.ini"), encoding="utf-8", errors="replace") as f:
                 ini = [l for l in f.read().splitlines() if l and not l.startswith(";")]
@@ -958,8 +981,9 @@ class Plugin:
             f"Game: {d['name']} ({appid})", f"Exe: {d['exe_dir']}/{d['exe_name']}", f"Loader: {d['proxy']}",
             f"Proton: {d['proton']}", f"Upscalers found: {', '.join(d['upscalers']) or 'none'}",
             f"Files in place: {d['files_ok']} {d['missing']}", f"Last verdict: {d['verdict']} {d['detail']}",
-            "", "== OptiScaler.ini (set values) ==", *ini, "", "== OptiScaler.log (end) ==",
-            *(log.splitlines()[-400:] or ["(no log: OptiScaler hasn't run in this game yet)"]),
+            "", "== OptiScaler.ini (set values) ==", *ini, "",
+            f"== OptiScaler.log (start and end{'; ' + note if note else ''}) ==",
+            *(self._log_ends(log) or ["(no log: OptiScaler hasn't run in this game yet)"]),
             "", *self._report_finding(appid), "", *self._report_other_logs(appid, exe_dir),
         ])
         try:
@@ -1002,7 +1026,7 @@ class Plugin:
             return
         self._cancel = True
         self.updates.close()
-        for task in (self._scan_task, getattr(self, "_updater", None)):
+        for task in (self._scan_task, getattr(self, "_updater", None), getattr(self, "_log_guard", None)):
             if task:
                 task.cancel()
 

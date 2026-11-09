@@ -6,6 +6,7 @@ the INT8 Lite model, frame generation stays off, and OptiScaler's log tells whet
 
 Everything here is plain file work on the game's folder, recorded in a manifest so an uninstall puts back exactly
 what was there."""
+import collections
 import functools
 import hashlib
 import json
@@ -13,6 +14,7 @@ import os
 import posixpath
 import re
 import shutil
+import threading
 
 # ---- what the widget writes into OptiScaler.ini (InstallConfig.Base) ----
 INI_BASE = [
@@ -878,15 +880,141 @@ def without_override(options, proxy, original=None):
 
 # ---- the session: OptiScaler.log (the widget's LoadedModules.Check, from the file alone) ----
 
-def read_log(exe_dir, limit=4 * 1024 * 1024):
+# Some games make OptiScaler log one line thousands of times a second: 007 First Light asks for AMD's driver extension
+# every frame and each ask is logged ("IAmdExtD3DFactory queried", Info level, Nov 2026 nightlies), 1 GB in three
+# minutes. The line that proves Lite ran sits near the top, under all of it. So the log is read whole once, then only
+# what's new, with each message kept only its first LOG_REPEATS times; and while the game runs, a log that takes more
+# than LOG_TRIM on disk is emptied (trim_log), what was read staying here.
+LOG_REPEATS = 20
+LOG_TRIM = 256 * 1024 * 1024
+LOG_KEEP = 6 * 1024 * 1024  # kept from the start and from the end of a session, each
+_LOG_CHUNK = 8 * 1024 * 1024
+_logs = {}  # OptiScaler.log path -> _LogState, the few last read
+_log_lock = threading.Lock()
+
+
+class _LogState:
+    def __init__(self, ino, head):
+        self.ino, self.head, self.offset, self.rest = ino, head, 0, b""
+        self.start, self.start_size = [], 0
+        self.end, self.end_size = collections.deque(), 0
+        self.counts, self.left_out, self.trimmed, self.gap = {}, 0, 0, False
+
+    def add(self, line):
+        cut = line.find(b"] ") if line.startswith(b"[") else -1
+        key = line[cut + 2:] if cut > 0 else line  # the message without its time
+        seen = self.counts.get(key, 0)
+        if seen >= LOG_REPEATS:
+            self.left_out += 1
+            return
+        if seen or len(self.counts) < 200_000:
+            self.counts[key] = seen + 1
+        self.keep(line)
+
+    def keep(self, line):
+        if self.start_size < LOG_KEEP:
+            self.start.append(line)
+            self.start_size += len(line) + 1
+            return
+        self.end.append(line)
+        self.end_size += len(line) + 1
+        while self.end_size > LOG_KEEP:
+            self.end_size -= len(self.end.popleft()) + 1
+            self.gap = True
+
+    def text(self):
+        gap = [b"[FSR 4.1 Lite: part of the log left out here]"] if self.gap else []
+        return b"\n".join(self.start + gap + list(self.end) + ([self.rest] if self.rest else [])).decode(
+            "utf-8", "replace")
+
+
+def _log_head(f):
+    f.seek(0)
+    return f.read(64).replace(b"\0", b"")[:40]
+
+
+def _read_new(path):
+    """The log's state with what was added since the last read. A new session (another file, or another first line)
+    starts over."""
     try:
-        with open(os.path.join(exe_dir, "OptiScaler.log"), "rb") as f:
-            f.seek(0, os.SEEK_END)
-            size = f.tell()
-            f.seek(max(0, size - limit))
-            return f.read().decode("utf-8", "replace")
+        f = open(path, "rb")
     except OSError:
+        _logs.pop(path, None)
+        return None
+    with f:
+        st = os.fstat(f.fileno())
+        head = _log_head(f)
+        state = _logs.get(path)
+        if (state is None or state.ino != st.st_ino or st.st_size < state.offset
+                or (state.head is not None and head[:len(state.head)] != state.head)):
+            state = _LogState(st.st_ino, head)
+        elif state.head is None and head:
+            state.head = head  # the first line written after trim_log
+        _logs.pop(path, None)
+        _logs[path] = state
+        while len(_logs) > 4:
+            _logs.pop(next(iter(_logs)))
+        f.seek(state.offset)
+        while True:
+            chunk = f.read(_LOG_CHUNK)
+            if not chunk:
+                break
+            state.offset += len(chunk)
+            if b"\0" in chunk:  # a writer that kept its place after trim_log leaves a hole
+                chunk = chunk.replace(b"\0", b"")
+            lines = (state.rest + chunk).split(b"\n")
+            state.rest = lines.pop()
+            for line in lines:
+                state.add(line.rstrip(b"\r"))
+        return state
+
+
+def read_log(exe_dir, limit=4 * 1024 * 1024):
+    """This session's OptiScaler.log without its floods (see LOG_REPEATS). Longer than limit: its first and last
+    halves of limit."""
+    with _log_lock:
+        state = _read_new(os.path.join(exe_dir, "OptiScaler.log"))
+        text = state.text() if state else ""
+    if len(text) <= limit:
+        return text
+    return text[:limit // 2] + "\n[FSR 4.1 Lite: part of the log left out here]\n" + text[-(limit // 2):]
+
+
+def log_note(exe_dir):
+    """For the support report: what read_log left out of the last read log."""
+    with _log_lock:
+        state = _logs.get(os.path.join(exe_dir, "OptiScaler.log"))
+    if not state or not (state.left_out or state.trimmed):
         return ""
+    return (f"{state.left_out} repeated lines left out" +
+            (f", the file emptied {state.trimmed} times past {LOG_TRIM // (1024 * 1024)} MB" if state.trimmed else ""))
+
+
+def trim_log(exe_dir, cap=LOG_TRIM):
+    """While the game runs: its OptiScaler.log emptied once it takes more than cap on disk, after reading it (read_log
+    keeps what mattered). OptiScaler keeps writing to the emptied file. True when it was emptied."""
+    path = os.path.join(exe_dir, "OptiScaler.log")
+    with _log_lock:
+        try:
+            st = os.stat(path)
+        except OSError:
+            return False
+        used = getattr(st, "st_blocks", 0) * 512 or st.st_size  # a hole left by the writer takes no disk
+        if used <= cap:
+            return False
+        state = _read_new(path)
+        if state is None:
+            return False
+        try:
+            os.truncate(path, 0)
+        except OSError:
+            return False
+        if state.rest:
+            state.add(state.rest)
+        state.keep(f"[FSR 4.1 Lite: the log took over {cap // (1024 * 1024)} MB, so it was emptied here]".encode())
+        state.offset, state.head, state.rest = 0, None, b""
+        state.trimmed += 1
+        return True
 
 
 def log_time(exe_dir):

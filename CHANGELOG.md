@@ -2,6 +2,15 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.30] - 2026-11-09
+
+### 🐛 Fixed
+- **Games:** 007 First Light showed "not active" while FSR 4.1 Lite was running. OptiScaler writes one line to its log
+  thousands of times a second in this game, and the plugin only read the end of the log, where the proof that Lite
+  ran never is. Now it reads the whole log and skips lines that repeat, so it sees Lite in 007 and any game like it.
+- **Disk space:** in 007 that log grew by about 1 GB every 3 minutes. While a game runs, the plugin now empties its
+  OptiScaler log once it passes 256 MB, after reading what it needs from it. The support report says when that happened.
+
 ## [2.2.29] - 2026-11-08
 
 ### 🐛 Fixed
