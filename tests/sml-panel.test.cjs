@@ -267,6 +267,21 @@ test("a game OptiScaler can't run in on SteamOS gets no install button", async (
   assert.match(strings(tree), /Blocked: doesn't work on SteamOS/);
 });
 
+test('the card and the list show what ran in the last session with Lite', async () => {
+  const summary = 'FSR → FSR 4.1.2 Lite, 1920×1080 → 3840×2160 (Performance)';
+  const tree = await open(panel({ appid: '1091500', display_name: 'x' }),
+    state({ games: [{ ...game, installed: true, verdict: 'lite', detail: 'FSR 4.1 Lite ran last session.', summary }] }));
+  assert.ok(strings(tree).includes(`Last session: ${summary}.`), strings(tree));
+  assert.ok(strings(tree).includes(summary));
+});
+
+test('a game crash protection turned off says why and can be turned back on', async () => {
+  const turned_off = 'Cyberpunk 2077 closed right after starting 2 times in a row with FSR 4.1 Lite on, so it\'s turned off for this game. Turn it back on to try again.';
+  const tree = await open(panel({ appid: '1091500', display_name: 'x' }), state({ games: [{ ...game, turned_off }] }));
+  assert.ok(strings(tree).includes(turned_off), strings(tree));
+  assert.ok(dialogButton(tree, 'Install FSR 4.1 Lite'));
+});
+
 test('set-up games are always listed under Your games, with what their last session showed', async () => {
   const h = panel(undefined);
   const tree = await open(h, state({ games: [{ ...game, installed: true, verdict: 'lite' }, { ...game, appid: 2, name: 'B', installed: true, verdict: 'none' }] }));

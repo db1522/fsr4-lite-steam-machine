@@ -361,7 +361,9 @@ export const Content: FC = () => {
       : current.broken && !current.installed ? current.broken
       : current.manual_optiscaler && !current.installed ? "OptiScaler from another install is already in this game. Remove it first."
       : current.installed && now?.detail ? now.detail
+      : current.installed && current.summary ? `Last session: ${current.summary}.`
       : current.installed && current.detail ? current.detail
+      : current.turned_off ? current.turned_off
       : `Then restart the game and pick ${pickText(current.upscalers)} in its graphics settings.`;
     const meta = [
       ...(current.upscalers.length ? current.upscalers : ["No upscaler files"]),
@@ -378,7 +380,7 @@ export const Content: FC = () => {
       {current.installed && now?.status === "restart" && <DialogButton onGamepadFocus={keepInView} className="sml-primary"
         onClick={() => restartNow(current)}>{restarting ? "Restarting…" : "Restart now"}</DialogButton>}
       {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}
-      <div className={`sml-note${now?.status === "inactive" ? " bad" : ""}`}>{note}</div>
+      <div className={`sml-note${now?.status === "inactive" || (!current.installed && current.turned_off) ? " bad" : ""}`}>{note}</div>
       {!blocked && current.tip && <div className="sml-note soft">{current.tip}</div>}
       {current.compat && <div className={`sml-note soft${current.compat.startsWith("OptiScaler community") ? " bad" : ""}`}>{current.compat}</div>}
       {current.installed && <DialogButton onGamepadFocus={keepInView} className="sml-textbtn"
@@ -400,11 +402,11 @@ export const Content: FC = () => {
     const [tone, label] = rowChip(g, running && live?.appid === runningAppid ? live : null);
     // Setting a game up happens on Now playing, with the game running (the plugin then sees which program is the
     // game, as the widget does). In this list a game can only be turned off; the others say how to set them up.
-    const extra = [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");
+    const extra = g.summary || [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");
     if (!g.installed) return <PanelSectionRow key={`r${g.appid}`}>
       <Field focusable className="sml-gameoff" label={<span className="sml-gamerow"><span>{g.name}</span></span>}
-        description={<span className={`sml-gamesub${g.anticheat || g.broken ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}`
-          : g.broken ? "Blocked: doesn't work on SteamOS" : extra}</span>} />
+        description={<span className={`sml-gamesub${g.anticheat || g.broken || g.turned_off ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}`
+          : g.broken ? "Blocked: doesn't work on SteamOS" : g.turned_off ? "Turned off: closed right after starting" : extra}</span>} />
     </PanelSectionRow>;
     return <PanelSectionRow key={`r${g.appid}`}>
       <ToggleField label={<span className="sml-gamerow"><span>{g.name}</span></span>}

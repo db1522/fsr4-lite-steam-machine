@@ -2,6 +2,16 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.32] - 2026-11-09
+
+### ✨ Added
+- **Crash protection:** if a game closes right after starting two times in a row with FSR 4.1 Lite on, the plugin
+  turns it off for that game, puts your launch options back and tells you why. The game's card says so too, and you
+  can turn it back on any time to try again. Quitting after Lite ran never counts.
+- **Now playing:** while a game runs Lite, the card shows what's running, like "FSR → FSR 4.1.2 Lite, 1920×1080 →
+  3840×2160 (Performance)", the same readout as the Windows widget.
+- **Your games:** after you quit, each game's card and row keep what ran in its last session.
+
 ## [2.2.31] - 2026-11-09
 
 ### ✨ Added

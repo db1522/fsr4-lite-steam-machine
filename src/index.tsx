@@ -61,7 +61,11 @@ export default definePlugin(() => {
     const options = await readLaunchOptions(id).catch(() => "");
     const res = await sessionEnded(n.unAppID, options);
     if (!res.managed) return;
-    if (res.retry && res.launch_options !== undefined) {
+    if (res.turned_off && res.launch_options !== undefined) {
+      // crash protection: the game closed right after starting twice in a row with Lite on
+      await saveLaunchOptions(id, res.launch_options);
+      notify(`${NAME} turned off`, res.detail ?? "The game closed right after starting, so FSR 4.1 Lite is off for it.");
+    } else if (res.retry && res.launch_options !== undefined) {
       await saveLaunchOptions(id, res.launch_options);
       notify(`${NAME}: one more try`, res.detail ?? "Play once more.");
     } else if (res.verdict && !["lite", "unplayed"].includes(res.verdict)) {

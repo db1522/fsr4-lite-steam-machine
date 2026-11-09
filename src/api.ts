@@ -25,6 +25,8 @@ export interface Game {
   verdict: Verdict;
   detail: string;
   proxy?: string;  // the name OptiScaler loads under
+  summary?: string;  // what ran in the last session with Lite: "FSR → FSR 4.1.2 Lite, 1920×1080 → 3840×2160 (Performance)"
+  turned_off?: string;  // why crash protection turned FSR 4.1 Lite off for this game ("" when it didn't)
 }
 
 export interface Download { state: "idle" | "running" | "done" | "error"; done: number; total: number; error: string }
@@ -79,7 +81,8 @@ export const sessionCheck = rpc<[number], Result<never> & {
   lite?: boolean; done?: boolean; summary?: string; minutes?: number; hint?: string;
 }>("session_check");
 export const sessionEnded = rpc<[number, string], Result<never> & {
-  managed?: boolean; verdict?: Verdict; detail?: string; retry?: string; launch_options?: string }>("session_ended");
+  managed?: boolean; verdict?: Verdict; detail?: string; retry?: string; launch_options?: string;
+  turned_off?: boolean }>("session_ended");
 export const checkForUpdates = rpc<[], UpdateCheck>("check_for_updates");
 export const performUpdate = rpc<[string], UpdateDownload>("perform_update");
 

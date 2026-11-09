@@ -43,6 +43,8 @@ except (OSError, ValueError, KeyError):
 DEFAULT_SETTINGS = {"session_toast": True, "watermark": False, "overlay": False, "overlay_size": "large",
                     "overlay_pos": "topleft", "auto_update": True}
 NOT_INI = ("session_toast", "auto_update")  # settings that don't go into OptiScaler.ini
+QUICK_EXIT = 90  # a session this short, with OptiScaler loaded and no Lite, counts as the game closing at launch
+QUICK_EXITS_OFF = 2  # that many in a row and FSR 4.1 Lite is turned off for the game
 LOG_LOOK_EVERY = 30  # a running game's OptiScaler.log checked for its size (sml_opti.trim_log)
 UPDATE_LOOK_EVERY = 300  # how often set-up games are compared with the current build (GitHub is asked far less)
 PLUGIN_CHECK_EVERY = 3600  # a newer FSR 4.1 Lite release looked for in the background: one small GitHub API call an hour
@@ -209,14 +211,16 @@ class Plugin:
         entry = self.registry.get(str(g["appid"]))
         view = {k: g[k] for k in ("appid", "name", "exe_name", "upscalers", "anticheat", "nonsteam",
                                   "manual_optiscaler")}
-        view["installed"] = entry is not None
+        view["installed"] = bool(entry and entry.get("proxy"))
         view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"], g["name"], g.get("ubisoft", False))
         view["broken"] = sml_opti.not_working(g["exe_name"])
         view["compat"] = sml_opti.compat_text(g["name"], g["exe_name"])
         view["verdict"], view["detail"] = ("", "")
-        if entry:
+        view["summary"], view["turned_off"] = "", (entry or {}).get("turned_off", "")
+        if view["installed"]:
             view["verdict"], view["detail"] = entry.get("verdict", "unplayed"), entry.get("detail", "")
             view["proxy"] = entry.get("proxy", "")
+            view["summary"] = entry.get("summary", "") if view["verdict"] == "lite" else ""
         return view
 
     async def _state(self):
@@ -741,7 +745,7 @@ class Plugin:
         if entry:  # a game update since the last check removed OptiScaler: put back, and say to restart
             async with self.lock:
                 await self._repair(appid, entry, running=True)
-        return dk_rpc.ok(managed=entry is not None, appid=appid)
+        return dk_rpc.ok(managed=bool(entry and entry.get("proxy")), appid=appid)
 
     @rpc
     async def live_status(self, appid: int) -> dict:
@@ -767,7 +771,8 @@ class Plugin:
         log = await asyncio.to_thread(sml_opti.read_log, exe_dir)
         verdict, detail = sml_opti.verdict(log)
         if verdict == "lite":
-            return dk_rpc.ok(status="active", detail="FSR 4.1 Lite is running.")
+            what = sml_opti.summary(log)  # live, like the widget's card: "FSR → FSR 4.1.2 Lite, 1920×1080 → …"
+            return dk_rpc.ok(status="active", detail=f"Running now: {what}." if what else "FSR 4.1 Lite is running.")
         if verdict == "waiting" and time.time() - started < 120:
             return dk_rpc.ok(status="starting", detail="Waiting for the game to start its upscaler.")
         return dk_rpc.ok(status="inactive", detail=detail)
@@ -817,7 +822,13 @@ class Plugin:
                 entry["height"] = height  # the overlay is sized for what the game really draws at
                 await asyncio.to_thread(sml_opti.apply_settings, exe_dir, self._settings_for_ini(height))
             result = {"managed": True, "verdict": verdict, "detail": detail}
+            if verdict == "lite":
+                entry["summary"] = sml_opti.summary(log)  # what ran, for the card: input, resolutions, mode
             game = self._game(appid)
+            off = await self._quick_exit(appid, entry, verdict, fresh, started, launch_options, game)
+            if off:
+                await asyncio.to_thread(self._save_registry)
+                return dk_rpc.ok(**off)
             exe_key = (game or {}).get("exe_name", "").lower()
             if verdict != "none" and exe_key and self.loaders.get(exe_key) != entry["proxy"]:
                 self.loaders[exe_key] = entry["proxy"]  # OptiScaler loaded under this name: remember it
@@ -864,6 +875,26 @@ class Plugin:
                                          f"{manifest['proxy']}: play once more.")
             await asyncio.to_thread(self._save_registry)
             return dk_rpc.ok(**result)
+
+    async def _quick_exit(self, appid, entry, verdict, fresh, started, launch_options, game):
+        """Crash protection: a game that closes within QUICK_EXIT seconds of starting, with OptiScaler loaded and Lite
+        never running, QUICK_EXITS_OFF times in a row, gets FSR 4.1 Lite turned off (DOA6 Last Round and the Ubisoft
+        Connect games closed at launch with OptiScaler loaded). The card says why until it's turned on again. Returns
+        session_ended's answer when it turned the game off."""
+        quick = bool(started) and fresh and verdict not in ("lite", "none") and time.time() - started < QUICK_EXIT
+        if not quick:
+            entry.pop("quick_exits", None)
+            return None
+        entry["quick_exits"] = entry.get("quick_exits", 0) + 1
+        if entry["quick_exits"] < QUICK_EXITS_OFF:
+            return None
+        name = (game or {}).get("name", "This game")
+        why = (f"{name} closed right after starting {QUICK_EXITS_OFF} times in a row with FSR 4.1 Lite on, so it's "
+               "turned off for this game. Turn it back on to try again.")
+        restored = await self._disable(appid, launch_options, keep_retry=True)
+        self.registry[str(appid)]["turned_off"] = why
+        decky.logger.info(f"{appid}: closed at launch {QUICK_EXITS_OFF} times with OptiScaler loaded, turned off")
+        return {"managed": True, "verdict": "off", "detail": why, "turned_off": True, "launch_options": restored}
 
     # ---- check setup and the support report ----
 

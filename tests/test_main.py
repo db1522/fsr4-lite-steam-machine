@@ -59,7 +59,7 @@ class Flow(unittest.TestCase):
         self.loop.run_until_complete(self.p._scan_task)
 
     def tearDown(self):
-        for task in [*self.p._watchers.values(), self.p._updater]:
+        for task in [*self.p._watchers.values(), self.p._updater, self.p._log_guard]:
             task.cancel()
         self.loop.run_until_complete(asyncio.sleep(0))
         self.loop.close()
@@ -102,6 +102,63 @@ class Flow(unittest.TestCase):
         self.assertEqual(r["launch_options"], "")
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
         self.assertFalse(self.run_(self.p.get_state())["state"]["games"][0]["installed"])
+
+    def quick_session(self, log, length=10):
+        """A session of `length` seconds whose OptiScaler.log is `log`."""
+        self.run_(self.p.session_started(42))
+        self.p.sessions[42] = time.time() - length
+        self.p.registry["42"]["installed_at"] = time.time() - 3600  # set up before this session
+        touch(os.path.join(self.game, "OptiScaler.log"), log)
+        return self.run_(self.p.session_ended(42, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+
+    def test_a_game_that_closes_at_launch_twice_is_turned_off(self):
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        r = self.quick_session(b"[I] Init done\n")
+        self.assertNotIn("turned_off", r)  # once could be the player quitting
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "dxgi.dll")))
+        r = self.quick_session(b"[I] Init done\n")
+        self.assertTrue(r["turned_off"])
+        self.assertEqual(r["launch_options"], "")
+        self.assertIn("closed right after starting 2 times in a row", r["detail"])
+        self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
+        game = self.run_(self.p.get_state())["state"]["games"][0]
+        self.assertFalse(game["installed"])
+        self.assertIn("Turn it back on to try again", game["turned_off"])
+        self.assertFalse(self.run_(self.p.session_started(42))["managed"])
+        self.p.sessions.pop(42, None)
+        # turned back on: the note is gone and the count starts over
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        game = self.run_(self.p.get_state())["state"]["games"][0]
+        self.assertTrue(game["installed"])
+        self.assertEqual(game["turned_off"], "")
+        self.assertNotIn("turned_off", self.quick_session(b"[I] Init done\n"))
+
+    def test_quick_exits_must_be_in_a_row_and_lite_or_no_optiscaler_never_counts(self):
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        self.quick_session(b"[I] Init done\n")
+        self.quick_session(b"[I] Init done\n", length=600)  # a real session in between
+        self.assertNotIn("turned_off", self.quick_session(b"[I] Init done\n"))
+        self.assertNotIn("turned_off", self.quick_session(LITE_LOG))  # Lite ran: the player quit
+        self.assertNotIn("turned_off", self.quick_session(b"[I] Init done\n"))
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "dxgi.dll")))
+
+    def test_the_card_shows_what_ran_last_session(self):
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        r = self.quick_session(LITE_LOG + b"[I] IFeature::SetInitParameters Render Resolution: 1920x1080, Display "
+                               b"Resolution 3840x2160, Quality: 0\n", length=600)
+        self.assertEqual(r["verdict"], "lite")
+        game = self.run_(self.p.get_state())["state"]["games"][0]
+        self.assertIn("FSR 4.1.2 Lite, 1920×1080 → 3840×2160 (Performance)", game["summary"])
+
+    def test_the_running_game_shows_its_resolution_live(self):
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        self.p.registry["42"]["installed_at"] = time.time() - 3600
+        self.run_(self.p.session_started(42))
+        touch(os.path.join(self.game, "OptiScaler.log"), LITE_LOG + b"[I] IFeature::SetInitParameters Render "
+              b"Resolution: 1920x1080, Display Resolution 3840x2160, Quality: 0\n")
+        r = self.run_(self.p.live_status(42))
+        self.assertEqual(r["status"], "active")
+        self.assertEqual(r["detail"], "Running now: FSR 4.1.2 Lite, 1920×1080 → 3840×2160 (Performance).")
 
     def test_a_new_optiscaler_nightly_goes_into_games_that_are_not_running(self):
         r = self.run_(self.p.enable_game(42, ""))
