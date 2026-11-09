@@ -103,6 +103,19 @@ class Flow(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
         self.assertFalse(self.run_(self.p.get_state())["state"]["games"][0]["installed"])
 
+    def test_an_old_manual_optiscaler_is_moved_out_and_then_lite_installs(self):
+        touch(os.path.join(self.game, "dxgi.dll"), b"MZ OptiScaler")
+        touch(os.path.join(self.game, "OptiScaler.ini"), b"[Upscalers]\n")
+        self.run_(self.p.scan_games())
+        self.assertFalse(self.run_(self.p.enable_game(42, ""))["ok"])
+        r = self.run_(self.p.remove_manual(42))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(sorted(r["moved"]), ["OptiScaler.ini", "dxgi.dll"])
+        self.assertTrue(r["backup"].startswith(os.path.join(self.data, "old-optiscaler", "42-")))
+        self.assertFalse(r["state"]["games"][0]["manual_optiscaler"])
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        self.assertFalse(self.run_(self.p.remove_manual(42))["ok"], "never on our own setup")
+
     def quick_session(self, log, length=10):
         """A session of `length` seconds whose OptiScaler.log is `log`."""
         self.run_(self.p.session_started(42))

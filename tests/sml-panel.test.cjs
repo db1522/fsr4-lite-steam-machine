@@ -259,6 +259,18 @@ test('a game with anti-cheat gets no install button', async () => {
   assert.deepEqual(pills, ['Blocked']);
 });
 
+test('a game with OptiScaler from another install offers to move it out, then to install', async () => {
+  const h = panel({ appid: '1091500', display_name: 'x' });
+  const tree = await open(h, state({ games: [{ ...game, manual_optiscaler: true }] }));
+  assert.ok(!dialogButton(tree, 'Install FSR 4.1 Lite'));
+  assert.match(strings(tree), /moved to the plugin's folder, not deleted/);
+  dialogButton(tree, 'Remove old OptiScaler').props.onClick();
+  await settle();
+  h.respond('remove_manual', { ok: true, moved: ['dxgi.dll', 'OptiScaler.ini'], state: state({ games: [{ ...game }] }) });
+  for (let i = 0; i < 3; i++) await settle();
+  assert.ok(dialogButton(h.render(), 'Install FSR 4.1 Lite'));
+});
+
 test("a game OptiScaler can't run in on SteamOS gets no install button", async () => {
   const broken = 'This game closes itself a few seconds after it starts whenever OptiScaler is loaded on SteamOS, so installs are blocked.';
   const tree = await open(panel({ appid: '1091500', display_name: 'x' }), state({ games: [{ ...game, broken }] }));

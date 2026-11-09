@@ -98,7 +98,7 @@ The plugin's **Your games** section lists every installed game with FSR, DLSS or
 It stays off for:
 
 - Online games with anti-cheat (Easy Anti-Cheat, BattlEye and others). Adding DLLs to them can get you banned, so the plugin won't install there.
-- Games that already have OptiScaler from another install. Remove that one first.
+- Games that already have OptiScaler from another install, until you press **Remove old OptiScaler** on the Now playing card. It moves that install's files into the plugin's folder (`~/homebrew/data/FSR4Lite/old-optiscaler`), so nothing is deleted, and leaves the game's own files alone.
 - Games with only FSR 1, or no upscaler at all. OptiScaler needs FSR 2 or newer, DLSS or XeSS to take over. A game that builds FSR 2 or 3 in without separate files can still be set up from Now playing.
 
 ## Troubleshooting

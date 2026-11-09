@@ -2,6 +2,17 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.34] - 2026-11-09
+
+### ✨ Added
+- **Now playing:** a Remove old OptiScaler button for games that have OptiScaler from another install. It moves that
+  install's files into the plugin's folder (`~/homebrew/data/FSR4Lite/old-optiscaler`), so nothing is deleted, and
+  leaves the game's own files alone. Then FSR 4.1 Lite installs as usual.
+
+### 🔧 Changed
+- **Games:** OptiScaler from another install is found by any part of it: its loader DLL, its OptiScaler.ini or its
+  folder. Before, only the ini counted, so a leftover DLL could clash with a new setup.
+
 ## [2.2.33] - 2026-11-09
 
 ### 🗑️ Removed

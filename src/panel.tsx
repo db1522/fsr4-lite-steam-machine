@@ -14,7 +14,7 @@ import { CheckPage } from "./check";
 import { canInstallUpdates, installUpdate } from "./installer";
 import { keepInView, onFocusReveal, openWeb, restartGame, toTop } from "./steamx";
 import {
-  cancelDownload, checkForUpdates, cleanupLegacy, disableGame, downloadAssets, downloadProgress, enableGame, Game,
+  cancelDownload, checkForUpdates, cleanupLegacy, disableGame, removeManual, downloadAssets, downloadProgress, enableGame, Game,
   checkOptiscaler, getState, Live, liveStatus, resolveRunning, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
   StateResult,
 } from "./api";
@@ -211,6 +211,14 @@ export const Content: FC = () => {
     await apply(game, on);
     setBusy(null);
   };
+  /** OptiScaler from another install moved out of the game, so FSR 4.1 Lite can go in (nothing is deleted). */
+  const removeOld = async (game: Game) => {
+    if (busy !== null) return;
+    setBusy(game.appid);
+    const r = take(await removeManual(game.appid), game.appid);
+    setBusy(null);
+    if (r.ok) notify(NAME, `Moved the old OptiScaler out of ${game.name}. Install FSR 4.1 Lite now.`);
+  };
   /** Every set-up game put back as it was (setting games up happens one at a time, on Now playing). */
   const uninstallAll = async () => {
     if (busy !== null || !state) return;
@@ -359,7 +367,7 @@ export const Content: FC = () => {
     const note = current.anticheat && !current.installed
       ? `${current.anticheat} found. Injecting OptiScaler could get your account banned, so installs are blocked.`
       : current.broken && !current.installed ? current.broken
-      : current.manual_optiscaler && !current.installed ? "OptiScaler from another install is already in this game. Remove it first."
+      : current.manual_optiscaler && !current.installed ? "OptiScaler from another install is already in this game. Remove it to install FSR 4.1 Lite. Its files are moved to the plugin's folder, not deleted."
       : current.installed && now?.detail ? now.detail
       : current.installed && current.detail ? current.detail
       : current.turned_off ? current.turned_off
@@ -376,6 +384,8 @@ export const Content: FC = () => {
         disabled={!current.installed && !state.assets_ready} onClick={() => toggle(current, !current.installed)}>
         {busy === current.appid ? "Working…" : current.installed ? "Uninstall FSR 4.1 Lite" : "Install FSR 4.1 Lite"}
       </DialogButton>}
+      {current.manual_optiscaler && !current.installed && <DialogButton onGamepadFocus={keepInView} className="sml-primary"
+        onClick={() => removeOld(current)}>{busy === current.appid ? "Working…" : "Remove old OptiScaler"}</DialogButton>}
       {current.installed && now?.status === "restart" && <DialogButton onGamepadFocus={keepInView} className="sml-primary"
         onClick={() => restartNow(current)}>{restarting ? "Restarting…" : "Restart now"}</DialogButton>}
       {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}

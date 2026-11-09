@@ -3,6 +3,7 @@
 and reading a session from OptiScaler.log."""
 import json
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -810,6 +811,49 @@ LITE_SESSION = HOOK_LINE + LOADED_LINE + "[I] ffxCreateContext_Dx12 context crea
 # 007 First Light (2026-11-09 nightly): this line, thousands of times a second, after the Lite proof
 FLOOD = ("[00:50:38.250975] [I] Amdxc64Hooks::hkAmdExtD3DCreateInterface IAmdExtD3DFactory queried, returning custom "
          "AmdExtD3DFactory: 5B1BB270, real: 6FFFE82A3070\n")
+
+
+class ManualInstall(unittest.TestCase):
+    def setUp(self):
+        t = tempfile.mkdtemp()
+        self.game, self.backup = os.path.join(t, "game"), os.path.join(t, "backup")
+        touch(os.path.join(self.game, "game.exe"), b"game")
+        touch(os.path.join(self.game, "dxgi.dll"), b"MZ" + b"\0" * 5000 + b"OptiScaler v0.7" + b"\0" * 100)
+        touch(os.path.join(self.game, "OptiScaler.ini"), b"[Upscalers]\n")
+        touch(os.path.join(self.game, "OptiScaler.log"), b"log")
+        touch(os.path.join(self.game, "OptiScaler", "amdxcffx64.dll"), b"amd")
+        touch(os.path.join(self.game, "nvapi64.dll"), b"MZ fakenvapi")
+        # the game's own files, which a manual install also tends to have: they stay
+        for own in ("winmm.dll", "libxess.dll", "amd_fidelityfx_dx12.dll", "nvngx_dlss.dll"):
+            touch(os.path.join(self.game, own), b"MZ the game's own")
+
+    def test_only_optiscalers_files_move_and_nothing_is_deleted(self):
+        self.assertTrue(O.analyze(self.game)["manual_optiscaler"])
+        moved = O.remove_manual(self.game, self.backup)
+        self.assertEqual(sorted(moved), ["OptiScaler", "OptiScaler.ini", "OptiScaler.log", "dxgi.dll", "nvapi64.dll"])
+        self.assertEqual(sorted(os.listdir(self.game)),
+                         ["amd_fidelityfx_dx12.dll", "game.exe", "libxess.dll", "nvngx_dlss.dll", "winmm.dll"])
+        self.assertTrue(os.path.isfile(os.path.join(self.backup, "OptiScaler", "amdxcffx64.dll")))
+        self.assertIn(self.game, read(os.path.join(self.backup, "MOVED-FROM.txt")))
+        self.assertFalse(O.analyze(self.game)["manual_optiscaler"])
+        with self.assertRaises(O.InstallError):
+            O.remove_manual(self.game, self.backup)
+
+    def test_a_leftover_optiscaler_dll_counts_without_its_ini_but_a_lone_log_does_not(self):
+        for name in ("OptiScaler.ini", "nvapi64.dll"):
+            os.remove(os.path.join(self.game, name))
+        shutil.rmtree(os.path.join(self.game, "OptiScaler"))
+        self.assertTrue(O.analyze(self.game)["manual_optiscaler"], "dxgi.dll is OptiScaler's")
+        os.remove(os.path.join(self.game, "dxgi.dll"))
+        self.assertFalse(O.analyze(self.game)["manual_optiscaler"], "only OptiScaler.log is left")
+        self.assertEqual(O.manual_files(self.game), ["OptiScaler.log"])
+
+    def test_our_own_setup_is_never_taken_for_a_manual_one(self):
+        touch(os.path.join(self.game, O.META, "manifest.json"), b"{}")
+        self.assertEqual(O.manual_files(self.game), [])
+        with self.assertRaises(O.InstallError):
+            O.remove_manual(self.game, self.backup)
+        self.assertTrue(os.path.isfile(os.path.join(self.game, "dxgi.dll")))
 
 
 class FloodedLog(unittest.TestCase):

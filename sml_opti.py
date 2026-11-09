@@ -275,10 +275,83 @@ def analyze(install_dir, exe_path=None):
 
 
 def _manual_optiscaler(exe_dir):
-    """OptiScaler already there from somewhere else (not our install): left alone."""
-    if os.path.isfile(os.path.join(exe_dir, META, "manifest.json")):
+    """OptiScaler already there from somewhere else (not our install): left alone until the player removes it
+    (remove_manual). Any part of it counts (its loader DLL, its ini, its folder), except a log left on its own."""
+    return any(n.lower() not in _LOGS_ONLY for n in manual_files(exe_dir))
+
+
+# A manual OptiScaler install, as far as it can be told apart from the game's own files: games ship their own
+# amd_fidelityfx_*, libxess and nvngx DLLs, so those stay. A DLL counts as OptiScaler's only with its name inside.
+MANUAL_FILES = ("OptiScaler.ini", "OptiScaler.log", "fakenvapi.ini", "fakenvapi.log",
+                "dlssg_to_fsr3_amd_is_better.dll", "dlssg_to_fsr3.log")
+MANUAL_DIRS = ("OptiScaler", "D3D12_OptiScaler", "D3D12_Optiscaler")
+_LOGS_ONLY = {"optiscaler.log", "fakenvapi.log", "dlssg_to_fsr3.log"}
+_MARK_CHUNK = 4 * 1024 * 1024
+
+
+def _has_mark(path, mark):
+    """Whether the file contains mark (read in chunks, overlapping so a mark across two isn't missed)."""
+    try:
+        with open(path, "rb") as f:
+            tail = b""
+            while True:
+                chunk = f.read(_MARK_CHUNK)
+                if not chunk:
+                    return False
+                if mark in tail + chunk:
+                    return True
+                tail = chunk[-len(mark):]
+    except OSError:
         return False
-    return os.path.isfile(os.path.join(exe_dir, "OptiScaler.ini"))
+
+
+def manual_files(exe_dir):
+    """The files and folders of a manual OptiScaler install in exe_dir (names relative to it); [] for our own setup."""
+    if os.path.isfile(os.path.join(exe_dir, META, "manifest.json")):
+        return []
+    try:
+        names = os.listdir(exe_dir)
+    except OSError:
+        return []
+    by_lower = {n.lower(): n for n in names}
+    found = []
+    for want in MANUAL_FILES:
+        n = by_lower.get(want.lower())
+        if n and os.path.isfile(os.path.join(exe_dir, n)):
+            found.append(n)
+    for want in MANUAL_DIRS:
+        n = by_lower.get(want.lower())
+        if n and os.path.isdir(os.path.join(exe_dir, n)) and n not in found:
+            found.append(n)
+    for want in PROXY_NAMES + ("OptiScaler.dll", "OptiScaler.asi"):
+        n = by_lower.get(want.lower())
+        if n and os.path.isfile(os.path.join(exe_dir, n)) and _has_mark(os.path.join(exe_dir, n), b"OptiScaler"):
+            found.append(n)
+    n = by_lower.get("nvapi64.dll")
+    if n and _has_mark(os.path.join(exe_dir, n), b"fakenvapi"):
+        found.append(n)
+    return found
+
+
+def remove_manual(exe_dir, backup_dir):
+    """A manual OptiScaler install moved out of exe_dir into backup_dir, nothing deleted (a note there says where each
+    came from). Returns the moved names; raises InstallError for our own setup or when nothing is found."""
+    found = manual_files(exe_dir)
+    if not found:
+        raise InstallError("No OptiScaler from another install was found in this game's folder.")
+    os.makedirs(backup_dir, exist_ok=True)
+    moved = []
+    for name in found:
+        try:
+            shutil.move(os.path.join(exe_dir, name), os.path.join(backup_dir, name))
+        except OSError as e:
+            raise InstallError(f"Couldn't move {name} out of the game's folder ({e.strerror or e}). "
+                               f"{len(moved)} other file(s) are already in {backup_dir}.") from e
+        moved.append(name)
+    with open(os.path.join(backup_dir, "MOVED-FROM.txt"), "w", encoding="utf-8") as f:
+        f.write("FSR 4.1 Lite moved these files out of\n" + exe_dir + "\nTo put them back, move them there again.\n\n"
+                + "\n".join(moved) + "\n")
+    return moved
 
 
 _ROMAN = {"ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6", "vii": "7", "viii": "8", "ix": "9"}

@@ -67,6 +67,8 @@ export const cancelDownload = rpc<[], StateResult>("cancel_download");
 export const enableGame = rpc<[number, string], ToggleResult>("enable_game");
 export const disableGame = rpc<[number, string], ToggleResult>("disable_game");
 export const cleanupLegacy = rpc<[number, string], ToggleResult>("cleanup_legacy");
+/** OptiScaler from another install moved out of the game's folder (into the plugin's data, nothing deleted). */
+export const removeManual = rpc<[number], StateResult & { moved?: string[]; backup?: string }>("remove_manual");
 export const setSetting = rpc<[string, boolean | string], StateResult>("set_setting");
 // The game in the library list a running app id is: a non-Steam shortcut can run under its game's own Steam id.
 export const resolveRunning = rpc<[number], Result<never> & { appid?: number }>("resolve_running");

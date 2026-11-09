@@ -687,6 +687,27 @@ class Plugin:
         return restored
 
     @rpc
+    async def remove_manual(self, appid: int) -> dict:
+        """OptiScaler from another install (a manual one) moved out of the game's folder into the plugin's data, so FSR
+        4.1 Lite can be installed. Nothing is deleted: the result says where the files went."""
+        async with self.lock:
+            game = self._game(appid)
+            if not game:
+                return dk_rpc.fail("This game isn't in the library scan. Rescan and try again.", await self._state())
+            if (self.registry.get(str(appid)) or {}).get("proxy"):
+                return dk_rpc.fail("FSR 4.1 Lite is set up in this game. Uninstall it there instead.",
+                                   await self._state())
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            backup = os.path.join(_data_dir(), "old-optiscaler", f"{appid}-{stamp}")
+            try:
+                moved = await asyncio.to_thread(sml_opti.remove_manual, game["exe_dir"], backup)
+            except sml_opti.InstallError as e:
+                return dk_rpc.fail(str(e), await self._state())
+            game["manual_optiscaler"] = await asyncio.to_thread(sml_opti._manual_optiscaler, game["exe_dir"])
+            decky.logger.info(f"{appid}: moved a manual OptiScaler ({', '.join(moved)}) to {backup}")
+            return dk_rpc.ok(await self._state(), moved=moved, backup=backup)
+
+    @rpc
     async def disable_game(self, appid: int, launch_options: str) -> dict:
         async with self.lock:
             restored = await self._disable(appid, launch_options)
