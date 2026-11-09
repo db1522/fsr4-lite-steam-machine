@@ -142,23 +142,17 @@ class Flow(unittest.TestCase):
         self.assertNotIn("turned_off", self.quick_session(b"[I] Init done\n"))
         self.assertTrue(os.path.isfile(os.path.join(self.game, "dxgi.dll")))
 
-    def test_the_card_shows_what_ran_last_session(self):
-        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
-        r = self.quick_session(LITE_LOG + b"[I] IFeature::SetInitParameters Render Resolution: 1920x1080, Display "
-                               b"Resolution 3840x2160, Quality: 0\n", length=600)
-        self.assertEqual(r["verdict"], "lite")
-        game = self.run_(self.p.get_state())["state"]["games"][0]
-        self.assertIn("FSR 4.1.2 Lite, 1920×1080 → 3840×2160 (Performance)", game["summary"])
-
-    def test_the_running_game_shows_its_resolution_live(self):
+    def test_the_card_shows_no_resolution_that_could_be_old(self):
+        # OptiScaler logs the resolution only when the game builds its upscaler; The Witcher 3 changes FSR quality
+        # without that, so the card would show an old mode. The FPS overlay shows it live.
         self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
         self.p.registry["42"]["installed_at"] = time.time() - 3600
         self.run_(self.p.session_started(42))
-        touch(os.path.join(self.game, "OptiScaler.log"), LITE_LOG + b"[I] IFeature::SetInitParameters Render "
-              b"Resolution: 1920x1080, Display Resolution 3840x2160, Quality: 0\n")
-        r = self.run_(self.p.live_status(42))
-        self.assertEqual(r["status"], "active")
-        self.assertEqual(r["detail"], "Running now: FSR 4.1.2 Lite, 1920×1080 → 3840×2160 (Performance).")
+        touch(os.path.join(self.game, "OptiScaler.log"), LITE_LOG)
+        self.assertEqual(self.run_(self.p.live_status(42))["detail"], "FSR 4.1 Lite is running.")
+        self.p.sessions[42] = time.time() - 600
+        self.assertEqual(self.run_(self.p.session_ended(42, ""))["verdict"], "lite")
+        self.assertNotIn("summary", self.run_(self.p.get_state())["state"]["games"][0])
 
     def test_a_new_optiscaler_nightly_goes_into_games_that_are_not_running(self):
         r = self.run_(self.p.enable_game(42, ""))

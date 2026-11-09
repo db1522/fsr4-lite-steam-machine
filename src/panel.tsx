@@ -361,7 +361,6 @@ export const Content: FC = () => {
       : current.broken && !current.installed ? current.broken
       : current.manual_optiscaler && !current.installed ? "OptiScaler from another install is already in this game. Remove it first."
       : current.installed && now?.detail ? now.detail
-      : current.installed && current.summary ? `Last session: ${current.summary}.`
       : current.installed && current.detail ? current.detail
       : current.turned_off ? current.turned_off
       : `Then restart the game and pick ${pickText(current.upscalers)} in its graphics settings.`;
@@ -402,7 +401,7 @@ export const Content: FC = () => {
     const [tone, label] = rowChip(g, running && live?.appid === runningAppid ? live : null);
     // Setting a game up happens on Now playing, with the game running (the plugin then sees which program is the
     // game, as the widget does). In this list a game can only be turned off; the others say how to set them up.
-    const extra = g.summary || [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");
+    const extra = [...g.upscalers, ...(g.nonsteam ? ["Non-Steam"] : [])].join(" · ");
     if (!g.installed) return <PanelSectionRow key={`r${g.appid}`}>
       <Field focusable className="sml-gameoff" label={<span className="sml-gamerow"><span>{g.name}</span></span>}
         description={<span className={`sml-gamesub${g.anticheat || g.broken || g.turned_off ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}`

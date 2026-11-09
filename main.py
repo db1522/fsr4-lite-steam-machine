@@ -216,11 +216,10 @@ class Plugin:
         view["broken"] = sml_opti.not_working(g["exe_name"])
         view["compat"] = sml_opti.compat_text(g["name"], g["exe_name"])
         view["verdict"], view["detail"] = ("", "")
-        view["summary"], view["turned_off"] = "", (entry or {}).get("turned_off", "")
+        view["turned_off"] = (entry or {}).get("turned_off", "")
         if view["installed"]:
             view["verdict"], view["detail"] = entry.get("verdict", "unplayed"), entry.get("detail", "")
             view["proxy"] = entry.get("proxy", "")
-            view["summary"] = entry.get("summary", "") if view["verdict"] == "lite" else ""
         return view
 
     async def _state(self):
@@ -771,8 +770,9 @@ class Plugin:
         log = await asyncio.to_thread(sml_opti.read_log, exe_dir)
         verdict, detail = sml_opti.verdict(log)
         if verdict == "lite":
-            what = sml_opti.summary(log)  # live, like the widget's card: "FSR → FSR 4.1.2 Lite, 1920×1080 → …"
-            return dk_rpc.ok(status="active", detail=f"Running now: {what}." if what else "FSR 4.1 Lite is running.")
+            # no resolution here: OptiScaler logs it only when the game builds its upscaler, and some games change
+            # quality without that (The Witcher 3), so the card would show an old mode. The FPS overlay is live.
+            return dk_rpc.ok(status="active", detail="FSR 4.1 Lite is running.")
         if verdict == "waiting" and time.time() - started < 120:
             return dk_rpc.ok(status="starting", detail="Waiting for the game to start its upscaler.")
         return dk_rpc.ok(status="inactive", detail=detail)
@@ -822,8 +822,6 @@ class Plugin:
                 entry["height"] = height  # the overlay is sized for what the game really draws at
                 await asyncio.to_thread(sml_opti.apply_settings, exe_dir, self._settings_for_ini(height))
             result = {"managed": True, "verdict": verdict, "detail": detail}
-            if verdict == "lite":
-                entry["summary"] = sml_opti.summary(log)  # what ran, for the card: input, resolutions, mode
             game = self._game(appid)
             off = await self._quick_exit(appid, entry, verdict, fresh, started, launch_options, game)
             if off:

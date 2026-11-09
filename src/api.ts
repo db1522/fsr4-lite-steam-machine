@@ -25,7 +25,6 @@ export interface Game {
   verdict: Verdict;
   detail: string;
   proxy?: string;  // the name OptiScaler loads under
-  summary?: string;  // what ran in the last session with Lite: "FSR → FSR 4.1.2 Lite, 1920×1080 → 3840×2160 (Performance)"
   turned_off?: string;  // why crash protection turned FSR 4.1 Lite off for this game ("" when it didn't)
 }
 

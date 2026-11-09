@@ -2,6 +2,14 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.33] - 2026-11-09
+
+### 🗑️ Removed
+- **Now playing:** the resolution readout from 2.2.32, on the card and in Your games. OptiScaler writes the resolution
+  down only when a game sets up its upscaler, and some games, like The Witcher 3, change FSR's quality mode without
+  that, so the card could show an old mode. The card says FSR 4.1 Lite is running again. For the live resolution, turn
+  on the FPS overlay in Settings: it updates every frame.
+
 ## [2.2.32] - 2026-11-09
 
 ### ✨ Added
