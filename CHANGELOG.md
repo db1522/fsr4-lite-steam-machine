@@ -2,6 +2,12 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.28] - 2026-11-08
+
+### 🔧 Changed
+- **Updates:** the plugin looks for a new version every hour instead of every 6 hours, so the notification reaches you
+  soon after a release. Still one notification per version.
+
 ## [2.2.27] - 2026-11-08
 
 ### 🐛 Fixed

@@ -72,7 +72,7 @@ export default definePlugin(() => {
   // A new OptiScaler nightly went into the set-up games (backend auto-update): one notification per build.
   const gamesUpdated = (title: string, body: string) => notify(title, body);
   addEventListener<[string, string]>("games_updated", gamesUpdated);
-  // A newer FSR 4.1 Lite release (backend check every 6 hours): one notification per version.
+  // A newer FSR 4.1 Lite release (backend check every hour): one notification per version.
   addEventListener<[string, string]>("plugin_update", gamesUpdated);
   // A game update or Steam's file check removed OptiScaler and the backend put it back.
   addEventListener<[string, string]>("game_repaired", gamesUpdated);

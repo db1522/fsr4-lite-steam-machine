@@ -76,7 +76,7 @@ The plugin downloads about 205 MB once: OptiScaler's newest nightly from its own
 3. Open **Developer → Install Plugin from ZIP** and pick the file.
 4. Open **FSR 4.1 Lite** in Decky and press **Accept and download**.
 
-The plugin checks GitHub for a new version every 6 hours and sends a notification when one is out. To update, press **Update** on the card at the top of the plugin, or use **Check for updates** in its Updates section. It downloads the new release from GitHub, checks it, and hands it to Decky, which asks you to confirm and reloads the plugin. Your games stay set up.
+The plugin checks GitHub for a new version every hour and sends a notification when one is out. To update, press **Update** on the card at the top of the plugin, or use **Check for updates** in its Updates section. It downloads the new release from GitHub, checks it, and hands it to Decky, which asks you to confirm and reloads the plugin. Your games stay set up.
 
 Coming from version 1? The plugin shows a **Clean up** card for games version 1 set up. Press it first.
 

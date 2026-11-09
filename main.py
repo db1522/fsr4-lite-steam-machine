@@ -44,7 +44,7 @@ DEFAULT_SETTINGS = {"session_toast": True, "watermark": False, "overlay": False,
                     "overlay_pos": "topleft", "auto_update": True}
 NOT_INI = ("session_toast", "auto_update")  # settings that don't go into OptiScaler.ini
 UPDATE_LOOK_EVERY = 300  # how often set-up games are compared with the current build (GitHub is asked far less)
-PLUGIN_CHECK_EVERY = 6 * 3600  # a newer FSR 4.1 Lite release looked for in the background, like the widget's SelfUpdate
+PLUGIN_CHECK_EVERY = 3600  # a newer FSR 4.1 Lite release looked for in the background: one small GitHub API call an hour
 CHOICES = {"overlay_size": tuple(sml_opti.OVERLAY_SIZES), "overlay_pos": tuple(sml_opti.OVERLAY_POSITIONS)}
 _ready = asyncio.Event()
 rpc = dk_rpc.boundary(decky.logger, _ready)
@@ -291,7 +291,7 @@ class Plugin:
                 await self._repair(appid, entry, running=False)
 
     async def _check_release(self, now=None):
-        """Every 6 hours: a newer FSR 4.1 Lite release on GitHub, told once per version with a notification. Nothing
+        """Every hour: a newer FSR 4.1 Lite release on GitHub, told once per version with a notification. Nothing
         is installed here: the card at the top of the plugin has the Update button, and Decky asks to confirm."""
         now = time.time() if now is None else now
         if self._plugin_checked and now - self._plugin_checked < PLUGIN_CHECK_EVERY:
