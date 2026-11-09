@@ -5,7 +5,7 @@
   "api_version": 1,
   "main": "main.py",
   "bin": "dist/index.js",
-  "version": "2.2.36",
+  "version": "2.2.37",
   "publish": {
     "tags": [
       "utilities",

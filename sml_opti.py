@@ -54,10 +54,31 @@ def overlay_look(size, height, font_known=True):
 
 def overlay_font_known(exe_dir):
     """Whether the game's OptiScaler build has FpsOverlayFontSize (every nightly from November 2026 does; the pinned
-    fallback may not). Read from the DLL it loads; True when that can't be told."""
-    proxy = (load_manifest(exe_dir) or {}).get("proxy")
-    path = os.path.join(exe_dir, proxy) if proxy else ""
-    return not os.path.isfile(path) or _has_mark(path, b"FpsOverlayFontSize")
+    fallback may not): its OptiScaler.ini, copied from the build, documents it ("; FPS Overlay font size in pixels").
+    The ini first, not the 26 MB DLL: this runs for every set-up game each time the plugin loads. A game set up with an
+    older build keeps its older ini through updates (update_opti leaves it alone), so when the ini doesn't say, the DLL
+    is read once and the answer kept in the manifest until the game's build changes. True when neither can be read."""
+    try:
+        with open(os.path.join(exe_dir, "OptiScaler.ini"), encoding="utf-8-sig", errors="replace") as f:
+            if "FPS Overlay font size" in f.read():
+                return True
+    except OSError:
+        return True
+    manifest = load_manifest(exe_dir)
+    if not manifest or not manifest.get("proxy"):
+        return True
+    build = manifest.get("opti_build", "")
+    kept = manifest.get("overlay_font")
+    if isinstance(kept, list) and len(kept) == 2 and kept[0] == build:
+        return bool(kept[1])
+    dll = os.path.join(exe_dir, manifest["proxy"])
+    known = not os.path.isfile(dll) or _has_mark(dll, b"FpsOverlayFontSize")
+    manifest["overlay_font"] = [build, known]
+    try:
+        _save(os.path.join(exe_dir, META), manifest)
+    except OSError:
+        pass
+    return known
 
 
 def ini_settings(watermark=False, overlay=False, overlay_size="large", overlay_pos="topleft", height=None,
@@ -623,8 +644,11 @@ def set_ini(path, values):
                 break
         else:
             lines.insert(end, f"{key}={value}")
+    new = nl.join(lines) + nl
+    if new == text:
+        return  # nothing changed: no write (every game's ini is refreshed each time the plugin loads)
     with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(nl.join(lines) + nl)
+        f.write(new)
 
 
 # ---- install / uninstall ----
@@ -1359,6 +1383,32 @@ def running_processes(install_dir, proc="/proc"):
                     found[path] = {"path": path, "mb": mb, "graphics": graphics}
                 break
     return sorted(found.values(), key=lambda p: p["path"])
+
+
+def running_folders(proc="/proc"):
+    """The steamapps/common/<folder> names (lower case) any running process was started from: one look at the process
+    list for every set-up game at once (the 5-minute repair check used to read it once per game)."""
+    found = set()
+    try:
+        pids = [p for p in os.listdir(proc) if p.isdigit()]
+    except OSError:
+        return found
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, pid, "cmdline"), "rb") as f:
+                text = f.read(64 * 1024).decode("utf-8", "replace").replace("\\", "/").lower()
+        except OSError:
+            continue
+        for part in text.split("/steamapps/common/")[1:]:
+            found.add(part.split("/", 1)[0].split("\0", 1)[0])
+        if "/steamapps/common/" not in text and ".exe" in text:
+            try:  # a relative exe path: its working folder says which game
+                cwd = os.readlink(os.path.join(proc, pid, "cwd")).lower()
+            except OSError:
+                continue
+            if "/steamapps/common/" in cwd:
+                found.add(cwd.split("/steamapps/common/", 1)[1].split("/", 1)[0])
+    return found
 
 
 def exe_running(exe, proc="/proc"):

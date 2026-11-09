@@ -787,8 +787,9 @@ class Overlay(unittest.TestCase):
         t = temp_dir(self)
         game, pkg = os.path.join(t, "game"), os.path.join(t, "pkg")
         touch(os.path.join(game, "game.exe"), b"game")
-        touch(os.path.join(pkg, "OptiScaler.dll"), b"MZ OptiScaler FpsOverlayFontSize")
-        touch(os.path.join(pkg, "OptiScaler.ini"), b"[Menu]\r\nFontSize=auto\r\nFpsScale=auto\r\n")
+        touch(os.path.join(pkg, "OptiScaler.dll"), b"MZ OptiScaler")
+        touch(os.path.join(pkg, "OptiScaler.ini"), b"[Menu]\r\nFontSize=auto\r\nFpsScale=auto\r\n"
+              b"; FPS Overlay font size in pixels, before FpsScale\r\nFpsOverlayFontSize=auto\r\n")
         O.install(game, "game.exe", pkg, [], {"overlay": True})
         ini = os.path.join(game, "OptiScaler.ini")
         O.set_ini(ini, [("Menu", "FontSize", "64")])  # what 2.2.35 wrote
@@ -797,8 +798,19 @@ class Overlay(unittest.TestCase):
         text = read(ini)
         self.assertIn("FontSize=auto", text)
         self.assertIn("FpsOverlayFontSize=28", text)
-        # an older build without FpsOverlayFontSize: sized with FpsScale alone
-        touch(os.path.join(game, O.load_manifest(game)["proxy"]), b"MZ OptiScaler")
+        # an ini from an older build (kept through updates): the DLL decides, read once per build
+        with open(ini, encoding="utf-8") as f:
+            older = f.read().replace("; FPS Overlay font size in pixels, before FpsScale", "")
+        with open(ini, "w", encoding="utf-8", newline="") as f:
+            f.write(older)
+        dll = os.path.join(game, O.load_manifest(game)["proxy"])
+        touch(dll, b"MZ OptiScaler FpsOverlayFontSize")
+        self.assertTrue(O.overlay_font_known(game), "a newer DLL under an older ini")
+        touch(dll, b"MZ OptiScaler")  # same build: the kept answer, the DLL isn't read again
+        self.assertTrue(O.overlay_font_known(game))
+        m = O.load_manifest(game)
+        m["opti_build"] = "OptiScaler_older"  # another build: read again
+        O._save(os.path.join(game, O.META), m)
         self.assertFalse(O.overlay_font_known(game))
         O.apply_settings(game, {"overlay": True, "overlay_size": "large", "height": 1080})
         self.assertIn("FpsOverlayFontSize=auto", read(ini))
@@ -901,6 +913,39 @@ class ManualInstall(unittest.TestCase):
         with self.assertRaises(O.InstallError):
             O.remove_manual(self.game, self.backup)
         self.assertTrue(os.path.isfile(os.path.join(self.game, "dxgi.dll")))
+
+
+class Light(unittest.TestCase):
+    """What runs over and over on the Steam Machine stays cheap."""
+
+    def test_an_ini_is_only_written_when_something_changes(self):
+        ini = os.path.join(temp_dir(self), "OptiScaler.ini")
+        O.set_ini(ini, [("Menu", "ShowFps", "true")])
+        before = os.stat(ini).st_mtime_ns
+        os.utime(ini, ns=(before - 10**9, before - 10**9))
+        O.set_ini(ini, [("Menu", "ShowFps", "true")])
+        self.assertEqual(os.stat(ini).st_mtime_ns, before - 10**9, "same values: no write")
+        O.set_ini(ini, [("Menu", "ShowFps", "false")])
+        self.assertIn("ShowFps=false", read(ini))
+
+    def test_every_running_games_folder_from_one_look_at_the_processes(self):
+        proc = temp_dir(self)
+
+        def process(pid, *args, cwd=None):
+            touch(os.path.join(proc, str(pid), "cmdline"), "\0".join(args).encode() + b"\0")
+            if cwd:
+                os.symlink(cwd, os.path.join(proc, str(pid), "cwd"))
+        process(100, "S:\\steamapps\\common\\Crimson Desert\\bin64\\CrimsonDesert.exe")
+        process(101, "/home/deck/.local/share/Steam/steamapps/common/Palworld/Pal/Binaries/Win64/Palworld.exe", "-x")
+        process(102, "/usr/bin/bash")
+        if os.name == "posix":
+            process(103, "PBZ.exe", cwd="/home/deck/.local/share/Steam/steamapps/common/PBZ/platform/steam")
+        found = O.running_folders(proc)
+        self.assertIn("crimson desert", found)
+        self.assertIn("palworld", found)
+        if os.name == "posix":
+            self.assertIn("pbz", found)
+        self.assertEqual(O.running_folders(os.path.join(proc, "missing")), set())
 
 
 class FloodedLog(unittest.TestCase):

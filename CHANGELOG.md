@@ -2,6 +2,15 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.37] - 2026-11-09
+
+### 🔧 Changed
+- **Performance:** the plugin does less work in the background. The check every 5 minutes reads the list of running
+  programs once instead of once per game (54 ms down to 2 ms on my Steam Machine). When the plugin loads, the overlay
+  check reads each game's small OptiScaler.ini instead of its 26 MB OptiScaler DLL, and a game's ini is only written
+  when a setting really changed. In a game's first two minutes, the list of running Windows programs for the support
+  report is taken every 30 seconds instead of every 5.
+
 ## [2.2.36] - 2026-11-09
 
 ### ✨ Added

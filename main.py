@@ -302,12 +302,19 @@ class Plugin:
     async def _repair_games(self):
         """Every set-up game that isn't running checked for files a game update or Steam's file check removed."""
         async with self.lock:
+            running = None  # the process list, read once for all games and only when a game is set up
             for key, entry in list(self.registry.items()):
+                if not entry.get("proxy"):
+                    continue
                 appid = int(key) if key.isdigit() else None
                 game = self._game(appid) if appid is not None else None
-                if appid in self.sessions or (game and not game["nonsteam"] and await asyncio.to_thread(
-                        sml_opti.running_processes, game["install_dir"])):
+                if appid in self.sessions:
                     continue
+                if game and not game["nonsteam"]:
+                    if running is None:
+                        running = await asyncio.to_thread(sml_opti.running_folders)
+                    if os.path.basename(game["install_dir"].rstrip("/\\")).lower() in running:
+                        continue
                 await self._repair(appid, entry, running=False)
 
     async def _check_release(self, now=None):
@@ -526,7 +533,8 @@ class Plugin:
                 seen = await asyncio.to_thread(sml_opti.running_processes, game["install_dir"])
                 if seen:
                     self.seen[appid] = seen  # for the support report
-                self.programs[appid] = await asyncio.to_thread(sml_opti.windows_programs)
+                if _ % 6 == 0:  # for the support report too; every 30 s is enough (it reads every process)
+                    self.programs[appid] = await asyncio.to_thread(sml_opti.windows_programs)
                 path, mb = sml_opti.pick_game(seen)
                 if path and mb >= sml_opti.GAME_MEMORY_MB and mb > best:
                     best = mb
