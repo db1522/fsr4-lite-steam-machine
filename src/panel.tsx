@@ -24,7 +24,7 @@ import { colors, confirmAction, infoRow, notify, PageHeader, statusPlaceholder }
 const NAME = "FSR 4.1 Lite";
 const KOFI = "https://ko-fi.com/steammachinelife";
 const OVERLAY_SIZES: Array<[string, string]> = [["small", "Small"], ["medium", "Medium"], ["large", "Large"],
-  ["xlarge", "Extra large"], ["huge", "Huge"]];
+  ["xlarge", "Extra large"], ["huge", "Huge"], ["max", "Maximum"]];
 const OVERLAY_CORNERS: Array<[string, string]> = [["topleft", "Top left"], ["topright", "Top right"],
   ["bottomleft", "Bottom left"], ["bottomright", "Bottom right"]];
 const MB = (b: number) => `${(b / 2 ** 20).toFixed(0)} MB`;

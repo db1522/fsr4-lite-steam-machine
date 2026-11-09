@@ -30,27 +30,41 @@ INI_BASE = [
 ]
 
 
-# OptiScaler's overlay, sized for a TV across the room: each size is a share of the game's output height, a step
-# larger than the Windows widget's handheld sizes. The pinned OptiScaler build draws the overlay with its menu font, so
-# FontSize sets the text size itself (sharp at any size) and FpsScale only grows it further.
-OVERLAY_SIZES = {"small": 0.022, "medium": 0.028, "large": 0.035, "xlarge": 0.045, "huge": 0.058}
+# OptiScaler's FPS overlay, sized like the Windows widget (InstallConfig.OverlaySizes / OverlayLookFor): each size is a
+# share of the game's output height, about a third bigger than the one before. Until 2.2.36 the plugin used its own
+# bigger steps (Large 3.5% of the height) and set FontSize, OptiScaler's font for its whole menu, so the overlay and the
+# Insert menu came out huge on the Steam Machine.
+OVERLAY_SIZES = {"small": 0.015, "medium": 0.020, "large": 0.026, "xlarge": 0.033, "huge": 0.041, "max": 0.050}
 OVERLAY_POSITIONS = {"topleft": "0", "topright": "1", "bottomleft": "2", "bottomright": "3"}
 DEFAULT_HEIGHT = 2160  # a 4K TV, until OptiScaler's log tells the game's real output height
+OPTI_BASE_FONT = 14.0  # OptiScaler's menu font, the overlay's when FpsOverlayFontSize isn't there
 
 
-def overlay_look(size, height):
-    """(FontSize, FpsScale) for an overlay size on a game drawing at height pixels."""
+def overlay_look(size, height, font_known=True):
+    """(FpsOverlayFontSize, FpsScale) for an overlay size on a game drawing at height pixels. Builds with
+    FpsOverlayFontSize draw the font at the text size itself (8 to 48 px, sharp) and FpsScale only grows it past 48 px;
+    older builds only have FpsScale, which multiplies the 14 px menu font."""
     share = OVERLAY_SIZES.get(size, OVERLAY_SIZES["large"])
     target = share * min(max(int(height or DEFAULT_HEIGHT), 480), 4320)
-    font = min(max(round(target), 14), 64)
-    scale = min(max(round(target / font, 2), 1.0), 3.0)
-    return str(font), f"{scale:.2f}"
+    if font_known:
+        font = min(max(round(target), 8), 48)
+        return str(font), f"{min(max(round(target / font, 2), 1.0), 3.0):.2f}"
+    return "auto", f"{min(max(round(target / OPTI_BASE_FONT, 2), 0.5), 3.0):.2f}"
 
 
-def ini_settings(watermark=False, overlay=False, overlay_size="large", overlay_pos="topleft", height=None):
+def overlay_font_known(exe_dir):
+    """Whether the game's OptiScaler build has FpsOverlayFontSize (every nightly from November 2026 does; the pinned
+    fallback may not). Read from the DLL it loads; True when that can't be told."""
+    proxy = (load_manifest(exe_dir) or {}).get("proxy")
+    path = os.path.join(exe_dir, proxy) if proxy else ""
+    return not os.path.isfile(path) or _has_mark(path, b"FpsOverlayFontSize")
+
+
+def ini_settings(watermark=False, overlay=False, overlay_size="large", overlay_pos="topleft", height=None,
+                 font_known=True):
     values = list(INI_BASE) + [("FSR", "Fsr4EnableWatermark", "true" if watermark else "false")]
     # OptiScaler's FPS overlay, "Simple" layout: FPS with the upscaler ("FSR3 -> FSR 4.1.2") and render -> output
-    font, scale = overlay_look(overlay_size, height)
+    font, scale = overlay_look(overlay_size, height, font_known)
     values += [
         ("Menu", "ShowFps", "true" if overlay else "auto"),
         ("Menu", "FpsOverlayType", "1" if overlay else "auto"),
@@ -58,7 +72,8 @@ def ini_settings(watermark=False, overlay=False, overlay_size="large", overlay_p
         ("Menu", "FpsOverlayHorizontal", "false" if overlay else "auto"),
         ("Menu", "FpsOverlayPos", OVERLAY_POSITIONS.get(overlay_pos, "0") if overlay else "auto"),
         ("Menu", "FpsScale", scale if overlay else "auto"),
-        ("Menu", "FontSize", font if overlay else "auto"),
+        ("Menu", "FpsOverlayFontSize", font if overlay else "auto"),
+        ("Menu", "FontSize", "auto"),  # OptiScaler's own menu font: 2.2.35 and older set it, which made the menu huge
     ]
     return values
 
@@ -750,7 +765,7 @@ def repair(exe_dir, package_dir, fsr4_files, settings, reframework=None, optipat
         src = sources.get(rel)
         if rel == "OptiScaler.ini":
             if not os.path.isfile(dst):
-                set_ini(dst, ini_settings(**settings) + game_values(exe_dir) +
+                set_ini(dst, ini_settings(**settings, font_known=overlay_font_known(exe_dir)) + game_values(exe_dir) +
                         (OPTIPATCHER_INI if manifest.get("optipatcher") else []))
                 put_back.append(rel)
             continue
@@ -919,7 +934,7 @@ def uninstall(exe_dir, manifest=None):
 def apply_settings(exe_dir, settings):
     ini = os.path.join(exe_dir, "OptiScaler.ini")
     if os.path.isfile(ini):
-        set_ini(ini, ini_settings(**settings) + game_values(exe_dir))
+        set_ini(ini, ini_settings(**settings, font_known=overlay_font_known(exe_dir)) + game_values(exe_dir))
 
 
 # ---- launch options ----

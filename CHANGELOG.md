@@ -2,6 +2,17 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.36] - 2026-11-09
+
+### ✨ Added
+- **Settings:** a Maximum size for the FPS overlay, like the Windows widget.
+
+### 🐛 Fixed
+- **FPS overlay:** every size came out huge. The plugin used bigger sizes than the Windows widget and set OptiScaler's
+  menu font, which also made OptiScaler's own menu huge. The overlay now uses the widget's sizes (Large is 2.6% of the
+  screen height) and OptiScaler's overlay font setting, and OptiScaler's menu is back to its normal size. Games you
+  set up before get the fix when the plugin loads.
+
 ## [2.2.35] - 2026-11-09
 
 ### 🔧 Changed

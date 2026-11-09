@@ -768,6 +768,42 @@ class Overlay(unittest.TestCase):
         off = dict(((s, k), v) for s, k, v in O.ini_settings(overlay=False))
         self.assertEqual(off[("Menu", "FontSize")], "auto")
 
+    def test_sizes_match_the_widget_and_leave_the_menu_font_alone(self):
+        # the widget's InstallConfig.OverlayLookFor: Large is 2.6% of the height, the font itself up to 48 px
+        self.assertEqual(O.overlay_look("large", 1080), ("28", "1.00"))
+        self.assertEqual(O.overlay_look("large", 2160), ("48", "1.17"))
+        self.assertEqual(O.overlay_look("small", 1080), ("16", "1.01"))
+        self.assertEqual(O.overlay_look("max", 2160), ("48", "2.25"))
+        sizes = [O.overlay_look(k, 2160) for k in ("small", "medium", "large", "xlarge", "huge", "max")]
+        px = [int(f) * float(s) for f, s in sizes]
+        self.assertEqual(px, sorted(px))
+        # a build without FpsOverlayFontSize: only FpsScale, over the 14 px menu font
+        self.assertEqual(O.overlay_look("large", 1080, font_known=False), ("auto", "2.01"))
+        on = dict(((s, k), v) for s, k, v in O.ini_settings(overlay=True, overlay_size="large", height=2160))
+        self.assertEqual((on[("Menu", "FpsOverlayFontSize")], on[("Menu", "FpsScale")]), ("48", "1.17"))
+        self.assertEqual(on[("Menu", "FontSize")], "auto", "OptiScaler's whole menu keeps its own font")
+
+    def test_a_game_set_up_before_gets_its_menu_font_back(self):
+        t = temp_dir(self)
+        game, pkg = os.path.join(t, "game"), os.path.join(t, "pkg")
+        touch(os.path.join(game, "game.exe"), b"game")
+        touch(os.path.join(pkg, "OptiScaler.dll"), b"MZ OptiScaler FpsOverlayFontSize")
+        touch(os.path.join(pkg, "OptiScaler.ini"), b"[Menu]\r\nFontSize=auto\r\nFpsScale=auto\r\n")
+        O.install(game, "game.exe", pkg, [], {"overlay": True})
+        ini = os.path.join(game, "OptiScaler.ini")
+        O.set_ini(ini, [("Menu", "FontSize", "64")])  # what 2.2.35 wrote
+        self.assertTrue(O.overlay_font_known(game))
+        O.apply_settings(game, {"overlay": True, "overlay_size": "large", "height": 1080})
+        text = read(ini)
+        self.assertIn("FontSize=auto", text)
+        self.assertIn("FpsOverlayFontSize=28", text)
+        # an older build without FpsOverlayFontSize: sized with FpsScale alone
+        touch(os.path.join(game, O.load_manifest(game)["proxy"]), b"MZ OptiScaler")
+        self.assertFalse(O.overlay_font_known(game))
+        O.apply_settings(game, {"overlay": True, "overlay_size": "large", "height": 1080})
+        self.assertIn("FpsOverlayFontSize=auto", read(ini))
+        self.assertIn("FpsScale=2.01", read(ini))
+
     def test_output_height_comes_from_the_log(self):
         self.assertEqual(O.display_height("Display Resolution: 3840x2160"), 2160)
         self.assertEqual(O.display_height("color_out extents (0,0,2560,1440)"), 1440)
