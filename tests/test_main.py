@@ -3,12 +3,12 @@
 load (the next loader name is set up), a session where Lite ran, and an uninstall that leaves the game as it was."""
 import asyncio
 import os
-import tempfile
 import time
 import unittest
 from unittest import mock
 
 import _harness  # noqa: F401
+from _tmp import temp_dir, small_fsr4  # noqa: E402
 import decky
 import main
 import sml_assets
@@ -30,7 +30,7 @@ def touch(path, data=b"x"):
 
 class Flow(unittest.TestCase):
     def setUp(self):
-        self.home = tempfile.mkdtemp()
+        self.home = temp_dir(self)
         steam = os.path.join(self.home, ".local", "share", "Steam")
         apps = os.path.join(steam, "steamapps")
         touch(os.path.join(apps, "appmanifest_42.acf"),
@@ -39,7 +39,10 @@ class Flow(unittest.TestCase):
         self.game = os.path.join(apps, "common", "Test Game")
         touch(os.path.join(self.game, "game.exe"), b"game" * 50)
         touch(os.path.join(self.game, "nvngx_dlss.dll"))
-        self.data = tempfile.mkdtemp()
+        self.data = temp_dir(self)
+        small = small_fsr4()  # placeholders for AMD's files, 64 bytes each, not 158 MB
+        small.start()
+        self.addCleanup(small.stop)
         pkg = sml_assets.package_dir(self.data)
         touch(os.path.join(pkg, "OptiScaler.dll"), b"opti")
         touch(os.path.join(pkg, "OptiScaler.ini"), b"[FSR]\r\nFsr4Model=auto\r\n")
@@ -48,7 +51,7 @@ class Flow(unittest.TestCase):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "wb") as f:
                 f.truncate(spec["size"])
-        self.settings = tempfile.mkdtemp()
+        self.settings = temp_dir(self)
         self.patches = [mock.patch.multiple(decky, DECKY_USER_HOME=self.home, DECKY_PLUGIN_SETTINGS_DIR=self.settings,
                                             DECKY_PLUGIN_RUNTIME_DIR=self.data, create=True)]
         for p in self.patches:

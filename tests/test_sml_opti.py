@@ -4,9 +4,10 @@ and reading a session from OptiScaler.log."""
 import json
 import os
 import shutil
-import tempfile
 import unittest
 
+import _harness  # noqa: F401
+from _tmp import temp_dir  # noqa: E402
 import sml_opti as O
 
 
@@ -23,7 +24,7 @@ def touch(path, data=b"x"):
 
 class Analyze(unittest.TestCase):
     def setUp(self):
-        self.root = tempfile.mkdtemp()
+        self.root = temp_dir(self)
 
     def test_unreal_puts_optiscaler_next_to_the_shipping_exe(self):
         touch(os.path.join(self.root, "Game.exe"), b"launcher")
@@ -73,7 +74,7 @@ class Analyze(unittest.TestCase):
 
 class Install(unittest.TestCase):
     def setUp(self):
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
         touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
         touch(os.path.join(self.pkg, "OptiScaler.ini"), b"[Upscalers]\r\nDx12Upscaler=auto\r\n\r\n[FSR]\r\nFsr4Model=auto\r\n")
@@ -179,13 +180,13 @@ def pe_importing(dlls, delayed=()):
 
 class ExeImports(unittest.TestCase):
     def test_imports_and_delay_loads_are_read(self):
-        d = tempfile.mkdtemp()
+        d = temp_dir(self)
         exe = os.path.join(d, "g.exe")
         touch(exe, pe_importing(["KERNEL32.dll", "WINMM.dll"], delayed=["d3d11.dll"]))
         self.assertEqual(O.exe_imports(exe), {"kernel32.dll", "winmm.dll", "d3d11.dll"})
 
     def test_anything_else_gives_nothing(self):
-        d = tempfile.mkdtemp()
+        d = temp_dir(self)
         for name, data in (("a.exe", b""), ("b.exe", b"MZ" + b"\xff" * 100), ("c.exe", b"not a program at all")):
             touch(os.path.join(d, name), data)
             self.assertEqual(O.exe_imports(os.path.join(d, name)), set())
@@ -212,7 +213,7 @@ class REFramework(unittest.TestCase):
         self.assertIn("Turn FSR 4.1 Lite off, change your settings, then turn it back on", tip)
 
     def setUp(self):
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
         touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
         self.ref = os.path.join(t, "dinput8.dll")
@@ -244,7 +245,7 @@ class REFramework(unittest.TestCase):
 
 class GameIni(unittest.TestCase):
     def setUp(self):
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
         touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
         touch(os.path.join(self.pkg, "OptiScaler.ini"),
@@ -289,7 +290,7 @@ class OptiPatcher(unittest.TestCase):
         self.assertFalse(O.needs_optipatcher("Not Listed", "n.exe"))
         self.assertIn("OptiPatcher", O.tips("DOOMEternalx64vk.exe", ["DLSS"], "DOOM Eternal"))
         # compat.json from before 2.2.25 (three columns) still reads
-        path = os.path.join(tempfile.mkdtemp(), "compat.json")
+        path = os.path.join(temp_dir(self), "compat.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"games": [["Old", "working", ["DLSS"]], ["New", "working", ["DLSS"], True]]}, f)
         self.assertFalse(O.needs_optipatcher("Old", "old.exe", path))
@@ -297,7 +298,7 @@ class OptiPatcher(unittest.TestCase):
         self.assertEqual(O.compat_text("Old", "old.exe", path), "Works with: DLSS")
 
     def setUp(self):
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
         touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
         touch(os.path.join(self.pkg, "OptiScaler.ini"), b"[Plugins]\r\nPath=auto\r\nLoadAsiPlugins=auto\r\n")
@@ -414,7 +415,7 @@ class OptiPatcherDownload(unittest.TestCase):
         from unittest import mock
         import sml_assets
         self.assertEqual(sml_assets.newest_optipatcher(OP_RELEASES)["tag"], "v0.42")
-        data = tempfile.mkdtemp()
+        data = temp_dir(self)
         with mock.patch("sml_assets._api", return_value=OP_RELEASES), \
                 mock.patch("dk_net.download", self.fake_download(b"MZ op", (
                     OP_RELEASES[2]["assets"][0]["browser_download_url"], 200, "a" * 64))):
@@ -426,7 +427,7 @@ class OptiPatcherDownload(unittest.TestCase):
         from unittest import mock
         import dk_net
         import sml_assets
-        data = tempfile.mkdtemp()
+        data = temp_dir(self)
         P = sml_assets.OPTIPATCHER
         with mock.patch("sml_assets._api", side_effect=dk_net.NetError("rate limited")), \
                 mock.patch("dk_net.download", self.fake_download(b"MZ op", (P["url"], P["size"], P["sha256"]))):
@@ -436,7 +437,7 @@ class OptiPatcherDownload(unittest.TestCase):
     def test_looked_for_once_a_day_and_a_non_dll_is_refused(self):
         from unittest import mock
         import sml_assets
-        data = tempfile.mkdtemp()
+        data = temp_dir(self)
         with mock.patch("sml_assets._api", return_value=OP_RELEASES) as api, \
                 mock.patch("dk_net.download", self.fake_download(b"MZ op", mock.ANY)):
             sml_assets.update_optipatcher(data, now=1000)
@@ -445,7 +446,7 @@ class OptiPatcherDownload(unittest.TestCase):
         with mock.patch("sml_assets._api", return_value=OP_RELEASES), \
                 mock.patch("dk_net.download", self.fake_download(b"<html>", mock.ANY)):
             with self.assertRaises(RuntimeError):
-                sml_assets.fetch_optipatcher(tempfile.mkdtemp())
+                sml_assets.fetch_optipatcher(temp_dir(self))
 
 
 REF_RELEASE = {"tag_name": "nightly-01440-abc", "assets": [
@@ -467,7 +468,7 @@ class REFrameworkDownload(unittest.TestCase):
     def test_the_newest_nightly_is_used_checked_by_githubs_sha256_and_only_dinput8_is_kept(self):
         from unittest import mock
         import sml_assets
-        data = tempfile.mkdtemp()
+        data = temp_dir(self)
         touch(os.path.join(data, "reframework-01433", "dinput8.dll"))  # the pinned build from before 2.2.17
         asset = REF_RELEASE["assets"][0]
         with mock.patch("sml_assets._api", return_value=REF_RELEASE), \
@@ -484,7 +485,7 @@ class REFrameworkDownload(unittest.TestCase):
         from unittest import mock
         import dk_net
         import sml_assets
-        data = tempfile.mkdtemp()
+        data = temp_dir(self)
         R = sml_assets.REFRAMEWORK
         with mock.patch("sml_assets._api", side_effect=dk_net.NetError("rate limited")), \
                 mock.patch("dk_net.download", self.fake_download({"dinput8.dll": b"ref"},
@@ -495,7 +496,7 @@ class REFrameworkDownload(unittest.TestCase):
     def test_a_newer_nightly_is_looked_for_once_a_day(self):
         from unittest import mock
         import sml_assets
-        data = tempfile.mkdtemp()
+        data = temp_dir(self)
         with mock.patch("sml_assets._api", return_value=REF_RELEASE) as api, \
                 mock.patch("dk_net.download", self.fake_download({"dinput8.dll": b"ref"}, mock.ANY)):
             sml_assets.update_reframework(data, now=1000)
@@ -510,14 +511,14 @@ class REFrameworkDownload(unittest.TestCase):
         with mock.patch("sml_assets._api", return_value=REF_RELEASE), \
                 mock.patch("dk_net.download", self.fake_download({"readme.txt": b"no dll"}, mock.ANY)):
             with self.assertRaises(RuntimeError):
-                sml_assets.fetch_reframework(tempfile.mkdtemp())
+                sml_assets.fetch_reframework(temp_dir(self))
 
 
 class RealExe(unittest.TestCase):
     """Phantom Blade Zero as the reports show it: Steam starts a small launcher, steam/PBZ.exe, which starts the game,
     ProjectPBZ/Binaries/Win64/PBZ.exe, next to 8za_v2.exe (the folder guess)."""
     def setUp(self):
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         self.root = os.path.join(t, "steamapps", "common", "PBZ")
         self.launcher = os.path.join(self.root, "steam", "PBZ.exe")
         self.real = os.path.join(self.root, "ProjectPBZ", "Binaries", "Win64", "PBZ.exe")
@@ -636,7 +637,7 @@ class RealExe(unittest.TestCase):
                          if os.sep == "/" else os.path.abspath(
                              "/home/deck/.local/share/Steam/steamapps/common/PBZ/ProjectPBZ/Binaries/Win64/OptiScaler"))
         exe_dir = os.path.dirname(self.real)
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         touch(os.path.join(t, "OptiScaler.dll"), b"opti")
         O.install(exe_dir, "PBZ.exe", t, [], {})
         self.assertIn("OptiDllPath=" + O.opti_dll_path(exe_dir), read(os.path.join(exe_dir, "OptiScaler.ini")))
@@ -660,7 +661,7 @@ class RealExe(unittest.TestCase):
 
     def test_fsr4_files_where_optiscaler_looks_go_at_uninstall(self):
         exe_dir = os.path.join(self.root, "ProjectPBZ", "Binaries", "Win64")
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         pkg, amd = os.path.join(t, "pkg"), os.path.join(t, "amdxcffx64.dll")
         touch(os.path.join(pkg, "OptiScaler.dll"), b"opti")
         touch(amd, b"amd")
@@ -704,7 +705,7 @@ class CompatList(unittest.TestCase):
             ["Minecraft RTX", "partial", ["DLSS"], False], ["Resident Evil 8 Village", "working", ["DLSS", "FSR2"], False]])
 
     def test_the_card_line(self):
-        path = os.path.join(tempfile.mkdtemp(), "compat.json")
+        path = os.path.join(temp_dir(self), "compat.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"games": [["Cyberpunk 2077", "working", ["DLSS", "FSR3.1/4", "XeSS"]],
                                  ["Gears of War: Reloaded", "not_working", []], ["Some Game", "mixed", ["DLSS"]],
@@ -815,7 +816,7 @@ FLOOD = ("[00:50:38.250975] [I] Amdxc64Hooks::hkAmdExtD3DCreateInterface IAmdExt
 
 class ManualInstall(unittest.TestCase):
     def setUp(self):
-        t = tempfile.mkdtemp()
+        t = temp_dir(self)
         self.game, self.backup = os.path.join(t, "game"), os.path.join(t, "backup")
         touch(os.path.join(self.game, "game.exe"), b"game")
         touch(os.path.join(self.game, "dxgi.dll"), b"MZ" + b"\0" * 5000 + b"OptiScaler v0.7" + b"\0" * 100)
@@ -858,7 +859,7 @@ class ManualInstall(unittest.TestCase):
 
 class FloodedLog(unittest.TestCase):
     def setUp(self):
-        self.dir = tempfile.mkdtemp()
+        self.dir = temp_dir(self)
         self.log = os.path.join(self.dir, "OptiScaler.log")
         O._logs.clear()
 
@@ -923,7 +924,7 @@ class SevenZip(unittest.TestCase):
     def test_a_non_executable_7zip_is_copied_somewhere_it_can_run(self):
         import stat
         import sml_assets
-        d = tempfile.mkdtemp()
+        d = temp_dir(self)
         src = os.path.join(d, "plugin", "7zz")
         touch(src, b"#!/bin/sh\n")
         os.chmod(src, 0o644)
@@ -940,7 +941,7 @@ class SevenZip(unittest.TestCase):
 
 class ExeRunning(unittest.TestCase):
     def test_a_non_steam_exe_is_seen_running_under_proton(self):
-        proc = tempfile.mkdtemp()
+        proc = temp_dir(self)
         touch(os.path.join(proc, "100", "cmdline"),
               b"Z:\\home\\deck\\Games\\God Of War\\GoW.exe\0-windowed\0")
         touch(os.path.join(proc, "101", "cmdline"), b"/usr/bin/bash\0")

@@ -5,11 +5,11 @@
 
 import json
 import os
-import tempfile
 import unittest
 from unittest import mock
 
 import _harness  # noqa: F401
+from _tmp import temp_dir  # noqa: E402
 import fsr4_games
 import fsr4_install as I
 
@@ -30,7 +30,7 @@ def _library(root, appid, name, installdir, files):
 
 class Discovery(unittest.TestCase):
     def test_finds_ffx_games_in_all_libraries(self):
-        steam, sd = tempfile.mkdtemp(), tempfile.mkdtemp()
+        steam, sd = temp_dir(self), temp_dir(self)
         _write(os.path.join(steam, "steamapps", "libraryfolders.vdf"),
                f'"libraryfolders"\n{{\n"0"\n{{\n"path" "{steam}"\n}}\n"1"\n{{\n"path" "{sd}"\n}}\n}}\n'
                .replace("\\", "\\\\").encode())
@@ -55,7 +55,7 @@ class Discovery(unittest.TestCase):
         self.assertFalse(games[1328670]["anticheat"])
 
     def test_finds_windows_games_added_to_steam(self):
-        steam, drive = tempfile.mkdtemp(), tempfile.mkdtemp()
+        steam, drive = temp_dir(self), temp_dir(self)
         _library(steam, 1817070, "Spider-Man", "SM", ["Spider-Man.exe", "amd_fidelityfx_dx12.dll"])
         for rel in ("Witcher/bin/witcher3.exe", "Witcher/bin/amd_fidelityfx_dx12.dll", "Old/old.exe",
                     "Online/Online.exe", "Online/Bin/amd_fidelityfx_loader_dx12.dll", "Online/EasyAntiCheat/eac.dll"):
@@ -82,7 +82,7 @@ class Discovery(unittest.TestCase):
 
     def test_a_launchers_shortcut_leaves_a_game_to_the_games_own_shortcut(self):
         # Ubisoft Connect keeps its games below itself: walking down from it finds them too
-        steam, drive = tempfile.mkdtemp(), tempfile.mkdtemp()
+        steam, drive = temp_dir(self), temp_dir(self)
         for rel in ("Ubisoft/UbisoftConnect.exe", "Ubisoft/games/ACS/ACShadows.exe",
                     "Ubisoft/games/ACS/amd_fidelityfx_dx12.dll"):
             _write(os.path.join(drive, rel), b"x")
@@ -164,7 +164,7 @@ class LaunchOptions(unittest.TestCase):
 
 class InstallRollback(unittest.TestCase):
     def setUp(self):
-        d = tempfile.mkdtemp()
+        d = temp_dir(self)
         self.shim, self.ffx = os.path.join(d, "shim.dll"), os.path.join(d, "ffx.dll")
         _write(self.shim, b"shim")
         _write(self.ffx, b"amd")
@@ -301,7 +301,7 @@ class ManifestSafety(unittest.TestCase):
     """The manifest is the only record of what is ours: never silently reset."""
 
     def setUp(self):
-        self.path = os.path.join(tempfile.mkdtemp(), "manifest.json")
+        self.path = os.path.join(temp_dir(self), "manifest.json")
 
     def test_a_damaged_manifest_comes_back_from_its_last_good_copy(self):
         m = I.Manifest(self.path)
@@ -345,7 +345,7 @@ class LaunchSettings(unittest.TestCase):
     """The panel's launch option switches: automatic token (default) or hands-off, and the watermark."""
 
     def setUp(self):
-        d = tempfile.mkdtemp()
+        d = temp_dir(self)
         self.shim, self.ffx = os.path.join(d, "shim.dll"), os.path.join(d, "ffx.dll")
         _write(self.shim, b"shim")
         _write(self.ffx, b"amd")

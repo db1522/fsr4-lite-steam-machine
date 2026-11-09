@@ -2,11 +2,11 @@
 """OptiScaler from its newest nightly, like the Windows widget's OptiScalerSource: which build is picked, when GitHub
 is asked, what a download has to pass before it's used, and the pinned fallback."""
 import os
-import tempfile
 import unittest
 from unittest import mock
 
 import _harness  # noqa: F401
+from _tmp import temp_dir, small_fsr4  # noqa: E402
 import dk_net
 import sml_assets as A
 
@@ -52,12 +52,12 @@ class Pick(unittest.TestCase):
 
 class Update(unittest.TestCase):
     def setUp(self):
-        self.data = tempfile.mkdtemp()
+        self.data = temp_dir(self)
 
     def fake_unpack(self, ini=b"[FSR]\nFsr4GpuSupport=auto\nFsr4Model=auto\n"):
         def unpack(data, sevenzip, spec, *a, **kw):
             # the real one downloads and unpacks; this checks what it would refuse the same way
-            out = os.path.join(tempfile.mkdtemp(), "x")
+            out = os.path.join(temp_dir(self), "x")
             touch(os.path.join(out, "OptiScaler.dll"))
             touch(os.path.join(out, "OptiScaler.ini"), ini)
             if not A.has_lite_settings(out):
@@ -98,6 +98,7 @@ class Update(unittest.TestCase):
         with open(os.path.join(A.package_dir(self.data), "OptiScaler.dll"), "rb") as f:
             self.assertEqual(f.read(), b"pinned")
 
+    @small_fsr4()
     def test_the_first_download_falls_back_to_the_pinned_build_without_githubs_api(self):
         for name, spec in A.FSR4_FILES.items():
             path = os.path.join(self.data, "fsr4", name)
@@ -112,7 +113,7 @@ class Update(unittest.TestCase):
         self.assertEqual(got[0]["sha256"], A.OPTISCALER["sha256"])
 
     def test_the_real_ini_check(self):
-        out = tempfile.mkdtemp()
+        out = temp_dir(self)
         touch(os.path.join(out, "OptiScaler.ini"), b"[FSR]\r\n; comment\r\nFsr4GpuSupport=auto\r\nFsr4Model=auto\r\n")
         self.assertTrue(A.has_lite_settings(out))
         touch(os.path.join(out, "OptiScaler.ini"), b"[FSR]\r\nFsr4GpuSupport=auto\r\n")
