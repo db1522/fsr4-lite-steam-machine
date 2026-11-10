@@ -213,7 +213,7 @@ class Plugin:
                                   "manual_optiscaler")}
         view["installed"] = bool(entry and entry.get("proxy"))
         view["broken"] = sml_opti.not_working(g["exe_name"]) or (sml_opti.BITS32 if g.get("bits32") else "")
-        blocked = view["broken"] or g["anticheat"] or g.get("hdr") == "specialk"
+        blocked = view["broken"] or g["anticheat"]
         view["tip"] = " ".join(filter(None, [
             "" if blocked else sml_opti.tested_text(g["name"], g["exe_name"]),
             sml_opti.tips(g["exe_name"], g["upscalers"], g["name"], g.get("ubisoft", False), g.get("hdr", ""))]))
@@ -632,8 +632,6 @@ class Plugin:
                 return dk_rpc.fail(sml_opti.not_working(game["exe_name"]), await self._state())
             if game.get("bits32"):
                 return dk_rpc.fail(sml_opti.BITS32, await self._state())
-            if game.get("hdr") == "specialk":
-                return dk_rpc.fail(sml_opti.SPECIALK_BLOCK, await self._state())
             if game["manual_optiscaler"]:
                 return dk_rpc.fail("OptiScaler is already in this game's folder from another install. Remove it "
                                    "first.", await self._state())

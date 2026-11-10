@@ -2,6 +2,13 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.40] - 2026-11-10
+
+### 🔧 Changed
+- **HDR:** games with Special K can get FSR 4.1 Lite again. Special K keeps its file and its settings, and FSR 4.1 Lite
+  goes in under another file name next to it. I tested it in Palworld on my Steam Machine: DLSS ran as FSR 4.1 Lite,
+  Special K's HDR stayed on and the controller worked.
+
 ## [2.2.39] - 2026-11-10
 
 ### ✨ Added

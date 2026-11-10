@@ -751,7 +751,7 @@ class Summary(unittest.TestCase):
 class HdrSharing(unittest.TestCase):
     """ReShade (RenoDX's loader, from HDR for Every Game or set up by hand) and OptiScaler both load as dxgi.dll. Like
     the widget's HdrInstaller: OptiScaler takes the name and loads ReShade64.dll itself (LoadReshade), and uninstall
-    gives ReShade its name back. Special K isn't tested with OptiScaler on SteamOS yet: blocked."""
+    gives ReShade its name back. Special K keeps its name and settings, and OptiScaler takes the next free name."""
     RESHADE = b"MZ ... Initializing crosire's ReShade version ..."
     SPECIALK = b"MZ ... Special K by Kaldaien ..."
 
@@ -844,13 +844,22 @@ class HdrSharing(unittest.TestCase):
         self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.RESHADE)
         self.assertFalse(os.path.exists(self.path("ReShade64.dll")))
 
-    def test_special_k_blocks_the_install_and_says_why(self):
+    def test_special_k_keeps_its_name_and_settings_and_optiscaler_takes_the_next(self):
+        # Palworld on the Steam Machine: Special K as dxgi.dll (its HDR in dxgi.ini), OptiScaler as winmm.dll
         touch(self.path("dxgi.dll"), self.SPECIALK)
-        with self.assertRaises(O.InstallError) as e:
-            O.install(self.game, "game.exe", self.pkg, [], {})
-        self.assertIn("Special K", str(e.exception))
+        touch(self.path("dxgi.ini"), b"[SpecialK.HDR]\r\nUse16BitSwapChain=true\r\n")
+        before = sorted(os.listdir(self.game))
+        m = O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertEqual(m["proxy"], "winmm.dll")
+        self.assertFalse(m["reshade"])
+        self.assertNotIn("reshade_from", m)
         self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.SPECIALK)
-        self.assertFalse(os.path.exists(self.path(O.META)))
+        self.assertFalse(os.path.exists(self.path(O.SPECIALK_DLL)))
+        self.assertIn("LoadSpecialK=auto", read(self.path("OptiScaler.ini")))  # loading it would lose its dxgi.ini
+        self.assertIn("LoadReshade=auto", read(self.path("OptiScaler.ini")))
+        O.uninstall(self.game)
+        self.assertEqual(sorted(os.listdir(self.game)), before)
+        self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.SPECIALK)
 
     def test_repair_keeps_loading_reshade(self):
         touch(self.path("dxgi.dll"), self.RESHADE)

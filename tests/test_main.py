@@ -132,7 +132,7 @@ class Flow(unittest.TestCase):
         self.assertIn("only runs in 64-bit games", r["error"])
         self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
 
-    def test_reshade_for_hdr_is_shared_and_special_k_is_blocked(self):
+    def test_reshade_for_hdr_is_shared_and_special_k_keeps_its_place(self):
         def data(name):
             with open(os.path.join(self.game, name), "rb") as f:
                 return f.read()
@@ -150,9 +150,11 @@ class Flow(unittest.TestCase):
         touch(os.path.join(self.game, "dxgi.dll"), b"MZ Special K by Kaldaien")
         self.run_(self.p.scan_games())
         self.assertIn("Special K is in this game", self.run_(self.p.get_state())["state"]["games"][0]["tip"])
-        r = self.run_(self.p.enable_game(42, ""))
-        self.assertFalse(r["ok"])
-        self.assertIn("Special K", r["error"])
+        r = self.run_(self.p.enable_game(42, 'WINEDLLOVERRIDES="dxgi=n,b" DXVK_HDR=1 %command%'))
+        self.assertTrue(r["ok"], r)
+        self.assertIn("winmm=n,b", r["launch_options"])
+        self.assertIn("dxgi=n,b", r["launch_options"])
+        self.assertEqual(data("dxgi.dll"), b"MZ Special K by Kaldaien")
 
     def quick_session(self, log, length=10):
         """A session of `length` seconds whose OptiScaler.log is `log`."""

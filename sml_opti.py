@@ -208,15 +208,18 @@ OPTIPATCHER_EXTRA_TIP = ("The plugin also adds OptiPatcher, so the game offers D
 # HDR mods in the same game (HDR for Every Game, or set up by hand). ReShade (RenoDX's loader) and OptiScaler both load
 # as dxgi.dll. Like the widget's HDR installer (LoadReshade): OptiScaler takes the name and loads ReShade itself, renamed
 # ReShade64.dll beside it, and uninstall gives ReShade its name back. Seen working on the Steam Machine 2026-11-10 in
-# Cyberpunk 2077 (Lite ran, RenoDX hooked DX12). Special K with OptiScaler (LoadSpecialK) isn't tested on SteamOS yet,
-# so a game with Special K is blocked. Told apart by text inside the DLL that OptiScaler's own DLL doesn't have.
+# Cyberpunk 2077 (Lite ran, RenoDX hooked DX12). Special K stays where it is and OptiScaler takes the next loader name:
+# loaded by OptiScaler (LoadSpecialK, renamed SpecialK64.dll) it would switch to its injected mode and read a central
+# profile instead of the game's dxgi.ini, losing its HDR and controller settings. Seen working on the Steam Machine
+# 2026-11-10 in Palworld: Special K as dxgi.dll with its HDR on, OptiScaler as winmm.dll, DLSS ran Lite, controller fine.
+# Told apart by text inside the DLL that OptiScaler's own DLL doesn't have.
 RESHADE_DLL, SPECIALK_DLL = "ReShade64.dll", "SpecialK64.dll"
 RESHADE_MARK, SPECIALK_MARK = b"crosire's ReShade", b"Kaldaien"
 RESHADE_INI = [("Plugins", "LoadReshade", "true")]
 RESHADE_TIP = ("ReShade is in this game for HDR. FSR 4.1 Lite loads it, so HDR and Lite both keep working, and "
                "uninstalling Lite gives ReShade back its place.")
-SPECIALK_BLOCK = ("Special K is in this game for HDR. FSR 4.1 Lite and Special K aren't tested together on SteamOS "
-                  "yet, so installs are blocked here. Remove Special K to use FSR 4.1 Lite.")
+SPECIALK_TIP = ("Special K is in this game for HDR. FSR 4.1 Lite goes in under another file name next to it, so HDR "
+                "and Lite both keep working.")
 NO_UPSCALER_TIP = ("No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells "
                    "OptiScaler to search for it (the game loads a little slower). Install, restart the game and turn on "
                    "FSR in its settings. FSR 1 can't be upgraded.")
@@ -624,7 +627,7 @@ def tips(exe_name, upscalers, game_name="", ubisoft=False, hdr=""):
     same game (hdr: "reshade" or "specialk", from hdr_tool)."""
     parts = []
     if hdr == "specialk":
-        parts.append(SPECIALK_BLOCK)
+        parts.append(SPECIALK_TIP)
     elif hdr == "reshade":
         parts.append(RESHADE_TIP)
     if not upscalers:
@@ -781,12 +784,11 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
     Returns the manifest: created files, backed-up files, proxy name, "reframework" true when it was added, and the
     OptiScaler and REFramework builds it copied (opti_build, ref_build: update_opti brings them up to date).
     ReShade already in the game (hdr_tool) is shared: renamed ReShade64.dll, OptiScaler takes its loader name and loads
-    it ("reshade_from" in the manifest, put back at uninstall). Special K blocks the install (SPECIALK_BLOCK).
-    Rolls back on failure."""
+    it ("reshade_from" in the manifest, put back at uninstall). Special K keeps its name and OptiScaler takes the next
+    free one (pick_proxy skips names that are taken). Rolls back on failure."""
     tool = hdr_tool(exe_dir)
-    if tool and tool[0] == "specialk":
-        raise InstallError(SPECIALK_BLOCK)
-    reshade_from = tool[1] if tool and tool[1].lower() != RESHADE_DLL.lower() else None
+    reshade = bool(tool and tool[0] == "reshade")
+    reshade_from = tool[1] if reshade and tool[1].lower() != RESHADE_DLL.lower() else None
     if reshade_from and os.path.lexists(os.path.join(exe_dir, RESHADE_DLL)):
         raise InstallError(f"ReShade is in this game twice ({reshade_from} and {RESHADE_DLL}). Keep one and try again.")
     if not proxy and reshade_from and reshade_from.lower() in PROXY_NAMES \
@@ -797,7 +799,7 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
         raise InstallError("Every name OptiScaler can load under is already taken in this game's folder.")
     meta = os.path.join(exe_dir, META)
     manifest = {"proxy": proxy, "created": [], "backups": [], "exe_name": exe_name, "opti_build": build,
-                "reshade": bool(tool)}
+                "reshade": reshade}
     plan = []
     for dirpath, _dirs, files in os.walk(package_dir):
         for f in files:
