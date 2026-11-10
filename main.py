@@ -212,8 +212,11 @@ class Plugin:
         view = {k: g[k] for k in ("appid", "name", "exe_name", "upscalers", "anticheat", "nonsteam",
                                   "manual_optiscaler")}
         view["installed"] = bool(entry and entry.get("proxy"))
-        view["tip"] = sml_opti.tips(g["exe_name"], g["upscalers"], g["name"], g.get("ubisoft", False))
         view["broken"] = sml_opti.not_working(g["exe_name"]) or (sml_opti.BITS32 if g.get("bits32") else "")
+        blocked = view["broken"] or g["anticheat"] or g.get("hdr") == "specialk"
+        view["tip"] = " ".join(filter(None, [
+            "" if blocked else sml_opti.tested_text(g["name"], g["exe_name"]),
+            sml_opti.tips(g["exe_name"], g["upscalers"], g["name"], g.get("ubisoft", False), g.get("hdr", ""))]))
         view["compat"] = sml_opti.compat_text(g["name"], g["exe_name"])
         view["verdict"], view["detail"] = ("", "")
         view["turned_off"] = (entry or {}).get("turned_off", "")
@@ -629,6 +632,8 @@ class Plugin:
                 return dk_rpc.fail(sml_opti.not_working(game["exe_name"]), await self._state())
             if game.get("bits32"):
                 return dk_rpc.fail(sml_opti.BITS32, await self._state())
+            if game.get("hdr") == "specialk":
+                return dk_rpc.fail(sml_opti.SPECIALK_BLOCK, await self._state())
             if game["manual_optiscaler"]:
                 return dk_rpc.fail("OptiScaler is already in this game's folder from another install. Remove it "
                                    "first.", await self._state())
@@ -1035,12 +1040,16 @@ class Plugin:
                 ini = [l for l in f.read().splitlines() if l and not l.startswith(";")]
         except OSError:
             ini = []
+        hdr = sml_opti.hdr_tool(exe_dir) if exe_dir else None
+        shared = (sml_opti.load_manifest(exe_dir) or {}).get("reshade_from") if exe_dir else None
         text = "\n".join([
             f"FSR 4.1 Lite {VERSION} support report",
             f"OptiScaler: {d['opti_current']} (this game: {d['opti_build'] or 'set up before nightly updates'})",
             f"Game: {d['name']} ({appid})", f"Exe: {d['exe_dir']}/{d['exe_name']}", f"Loader: {d['proxy']}",
             f"Proton: {d['proton']}", f"Upscalers found: {', '.join(d['upscalers']) or 'none'}",
             f"Files in place: {d['files_ok']} {d['missing']}", f"Last verdict: {d['verdict']} {d['detail']}",
+            f"HDR mod: {(hdr[0] + ' as ' + hdr[1]) if hdr else 'none'}"
+            + (f" (moved from {shared}, OptiScaler loads it)" if shared else ""),
             "", "== OptiScaler.ini (set values) ==", *ini, "",
             f"== OptiScaler.log (start and end{'; ' + note if note else ''}) ==",
             *(self._log_ends(log) or ["(no log: OptiScaler hasn't run in this game yet)"]),

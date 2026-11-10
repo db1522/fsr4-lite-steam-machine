@@ -2,6 +2,20 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.39] - 2026-11-10
+
+### ✨ Added
+- **HDR:** FSR 4.1 Lite now shares a game with ReShade, the loader RenoDX's HDR mods use. Both want to load as
+  dxgi.dll, so FSR 4.1 Lite takes that name and loads ReShade itself, the same way my Windows widget does. Uninstall
+  FSR 4.1 Lite and ReShade gets its name back, so your HDR keeps working. I tested it in Cyberpunk 2077: Lite and
+  RenoDX both ran, at normal FPS.
+- **Game cards:** the 25 games I tested on my Steam Machine say so on their card, with the upscaler I picked in the
+  game.
+
+### 🔧 Changed
+- **HDR:** a game with Special K can't get FSR 4.1 Lite for now, and its card says why. The two aren't tested together
+  on SteamOS yet. Remove Special K to install FSR 4.1 Lite.
+
 ## [2.2.38] - 2026-11-09
 
 ### ✨ Added

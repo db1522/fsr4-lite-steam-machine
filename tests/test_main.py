@@ -132,6 +132,28 @@ class Flow(unittest.TestCase):
         self.assertIn("only runs in 64-bit games", r["error"])
         self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
 
+    def test_reshade_for_hdr_is_shared_and_special_k_is_blocked(self):
+        def data(name):
+            with open(os.path.join(self.game, name), "rb") as f:
+                return f.read()
+        reshade = b"MZ Initializing crosire's ReShade"
+        touch(os.path.join(self.game, "dxgi.dll"), reshade)
+        self.run_(self.p.scan_games())
+        self.assertIn("ReShade is in this game", self.run_(self.p.get_state())["state"]["games"][0]["tip"])
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dxgi=n,b %command%")
+        self.assertEqual(data("ReShade64.dll"), reshade)
+        self.run_(self.p.disable_game(42, r["launch_options"]))
+        self.assertEqual(data("dxgi.dll"), reshade)
+
+        touch(os.path.join(self.game, "dxgi.dll"), b"MZ Special K by Kaldaien")
+        self.run_(self.p.scan_games())
+        self.assertIn("Special K is in this game", self.run_(self.p.get_state())["state"]["games"][0]["tip"])
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertFalse(r["ok"])
+        self.assertIn("Special K", r["error"])
+
     def quick_session(self, log, length=10):
         """A session of `length` seconds whose OptiScaler.log is `log`."""
         self.run_(self.p.session_started(42))

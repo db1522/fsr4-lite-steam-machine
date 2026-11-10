@@ -205,11 +205,24 @@ OPTIPATCHER_INI = [("Plugins", "LoadAsiPlugins", "true")]
 OPTIPATCHER_TIP = "On AMD this game only offers DLSS with OptiPatcher, so the plugin adds it. Pick DLSS in the game."
 OPTIPATCHER_EXTRA_TIP = ("The plugin also adds OptiPatcher, so the game offers DLSS on AMD. You don't need it: {pick} "
                          "runs FSR 4.1 Lite too.")
+# HDR mods in the same game (HDR for Every Game, or set up by hand). ReShade (RenoDX's loader) and OptiScaler both load
+# as dxgi.dll. Like the widget's HDR installer (LoadReshade): OptiScaler takes the name and loads ReShade itself, renamed
+# ReShade64.dll beside it, and uninstall gives ReShade its name back. Seen working on the Steam Machine 2026-11-10 in
+# Cyberpunk 2077 (Lite ran, RenoDX hooked DX12). Special K with OptiScaler (LoadSpecialK) isn't tested on SteamOS yet,
+# so a game with Special K is blocked. Told apart by text inside the DLL that OptiScaler's own DLL doesn't have.
+RESHADE_DLL, SPECIALK_DLL = "ReShade64.dll", "SpecialK64.dll"
+RESHADE_MARK, SPECIALK_MARK = b"crosire's ReShade", b"Kaldaien"
+RESHADE_INI = [("Plugins", "LoadReshade", "true")]
+RESHADE_TIP = ("ReShade is in this game for HDR. FSR 4.1 Lite loads it, so HDR and Lite both keep working, and "
+               "uninstalling Lite gives ReShade back its place.")
+SPECIALK_BLOCK = ("Special K is in this game for HDR. FSR 4.1 Lite and Special K aren't tested together on SteamOS "
+                  "yet, so installs are blocked here. Remove Special K to use FSR 4.1 Lite.")
 NO_UPSCALER_TIP = ("No upscaler files found. Many games build FSR 2 or 3 into the game itself, so the plugin tells "
                    "OptiScaler to search for it (the game loads a little slower). Install, restart the game and turn on "
                    "FSR in its settings. FSR 1 can't be upgraded.")
 # Names OptiScaler can load under, in order of preference (OptiScaler's own setup script order)
 PROXY_NAMES = ("dxgi.dll", "winmm.dll", "version.dll", "dbghelp.dll", "d3d12.dll", "wininet.dll", "winhttp.dll")
+HDR_LOADER_NAMES = PROXY_NAMES + ("d3d11.dll", "dinput8.dll")  # where ReShade or Special K can sit
 SKIP_PACKAGE_FILES = {"setup_windows.bat", "setup_linux.sh", "remove optiscaler.bat", "remove_optiscaler.bat",
                       "streamlined_fetcher_windows.bat"}
 SUBFOLDER = "OptiScaler"  # v10 reads the FSR 4 files from here, next to the exe
@@ -354,6 +367,7 @@ def analyze(install_dir, exe_path=None):
         "ubisoft": ubisoft_connect(exe_dir),
         "bits32": is_32bit(os.path.join(exe_dir, exe_name)),
         "host": host[2] if host else "",
+        "hdr": (hdr_tool(exe_dir) or ("",))[0],
     }
 
 
@@ -414,6 +428,26 @@ def manual_files(exe_dir):
     if n and _has_mark(os.path.join(exe_dir, n), b"fakenvapi"):
         found.append(n)
     return found
+
+
+def hdr_tool(exe_dir):
+    """("reshade" or "specialk", file name) for an HDR mod in exe_dir: ReShade or Special K under a loader name, or
+    already named ReShade64.dll / SpecialK64.dll. None when there's neither. Our own OptiScaler DLL isn't read."""
+    ours = ((load_manifest(exe_dir) or {}).get("proxy") or "").lower()
+    try:
+        by_lower = {n.lower(): n for n in os.listdir(exe_dir)}
+    except OSError:
+        return None
+    for want in HDR_LOADER_NAMES + (RESHADE_DLL.lower(), SPECIALK_DLL.lower()):
+        n = by_lower.get(want)
+        if not n or n.lower() == ours or not os.path.isfile(os.path.join(exe_dir, n)):
+            continue
+        path = os.path.join(exe_dir, n)
+        if _has_mark(path, SPECIALK_MARK):
+            return ("specialk", n)
+        if _has_mark(path, RESHADE_MARK):
+            return ("reshade", n)
+    return None
 
 
 def remove_manual(exe_dir, backup_dir):
@@ -534,6 +568,32 @@ def compat_text(game_name, exe_name, path=COMPAT_PATH):
     return "Works with: " + ", ".join(inputs) if inputs else ""
 
 
+# Games Steam Machine Life saw run FSR 4.1.2 Lite on a Steam Machine (its OptiScaler log, 2026-11-07 to 11-10; the
+# README's "Tested on my Steam Machine"), with the upscaler picked in the game ("" = not noted).
+# Store names; find_name matches them like the Compatibility List (editions, trademark signs, numbers).
+TESTED = {
+    "007 First Light": "FSR", "Assassin's Creed Black Flag Resynced": "FSR", "Assassin's Creed Mirage": "FSR or XeSS",
+    "Black Myth: Wukong": "FSR 4", "Borderlands 4": "FSR", "Control": "DLSS",
+    "Crimson Desert": "AMD FSR Upscaling 4.1", "Cyberpunk 2077": "FSR 4", "Dying Light: The Beast": "FSR",
+    "God of War": "DLSS", "Grand Theft Auto IV: The Complete Edition": "DLSS-IV's DLSS or FSR",
+    "Kingdom Come: Deliverance II": "FSR", "Monster Hunter Wilds": "FSR", "Palworld": "DLSS",
+    "Palworld / パルワールド": "DLSS", "PAYDAY 3": "FSR", "Phantom Blade Zero": "FSR",
+    "Ratchet & Clank: Rift Apart": "FSR", "Red Dead Redemption 2": "FSR 2.0 on DirectX 12",
+    "Resident Evil Requiem": "FSR", "STAR WARS Jedi: Survivor": "DLSS", "StupidNeverDies": "DLSS",
+    "The Witcher 3: Wild Hunt": "FSR", "UNCHARTED: Legacy of Thieves Collection": "FSR 2", "VOID/BREAKER": "FSR",
+}
+
+
+def tested_text(game_name, exe_name=None):
+    """The card's "Tested by Steam Machine Life" line, or "" for a game not tested on a Steam Machine yet."""
+    name = find_name(tuple(TESTED), game_name, exe_name)
+    if name is None:
+        return ""
+    pick = TESTED[name]
+    return "Tested by Steam Machine Life: FSR 4.1 Lite ran on a Steam Machine" + (
+        f" with {pick} picked in the game." if pick else ".")
+
+
 def needs_optipatcher(game_name, exe_name, path=COMPAT_PATH):
     """The Compatibility List marks this game as OptiPatcher-supported (the widget's CompatEntry.OptiPatcher)."""
     table, names = _compat(path)
@@ -559,9 +619,14 @@ def ubisoft_connect(exe_dir):
         return False
 
 
-def tips(exe_name, upscalers, game_name="", ubisoft=False):
-    """The widget's game card lines: no upscaler files, REFramework, and the game's own rule."""
+def tips(exe_name, upscalers, game_name="", ubisoft=False, hdr=""):
+    """The widget's game card lines: no upscaler files, REFramework, and the game's own rule, plus an HDR mod in the
+    same game (hdr: "reshade" or "specialk", from hdr_tool)."""
     parts = []
+    if hdr == "specialk":
+        parts.append(SPECIALK_BLOCK)
+    elif hdr == "reshade":
+        parts.append(RESHADE_TIP)
     if not upscalers:
         parts.append(NO_UPSCALER_TIP)
     # DLSS/XeSS-only games: the panel's own line says "pick DLSS, not its own FSR" (pickText in panel.tsx)
@@ -715,12 +780,24 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
     path is given (the widget's AddREFramework; a dinput8.dll the game already has is left alone).
     Returns the manifest: created files, backed-up files, proxy name, "reframework" true when it was added, and the
     OptiScaler and REFramework builds it copied (opti_build, ref_build: update_opti brings them up to date).
+    ReShade already in the game (hdr_tool) is shared: renamed ReShade64.dll, OptiScaler takes its loader name and loads
+    it ("reshade_from" in the manifest, put back at uninstall). Special K blocks the install (SPECIALK_BLOCK).
     Rolls back on failure."""
+    tool = hdr_tool(exe_dir)
+    if tool and tool[0] == "specialk":
+        raise InstallError(SPECIALK_BLOCK)
+    reshade_from = tool[1] if tool and tool[1].lower() != RESHADE_DLL.lower() else None
+    if reshade_from and os.path.lexists(os.path.join(exe_dir, RESHADE_DLL)):
+        raise InstallError(f"ReShade is in this game twice ({reshade_from} and {RESHADE_DLL}). Keep one and try again.")
+    if not proxy and reshade_from and reshade_from.lower() in PROXY_NAMES \
+            and not LOADER_RULES.get((exe_name or "").lower()):
+        proxy = reshade_from.lower()  # the name the launch options already load
     proxy = proxy or pick_proxy(exe_dir, exe_name, remembered=remembered)
     if not proxy:
         raise InstallError("Every name OptiScaler can load under is already taken in this game's folder.")
     meta = os.path.join(exe_dir, META)
-    manifest = {"proxy": proxy, "created": [], "backups": [], "exe_name": exe_name, "opti_build": build}
+    manifest = {"proxy": proxy, "created": [], "backups": [], "exe_name": exe_name, "opti_build": build,
+                "reshade": bool(tool)}
     plan = []
     for dirpath, _dirs, files in os.walk(package_dir):
         for f in files:
@@ -738,6 +815,10 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
         manifest["reframework_preexisting"] = reframework_artifacts(exe_dir)
     try:
         os.makedirs(meta, exist_ok=True)
+        if reshade_from:
+            manifest["reshade_from"] = reshade_from
+            _save(meta, manifest)  # recorded first, so a rollback gives ReShade its name back
+            os.replace(os.path.join(exe_dir, reshade_from), os.path.join(exe_dir, RESHADE_DLL))
         for src, rel in plan:
             dst = os.path.join(exe_dir, rel)
             if os.path.lexists(dst):
@@ -753,7 +834,8 @@ def install(exe_dir, exe_name, package_dir, fsr4_files, settings, proxy=None, up
         if "OptiScaler.ini" not in manifest["created"]:
             manifest["created"].append("OptiScaler.ini")
         set_ini(ini, ini_settings(**settings) + game_values(exe_dir, exe_name) + (
-            game_inputs(exe_dir, exe_name, upscalers) if upscalers is not None else []))
+            game_inputs(exe_dir, exe_name, upscalers) if upscalers is not None else []) + (
+            RESHADE_INI if manifest["reshade"] else []))
         if manifest.get("reframework") and REFRAMEWORK_CONFIG not in manifest["reframework_preexisting"]:
             # REFramework opens its menu on every launch; with RememberMenuState it starts closed (Insert opens it)
             _set_lines(os.path.join(exe_dir, REFRAMEWORK_CONFIG), {"REFrameworkConfig_RememberMenuState": "true",
@@ -833,7 +915,8 @@ def repair(exe_dir, package_dir, fsr4_files, settings, reframework=None, optipat
         if rel == "OptiScaler.ini":
             if not os.path.isfile(dst):
                 set_ini(dst, ini_settings(**settings, font_known=overlay_font_known(exe_dir)) + game_values(exe_dir) +
-                        (OPTIPATCHER_INI if manifest.get("optipatcher") else []))
+                        (OPTIPATCHER_INI if manifest.get("optipatcher") else []) +
+                        (RESHADE_INI if manifest.get("reshade") else []))
                 put_back.append(rel)
             continue
         if not src or not os.path.isfile(src):
@@ -983,6 +1066,13 @@ def uninstall(exe_dir, manifest=None):
             if os.path.lexists(src) and not os.path.lexists(dst):
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.move(src, dst)
+        except OSError:
+            pass
+    if manifest.get("reshade_from"):  # ReShade gets its loader name back, now that OptiScaler's DLL is gone
+        shared, own = os.path.join(exe_dir, RESHADE_DLL), os.path.join(exe_dir, manifest["reshade_from"])
+        try:
+            if os.path.isfile(shared) and not os.path.lexists(own):
+                os.replace(shared, own)
         except OSError:
             pass
     # empty folders the package created (the OptiScaler subfolder tree), deepest first

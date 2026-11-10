@@ -748,6 +748,142 @@ class Summary(unittest.TestCase):
         self.assertEqual(O.summary(""), "FSR 4.1.2 Lite")
 
 
+class HdrSharing(unittest.TestCase):
+    """ReShade (RenoDX's loader, from HDR for Every Game or set up by hand) and OptiScaler both load as dxgi.dll. Like
+    the widget's HdrInstaller: OptiScaler takes the name and loads ReShade64.dll itself (LoadReshade), and uninstall
+    gives ReShade its name back. Special K isn't tested with OptiScaler on SteamOS yet: blocked."""
+    RESHADE = b"MZ ... Initializing crosire's ReShade version ..."
+    SPECIALK = b"MZ ... Special K by Kaldaien ..."
+
+    def setUp(self):
+        t = temp_dir(self)
+        self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
+        touch(os.path.join(self.pkg, "OptiScaler.dll"), b"MZ OptiScaler build with SpecialK and ReShade options")
+        touch(os.path.join(self.pkg, "OptiScaler.ini"), b"[Plugins]\r\nLoadReshade=auto\r\nLoadSpecialK=auto\r\n")
+        touch(os.path.join(self.game, "game.exe"), b"game")
+        touch(os.path.join(self.game, "renodx-game.addon64"), b"renodx")
+        touch(os.path.join(self.game, "ReShade.ini"), b"[GENERAL]\r\n")
+
+    def path(self, *rel):
+        return os.path.join(self.game, *rel)
+
+    def test_reshade_is_found_and_optiscaler_is_not_taken_for_it(self):
+        self.assertIsNone(O.hdr_tool(self.game))
+        touch(self.path("dxgi.dll"), b"MZ a manual OptiScaler, SpecialK and ReShade menus")
+        self.assertIsNone(O.hdr_tool(self.game))
+        touch(self.path("dxgi.dll"), self.RESHADE)
+        self.assertEqual(O.hdr_tool(self.game), ("reshade", "dxgi.dll"))
+        self.assertEqual(O.analyze(self.game)["hdr"], "reshade")
+        touch(self.path("dxgi.dll"), self.SPECIALK)
+        self.assertEqual(O.hdr_tool(self.game), ("specialk", "dxgi.dll"))
+        self.assertEqual(O.analyze(self.game)["hdr"], "specialk")
+
+    def test_optiscaler_takes_reshades_name_loads_it_and_uninstall_gives_it_back(self):
+        touch(self.path("dxgi.dll"), self.RESHADE)
+        before = sorted(os.listdir(self.game))
+        m = O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertEqual(m["proxy"], "dxgi.dll")  # the name the launch options already load
+        self.assertEqual(m["reshade_from"], "dxgi.dll")
+        self.assertNotIn("dxgi.dll", m["backups"])  # moved aside for OptiScaler, not hidden in a backup
+        self.assertEqual(read(self.path("ReShade64.dll"), "rb"), self.RESHADE)
+        self.assertTrue(read(self.path("dxgi.dll"), "rb").startswith(b"MZ OptiScaler"))
+        self.assertIn("LoadReshade=true", read(self.path("OptiScaler.ini")))
+        self.assertEqual(O.hdr_tool(self.game), ("reshade", "ReShade64.dll"))  # our own dxgi.dll isn't read
+        O.uninstall(self.game)
+        self.assertEqual(sorted(os.listdir(self.game)), before)
+        self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.RESHADE)
+
+    def test_reshade_under_d3d11_is_shared_while_optiscaler_takes_dxgi(self):
+        touch(self.path("d3d11.dll"), self.RESHADE)
+        m = O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertEqual((m["proxy"], m["reshade_from"]), ("dxgi.dll", "d3d11.dll"))
+        self.assertFalse(os.path.exists(self.path("d3d11.dll")))
+        O.uninstall(self.game)
+        self.assertEqual(read(self.path("d3d11.dll"), "rb"), self.RESHADE)
+        self.assertFalse(os.path.exists(self.path("ReShade64.dll")))
+
+    def test_a_retry_under_another_name_still_shares(self):
+        # main.py tries the next loader name when OptiScaler didn't load: uninstall, then install with that name
+        touch(self.path("dxgi.dll"), self.RESHADE)
+        O.install(self.game, "game.exe", self.pkg, [], {})
+        O.uninstall(self.game)
+        m = O.install(self.game, "game.exe", self.pkg, [], {}, "winmm.dll")
+        self.assertEqual((m["proxy"], m["reshade_from"]), ("winmm.dll", "dxgi.dll"))
+        self.assertIn("LoadReshade=true", read(self.path("OptiScaler.ini")))
+        O.uninstall(self.game)
+        self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.RESHADE)
+
+    def test_a_game_rule_keeps_its_loader_name(self):
+        os.rename(self.path("game.exe"), self.path("RDR2.exe"))
+        touch(self.path("dxgi.dll"), self.RESHADE)
+        m = O.install(self.game, "RDR2.exe", self.pkg, [], {})
+        self.assertEqual((m["proxy"], m["reshade_from"]), ("winmm.dll", "dxgi.dll"))
+
+    def test_reshade64_already_there_is_loaded_and_left_alone(self):
+        touch(self.path("ReShade64.dll"), self.RESHADE)  # set up for OptiScaler by hand
+        m = O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertNotIn("reshade_from", m)
+        self.assertIn("LoadReshade=true", read(self.path("OptiScaler.ini")))
+        O.uninstall(self.game)
+        self.assertEqual(read(self.path("ReShade64.dll"), "rb"), self.RESHADE)
+
+    def test_reshade_twice_is_refused_untouched(self):
+        touch(self.path("dxgi.dll"), self.RESHADE)
+        touch(self.path("ReShade64.dll"), self.RESHADE + b" older")
+        with self.assertRaises(O.InstallError):
+            O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.RESHADE)
+        self.assertFalse(os.path.exists(self.path(O.META)))
+
+    def test_a_failed_install_gives_reshade_its_name_back(self):
+        touch(self.path("dxgi.dll"), self.RESHADE)
+        touch(os.path.join(self.pkg, "OptiScaler", "sdk.dll"), b"sdk")
+        touch(self.path("OptiScaler"), b"a file where OptiScaler needs its folder")  # the copy fails
+        with self.assertRaises(O.InstallError):
+            O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.RESHADE)
+        self.assertFalse(os.path.exists(self.path("ReShade64.dll")))
+
+    def test_special_k_blocks_the_install_and_says_why(self):
+        touch(self.path("dxgi.dll"), self.SPECIALK)
+        with self.assertRaises(O.InstallError) as e:
+            O.install(self.game, "game.exe", self.pkg, [], {})
+        self.assertIn("Special K", str(e.exception))
+        self.assertEqual(read(self.path("dxgi.dll"), "rb"), self.SPECIALK)
+        self.assertFalse(os.path.exists(self.path(O.META)))
+
+    def test_repair_keeps_loading_reshade(self):
+        touch(self.path("dxgi.dll"), self.RESHADE)
+        O.install(self.game, "game.exe", self.pkg, [], {})
+        os.remove(self.path("OptiScaler.ini"))
+        O.repair(self.game, self.pkg, [], {})
+        self.assertIn("LoadReshade=true", read(self.path("OptiScaler.ini")))
+
+    def test_the_card_says_so(self):
+        self.assertIn("ReShade is in this game", O.tips("game.exe", ["FSR 3.1"], hdr="reshade"))
+        self.assertIn("Special K is in this game", O.tips("game.exe", ["FSR 3.1"], hdr="specialk"))
+        self.assertNotIn("ReShade", O.tips("game.exe", ["FSR 3.1"]))
+
+
+class Tested(unittest.TestCase):
+    """The card's "Tested by Steam Machine Life" line, matched on Steam's store names."""
+
+    def test_store_names_match_with_the_upscaler_that_was_picked(self):
+        self.assertIn("with DLSS picked", O.tested_text("Palworld / パルワールド", "Palworld-Win64-Shipping.exe"))
+        self.assertIn("with DLSS picked", O.tested_text("Control Ultimate Edition", "Control_DX12.exe"))
+        self.assertIn("with FSR 2 picked", O.tested_text("UNCHARTED™: Legacy of Thieves Collection", "u4.exe"))
+        self.assertIn("with DLSS picked", O.tested_text("STAR WARS Jedi: Survivor™", "JediSurvivor.exe"))
+        self.assertIn("DLSS-IV", O.tested_text("Grand Theft Auto IV: The Complete Edition", "dlssiv-helper.exe"))
+        self.assertIn("with FSR picked", O.tested_text("Monster Hunter Wilds", "MonsterHunterWilds.exe"))
+        self.assertTrue(all(TESTED_PICK for TESTED_PICK in O.TESTED.values()), "every tested game names its pick")
+
+    def test_other_games_and_their_sequels_get_nothing(self):
+        for name, exe in (("God of War Ragnarök", "GoWR.exe"), ("Control 2", "Control2.exe"),
+                          ("Red Dead Redemption", "RDR.exe"), ("Dying Light", "DyingLightGame.exe"),
+                          ("Some Other Game", "game.exe")):
+            self.assertEqual(O.tested_text(name, exe), "", name)
+
+
 class Tips(unittest.TestCase):
     def test_the_widgets_card_lines(self):
         self.assertIn("No upscaler files found", O.tips("game.exe", []))
