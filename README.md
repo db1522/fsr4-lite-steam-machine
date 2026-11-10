@@ -43,29 +43,61 @@ XeSS works the same way: pick XeSS in a game that offers it and Lite runs instea
 |---|---|---|---|
 | Palworld | DLSS only | DLSS | FSR 4.1.2 Lite |
 | Control | DLSS only | DLSS | FSR 4.1.2 Lite |
+| StupidNeverDies | DLSS, Unreal's TSR | DLSS | FSR 4.1.2 Lite |
+| STAR WARS Jedi: Survivor | DLSS, an FSR 2 built into the game | DLSS (its FSR 2 can't be taken over) | FSR 4.1.2 Lite |
 | God of War | DLSS, its own FSR 2 | DLSS | FSR 4.1.2 Lite |
+| Uncharted: Legacy of Thieves Collection | FSR 2, DLSS | FSR 2 | FSR 4.1.2 Lite |
 | Red Dead Redemption 2 | FSR 2.0, DLSS | FSR 2.0, with Graphics API set to DirectX 12 | FSR 4.1.2 Lite |
+| Black Myth: Wukong | FSR 4, DLSS, XeSS | FSR 4 | FSR 4.1.2 Lite instead of full FSR 4 |
+
+Some DLSS-only games, like Palworld and Jedi Survivor, hide DLSS on AMD even with OptiScaler. For those the plugin
+also adds [OptiPatcher](https://github.com/optiscaler/OptiPatcher), and the card tells you to pick DLSS. In a game that
+ships FSR too, you don't need DLSS at all: FSR runs Lite as well, and the card says so.
 
 In Red Dead Redemption 2 it's a trade. With the same settings at 4K, its built-in benchmark averaged 61.0 FPS on the game's own FSR 2.0 and 52.5 FPS on FSR 4.1.2 Lite, with the lows the same at about 30 FPS. FSR 2.0 is a light upscaler from 2022; Lite is AMD's ML model, so you give up about 8 FPS for a much cleaner image.
 
 All tested on my own Steam Machine. Set the game up from Now playing, restart it, then pick the upscaler from the table in its graphics settings. The notification tells you when it's running, for example "DLSS → FSR 4.1.2 Lite, 1280×720 → 3840×2160".
 
+## Modded games: GTA IV with DLSS-IV
+
+GTA IV is a 32-bit DirectX 9 game, and OptiScaler only runs in 64-bit games. The
+DLSS-IV mod (it needs FusionFix) adds DLSS, FSR and XeSS to GTA IV and does the
+upscaling in its own 64-bit helper, `DLSSIV\dlssiv-helper.exe`. The plugin spots that helper and sets FSR 4.1 Lite up
+next to it. In `DLSS-IV.cfg`, the one next to `GTAIV.exe`, set `upscaler` to automatic, DLSS or FSR: all three ran
+FSR 4.1.2 Lite on my Steam Machine. Your other DLSS-IV settings, like quality, HDR and frame generation, are yours to
+change, and the plugin never edits that file.
+
+## Tested on my Steam Machine
+
+Every game here showed FSR 4.1.2 Lite running in its OptiScaler log, on my own Steam Machine:
+
+Assassin's Creed Black Flag Resynced, Assassin's Creed Mirage, Black Myth: Wukong, Borderlands 4, Control,
+Crimson Desert, Cyberpunk 2077, 007 First Light, God of War, GTA IV with DLSS-IV, Kingdom Come: Deliverance II,
+Monster Hunter Wilds, Palworld, Payday 3, Phantom Blade Zero, Ratchet & Clank: Rift Apart, Red Dead Redemption 2,
+Resident Evil Requiem, STAR WARS Jedi: Survivor, StupidNeverDies, The Witcher 3, Uncharted: Legacy of Thieves
+Collection and VOID/BREAKER.
+
+A few need one thing from you, and the game's card tells you: Red Dead Redemption 2 needs DirectX 12, Crimson Desert
+closes if you change graphics settings with Lite on (turn it off, change them, turn it back on), and the Ubisoft
+Connect games run with OptiScaler's overlay off, because next to Ubisoft's overlay it closes them at launch.
+
 ## What you get
 
 - DLSS, XeSS and FSR 2 games on FSR 4.1.2 Lite. Games that only offer DLSS get their DLSS option unlocked, older FSR 2 games get taken over, and XeSS works too. All of them run Lite instead.
-- A Now playing card. Open the plugin in a game and you see the game, which upscalers it ships, and one button to install or uninstall. It sets the game up next to the program that's really running, the same way the Windows widget does.
+- A Now playing card. Open the plugin in a game and you see the game, which upscalers it ships, what to pick in its settings, and one button to install or uninstall. It sets the game up next to the program that's really running, the same way the Windows widget does.
 - Your games: every game you set up, each with a badge: live while the game runs, otherwise what its last session showed (Active, Pick an upscaler, Needs fix or Not played yet), and a switch to turn it off. The rest of your games with FSR, DLSS or XeSS are listed underneath.
 - Proof that Lite ran. OptiScaler's log is read during the game, and a notification pops up as soon as the Lite model is running.
 - Crash protection. If a game closes right after starting two times in a row with FSR 4.1 Lite on, the plugin turns it off for that game, puts your launch options back and tells you why. Turn it back on any time to try again.
 - It sorts itself out. If OptiScaler doesn't load in a game, the plugin sets it up under the next file name OptiScaler can load as and asks for one more session. If a game update or Steam's file check removes OptiScaler, the plugin puts it back and tells you.
 - Check setup, a page per game that checks the files, the launch option, Proton and the last session, with a Fix setup button and a report you can save to Downloads.
 - OptiScaler's newest nightly, always. The plugin checks for a new build every 6 hours, the same as the Windows widget, and puts it in every game you set up that isn't running. Each game keeps its settings, and one notification tells you. Turn it off in Settings if you'd rather stay put.
-- OptiScaler's FPS and resolution overlay, and AMD's watermark, each one switch for every game.
+- OptiScaler's FPS and resolution overlay, in six sizes from Small to Maximum, the same as the Windows widget, and AMD's watermark. Each one is a single switch for every game. The overlay is also where you see the live render resolution: some games change quality without telling OptiScaler.
+- Light on the Steam Machine. Idle, the plugin used 0.006% of one CPU core in my test, and it only reads what it needs.
 
 ## Requirements
 
 - A Steam Machine in SteamOS Gaming Mode with [Decky Loader](https://decky.xyz)
-- A game that ships FSR 2, FSR 3.1, native FSR 4, DLSS or XeSS, in DirectX 12, DirectX 11 or Vulkan
+- A 64-bit game that ships FSR 2, FSR 3.1, native FSR 4, DLSS or XeSS, in DirectX 12, DirectX 11 or Vulkan (or a mod that adds one, like DLSS-IV)
 - Proton Experimental is what I test with; any recent Proton should work
 
 The plugin downloads about 205 MB once: OptiScaler's newest nightly from its own GitHub, and AMD's signed FSR 4.1.2 files. After that, only new OptiScaler builds (about 55 MB each). Nothing from AMD or OptiScaler is in this repository or the release.
@@ -98,6 +130,8 @@ The plugin's **Your games** section lists every installed game with FSR, DLSS or
 It stays off for:
 
 - Online games with anti-cheat (Easy Anti-Cheat, BattlEye and others). Adding DLLs to them can get you banned, so the plugin won't install there.
+- 32-bit games. OptiScaler only runs in 64-bit games, so their card says **Blocked** and why, unless a mod upscales for them in a 64-bit program, like DLSS-IV in GTA IV.
+- Games OptiScaler can't run in on SteamOS, like Dead or Alive 6 Last Round, which closes itself whenever OptiScaler is loaded. Their card says **Blocked** too.
 - Games that already have OptiScaler from another install, until you press **Remove old OptiScaler** on the Now playing card. It moves that install's files into the plugin's folder (`~/homebrew/data/FSR4Lite/old-optiscaler`), so nothing is deleted, and leaves the game's own files alone.
 - Games with only FSR 1, or no upscaler at all. OptiScaler needs FSR 2 or newer, DLSS or XeSS to take over. A game that builds FSR 2 or 3 in without separate files can still be set up from Now playing.
 
@@ -111,6 +145,8 @@ Start with **Check setup** for the game. Each line says what's wrong and what to
 | The game used FSR 3, or The upscaler didn't start | Pick FSR, DLSS or XeSS as the upscaler in the game's graphics settings, then restart the game. |
 | Files missing, or Launch option missing | A game update or Steam's file check removed them. Press **Fix setup**. |
 | FSR 4 can't run here | Save a report and open an issue with it. |
+| Turned off: closed right after starting | The game closed at launch two times in a row with Lite on, so the plugin turned it off. Press **Install FSR 4.1 Lite** to try again, and save a report if it happens again. |
+| Blocked: OptiScaler can't run in it | The game is 32-bit, or OptiScaler is known not to run in it on SteamOS. The card says which. |
 
 Still stuck? Press **Save report to Downloads** in Check setup and [open an issue](https://github.com/db1522/fsr4-lite-steam-machine/issues/new?template=bug_report.yml) with the file.
 
