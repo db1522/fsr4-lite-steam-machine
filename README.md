@@ -48,7 +48,6 @@ XeSS works the same way: pick XeSS in a game that offers it and Lite runs instea
 | God of War | DLSS, its own FSR 2 | DLSS | FSR 4.1.2 Lite |
 | Uncharted: Legacy of Thieves Collection | FSR 2, DLSS | FSR 2 | FSR 4.1.2 Lite |
 | Red Dead Redemption 2 | FSR 2.0, DLSS | FSR 2.0, with Graphics API set to DirectX 12 | FSR 4.1.2 Lite |
-| Black Myth: Wukong | FSR 4, DLSS, XeSS | FSR 4 | FSR 4.1.2 Lite instead of full FSR 4 |
 
 Some DLSS-only games, like Palworld and Jedi Survivor, hide DLSS on AMD even with OptiScaler. For those the plugin
 also adds [OptiPatcher](https://github.com/optiscaler/OptiPatcher), and the card tells you to pick DLSS. In a game that
