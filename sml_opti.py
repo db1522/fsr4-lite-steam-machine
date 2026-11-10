@@ -156,6 +156,11 @@ GAME_TIPS = {
     # OptiScaler's Compatibility List: "Recommended to disable spoofing" (GAME_INI), so DLSS may not be offered
     "acblackflag.exe": "In Black Flag Resynced, pick FSR as the upscaler.",
     "acmirage.exe": "In Assassin's Creed Mirage, pick FSR or XeSS as the upscaler.",
+    # UPSCALE_HOSTS: with OptiScaler next to DLSS-IV's helper, its DLSS (what automatic picks then) and its FSR both
+    # ran FSR 4.1.2 Lite on the Steam Machine (2026-11-09). XeSS not tried.
+    "dlssiv-helper.exe": "FSR 4.1 Lite goes next to DLSS-IV's helper, which does the upscaling. DLSS-IV's DLSS and FSR "
+                         "both run FSR 4.1.2 Lite: set upscaler in DLSS-IV.cfg, next to GTAIV.exe, to automatic, DLSS "
+                         "or FSR.",
     # Steam Machine, 2026-11-09 (Nov 9 nightly): any graphics setting applied with OptiScaler loaded ends in a GPU page
     # fault and the game closes. It happens with FSR 4 Lite, FSR 3.1 or no upscaler, with the overlay or FFX inputs
     # off and with amdxc64 not loaded; never without OptiScaler. Playing is fine.
@@ -246,6 +251,39 @@ NOT_WORKING = {
 }
 
 
+BITS32 = ("This game is 32-bit, and OptiScaler only runs in 64-bit games, so FSR 4.1 Lite can't run in it. "
+          "Installs are blocked.")
+# Mods that do a game's upscaling in their own 64-bit program, in a folder next to the game's exe: OptiScaler goes next
+# to that program instead. DLSS-IV (GTA IV with FusionFix, 2026-11-09 on the Steam Machine): GTAIV.exe is 32-bit, the
+# mod's DLSSIV/dlssiv-helper.exe is a 64-bit DirectX 12 program that upscales for it. With OptiScaler next to it, the
+# helper picks DLSS and OptiScaler turns that into FSR 4.1.2 Lite.
+UPSCALE_HOSTS = [(os.path.join("DLSSIV", "dlssiv-helper.exe"), "DLSS-IV")]
+
+
+def is_32bit(path):
+    """Whether a Windows exe is 32-bit (its PE header says i386). False when it can't be read."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(4096)
+            if head[:2] != b"MZ":
+                return False
+            pe = int.from_bytes(head[0x3C:0x40], "little")
+            f.seek(pe)
+            sig = f.read(6)
+    except OSError:
+        return False
+    return sig[:4] == b"PE\0\0" and int.from_bytes(sig[4:6], "little") == 0x14C
+
+
+def upscale_host(exe_dir):
+    """(folder, exe, mod name) of a mod's upscaling program next to the game's exe (UPSCALE_HOSTS), or None."""
+    for rel, mod in UPSCALE_HOSTS:
+        path = os.path.join(exe_dir, rel)
+        if os.path.isfile(path):
+            return os.path.dirname(path), os.path.basename(path), mod
+    return None
+
+
 def not_working(exe_name):
     """Why OptiScaler can't run in this game on SteamOS (NOT_WORKING), or ""."""
     return NOT_WORKING.get((exe_name or "").lower(), "")
@@ -304,6 +342,9 @@ def analyze(install_dir, exe_path=None):
             if size(biggest) >= 50 << 20 and size(biggest) >= 10 * size((exe_dir, exe_name)):
                 exe_dir, exe_name = biggest
     anticheat = anticheat or ANTICHEAT_FILES.get(exe_name.lower())
+    host = upscale_host(exe_dir)
+    if host:  # a mod upscales in its own program: OptiScaler goes next to that one
+        exe_dir, exe_name = host[0], host[1]
     parts = exe_dir.lower().split(os.sep)
     return {
         "exe_dir": exe_dir, "exe_name": exe_name,
@@ -311,6 +352,8 @@ def analyze(install_dir, exe_path=None):
         "upscalers": sorted(upscalers), "anticheat": anticheat or "",
         "manual_optiscaler": _manual_optiscaler(exe_dir),
         "ubisoft": ubisoft_connect(exe_dir),
+        "bits32": is_32bit(os.path.join(exe_dir, exe_name)),
+        "host": host[2] if host else "",
     }
 
 
@@ -1333,7 +1376,7 @@ def game_exes(install_dir):
 
 def pick_game(processes):
     """(exe, memory in MB) of the process from running_processes that is the game: graphics loaded, most memory."""
-    drawing = [p for p in processes if p["graphics"]]
+    drawing = [p for p in processes if p["graphics"] and not is_32bit(p["path"])]  # OptiScaler can't run in 32-bit
     if not drawing:
         return None, 0
     best = max(sorted(drawing, key=lambda p: p["path"]), key=lambda p: p["mb"])

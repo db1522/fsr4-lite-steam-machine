@@ -2,6 +2,18 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.38] - 2026-11-09
+
+### ✨ Added
+- **Games:** GTA IV with the DLSS-IV mod runs FSR 4.1.2 Lite. GTA IV itself is 32-bit, but DLSS-IV does its upscaling
+  in its own 64-bit helper, so the plugin sets FSR 4.1 Lite up next to that helper. DLSS-IV's DLSS and FSR both run
+  Lite then: set upscaler in DLSS-IV.cfg, next to GTAIV.exe, to automatic, DLSS or FSR.
+
+### 🔧 Changed
+- **Games:** 32-bit games are blocked, with the reason on the card. OptiScaler only runs in 64-bit games, so before,
+  the plugin set one up and then kept trying other file names that could never load. Blocked games now say
+  "OptiScaler can't run in it".
+
 ## [2.2.37] - 2026-11-09
 
 ### 🔧 Changed

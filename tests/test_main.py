@@ -119,6 +119,19 @@ class Flow(unittest.TestCase):
         self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
         self.assertFalse(self.run_(self.p.remove_manual(42))["ok"], "never on our own setup")
 
+    def test_a_32_bit_game_is_blocked(self):
+        exe = os.path.join(self.game, "game.exe")
+        head = bytearray(b"MZ" + b"\0" * 0x7E)
+        head[0x3C:0x40] = (0x80).to_bytes(4, "little")
+        touch(exe, bytes(head) + b"PE\0\0" + (0x14C).to_bytes(2, "little") + b"\0" * 300)
+        self.run_(self.p.scan_games())
+        game = self.run_(self.p.get_state())["state"]["games"][0]
+        self.assertIn("32-bit", game["broken"])
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertFalse(r["ok"])
+        self.assertIn("only runs in 64-bit games", r["error"])
+        self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
+
     def quick_session(self, log, length=10):
         """A session of `length` seconds whose OptiScaler.log is `log`."""
         self.run_(self.p.session_started(42))

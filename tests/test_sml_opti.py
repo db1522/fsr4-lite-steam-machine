@@ -915,6 +915,54 @@ class ManualInstall(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.game, "dxgi.dll")))
 
 
+def pe(machine):
+    """A minimal Windows exe header: MZ, the PE offset at 0x3C, then PE\\0\\0 and the machine type."""
+    head = bytearray(b"MZ" + b"\0" * 0x7E)
+    head[0x3C:0x40] = (0x80).to_bytes(4, "little")
+    return bytes(head) + b"PE\0\0" + machine.to_bytes(2, "little") + b"\0" * 200
+
+
+class Bits32AndHelpers(unittest.TestCase):
+    def test_a_32_bit_exe_is_told_apart(self):
+        d = temp_dir(self)
+        touch(os.path.join(d, "old.exe"), pe(0x14C))
+        touch(os.path.join(d, "new.exe"), pe(0x8664))
+        touch(os.path.join(d, "text.exe"), b"not an exe")
+        self.assertTrue(O.is_32bit(os.path.join(d, "old.exe")))
+        self.assertFalse(O.is_32bit(os.path.join(d, "new.exe")))
+        self.assertFalse(O.is_32bit(os.path.join(d, "text.exe")))
+        self.assertFalse(O.is_32bit(os.path.join(d, "missing.exe")))
+
+    def test_gta_iv_alone_is_blocked_and_with_dlss_iv_set_up_next_to_its_helper(self):
+        game = os.path.join(temp_dir(self), "GTAIV")
+        touch(os.path.join(game, "GTAIV.exe"), pe(0x14C) + b"\0" * 50000)
+        touch(os.path.join(game, "PlayGTAIV.exe"), pe(0x14C))
+        alone = O.analyze(game)
+        self.assertEqual(alone["exe_name"], "GTAIV.exe")
+        self.assertTrue(alone["bits32"])
+        # DLSS-IV: its 64-bit helper upscales, and its folder ships the upscalers
+        touch(os.path.join(game, "DLSSIV", "dlssiv-helper.exe"), pe(0x8664))
+        for dll in ("nvngx_dlss.dll", "amd_fidelityfx_upscaler_dx12.dll", "libxess.dll"):
+            touch(os.path.join(game, "DLSSIV", dll))
+        modded = O.analyze(game)
+        self.assertEqual((modded["exe_dir"], modded["exe_name"]), (os.path.join(game, "DLSSIV"), "dlssiv-helper.exe"))
+        self.assertFalse(modded["bits32"])
+        self.assertEqual(modded["host"], "DLSS-IV")
+        self.assertEqual(modded["upscalers"], ["DLSS", "FSR 3.1", "XeSS"])
+        self.assertIn("DLSS-IV's DLSS and FSR both run FSR 4.1.2 Lite", O.tips("dlssiv-helper.exe", modded["upscalers"]))
+        # a remembered exe (GTAIV.exe seen running) still goes to the helper
+        self.assertEqual(O.analyze(game, os.path.join(game, "GTAIV.exe"))["exe_name"], "dlssiv-helper.exe")
+
+    def test_the_watcher_never_takes_a_32_bit_program_for_the_game(self):
+        d = temp_dir(self)
+        touch(os.path.join(d, "GTAIV.exe"), pe(0x14C))
+        touch(os.path.join(d, "dlssiv-helper.exe"), pe(0x8664))
+        seen = [{"path": os.path.join(d, "GTAIV.exe"), "mb": 3000, "graphics": True},
+                {"path": os.path.join(d, "dlssiv-helper.exe"), "mb": 300, "graphics": True}]
+        self.assertEqual(O.pick_game(seen), (os.path.join(d, "dlssiv-helper.exe"), 300))
+        self.assertEqual(O.pick_game(seen[:1]), (None, 0))
+
+
 class Light(unittest.TestCase):
     """What runs over and over on the Steam Machine stays cheap."""
 

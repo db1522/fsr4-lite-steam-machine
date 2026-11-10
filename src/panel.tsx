@@ -379,7 +379,7 @@ export const Content: FC = () => {
     return <div className={`sml-now ${pill?.[0] ?? ""}`}>
       {head(current.name, pill && pill[1] ? pill : null)}
       <div className="sml-nowmeta">{current.anticheat ? `Blocked: ${current.anticheat}`
-        : current.broken && !current.installed ? "Blocked: doesn't work on SteamOS" : meta}</div>
+        : current.broken && !current.installed ? "Blocked: OptiScaler can't run in it" : meta}</div>
       {!blocked && <DialogButton onGamepadFocus={keepInView} className={`sml-primary${current.installed ? " quiet" : ""}`}
         disabled={!current.installed && !state.assets_ready} onClick={() => toggle(current, !current.installed)}>
         {busy === current.appid ? "Working…" : current.installed ? "Uninstall FSR 4.1 Lite" : "Install FSR 4.1 Lite"}
@@ -415,7 +415,7 @@ export const Content: FC = () => {
     if (!g.installed) return <PanelSectionRow key={`r${g.appid}`}>
       <Field focusable className="sml-gameoff" label={<span className="sml-gamerow"><span>{g.name}</span></span>}
         description={<span className={`sml-gamesub${g.anticheat || g.broken || g.turned_off ? " bad" : ""}`}>{g.anticheat ? `Blocked: ${g.anticheat}`
-          : g.broken ? "Blocked: doesn't work on SteamOS" : g.turned_off ? "Turned off: closed right after starting" : extra}</span>} />
+          : g.broken ? "Blocked: OptiScaler can't run in it" : g.turned_off ? "Turned off: closed right after starting" : extra}</span>} />
     </PanelSectionRow>;
     return <PanelSectionRow key={`r${g.appid}`}>
       <ToggleField label={<span className="sml-gamerow"><span>{g.name}</span></span>}

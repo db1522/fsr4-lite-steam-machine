@@ -276,7 +276,7 @@ test("a game OptiScaler can't run in on SteamOS gets no install button", async (
   const tree = await open(panel({ appid: '1091500', display_name: 'x' }), state({ games: [{ ...game, broken }] }));
   assert.ok(!dialogButton(tree, 'Install FSR 4.1 Lite'));
   assert.ok(strings(tree).includes(broken), strings(tree));
-  assert.match(strings(tree), /Blocked: doesn't work on SteamOS/);
+  assert.match(strings(tree), /Blocked: OptiScaler can't run in it/);
 });
 
 test('a game crash protection turned off says why and can be turned back on', async () => {
