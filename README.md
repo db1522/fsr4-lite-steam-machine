@@ -6,16 +6,23 @@
   <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/db1522/fsr4-lite-steam-machine?style=for-the-badge&label=release&color=1b9aff&labelColor=0d1117"></a>
   <a href="https://github.com/db1522/fsr4-lite-steam-machine/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/db1522/fsr4-lite-steam-machine/total?cacheSeconds=3600&style=for-the-badge&color=1b9aff&labelColor=0d1117"></a>
   <img alt="Steam Machine" src="https://img.shields.io/badge/Steam_Machine-RDNA_3-1b9aff?style=for-the-badge&labelColor=0d1117">
+  <img alt="Works on any SteamOS device" src="https://img.shields.io/badge/works_on-any_SteamOS_device-1b9aff?style=for-the-badge&labelColor=0d1117">
   <img alt="Requires Decky Loader" src="https://img.shields.io/badge/requires-Decky_Loader-8fa3bc?style=for-the-badge&labelColor=0d1117">
   <a href="https://steammachinelife.com/fsr-4-1-2-lite-steam-machine/"><img alt="Full guide on Steam Machine Life" src="https://img.shields.io/badge/guide-Steam_Machine_Life-1b9aff?style=for-the-badge&labelColor=0d1117"></a>
   <a href="https://ko-fi.com/steammachinelife"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=for-the-badge&logo=kofi&logoColor=white&labelColor=0d1117"></a>
 </p>
 
-FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine. Lite is the smaller ML upscaler AMD built for handheld chips. On the Steam Machine it costs about as much as FSR 3 and looks close to full FSR 4.1, which is the trade I've wanted since I started testing this hardware. Full FSR 4.1 runs through Proton Experimental too, but it can cost up to 20 FPS next to Lite. Lite is the FSR the Steam Machine should be using by default.
+FSR 4.1 Lite is a Decky Loader plugin that runs AMD's FSR 4.1.2 Lite model in your games on the Steam Machine, the Steam Deck or any other device running SteamOS. Lite is the smaller ML upscaler AMD built for handheld chips. On the Steam Machine it costs about as much as FSR 3 and looks close to full FSR 4.1, which is the trade I've wanted since I started testing this hardware. Full FSR 4.1 runs through Proton Experimental too, but it can cost up to 20 FPS next to Lite. Lite is the FSR the Steam Machine should be using by default.
 
 It does it one way for every game, the same way my [FSR 4.1 Lite widget for Windows](https://github.com/db1522/fsr4-lite-rog-ally) does: OptiScaler goes next to the game, takes over the game's upscaler and runs FSR 4.1 Lite in its place. You press one button per game, and turning it off puts every file and launch option back as it was. No terminal. The widget has been downloaded over 54,000 times, and this plugin brings the same method to SteamOS.
 
 The full guide, with how I tested and what to pick in each game, is on Steam Machine Life: [FSR 4.1.2 Lite on the Steam Machine](https://steammachinelife.com/fsr-4-1-2-lite-steam-machine/).
+
+## Steam Deck and any other SteamOS device
+
+You don't need a Steam Machine. FSR 4.1 Lite works on any device running SteamOS with Decky Loader, the Steam Deck included. You install it the same way and press the same button.
+
+The FPS numbers below are from my Steam Machine, and they're against full FSR 4.1. On the Steam Machine, Proton Experimental puts full FSR 4.1 into any game that ships FSR 3.1 by itself, and Lite costs less than that. Other devices start from a different place, so your gains there will be different.
 
 ## Results
 
@@ -95,7 +102,7 @@ Connect games run with OptiScaler's overlay off, because next to Ubisoft's overl
 
 ## Requirements
 
-- A Steam Machine in SteamOS Gaming Mode with [Decky Loader](https://decky.xyz)
+- A Steam Machine, Steam Deck or any other device running SteamOS, in Gaming Mode with [Decky Loader](https://decky.xyz)
 - A 64-bit game that ships FSR 2, FSR 3.1, native FSR 4, DLSS or XeSS, in DirectX 12, DirectX 11 or Vulkan (or a mod that adds one, like DLSS-IV)
 - Proton Experimental is what I test with; any recent Proton should work
 
@@ -130,7 +137,7 @@ It stays off for:
 
 - Online games with anti-cheat (Easy Anti-Cheat, BattlEye and others). Adding DLLs to them can get you banned, so the plugin won't install there.
 - 32-bit games. OptiScaler only runs in 64-bit games, so their card says **Blocked** and why, unless a mod upscales for them in a 64-bit program, like DLSS-IV in GTA IV.
-- Games OptiScaler can't run in on SteamOS, like Dead or Alive 6 Last Round, which closes itself whenever OptiScaler is loaded. Their card says **Blocked** too.
+- Games OptiScaler can't run in on SteamOS, like Dead or Alive 6 Last Round and the GTA Definitive Edition games, which close whenever OptiScaler is loaded. Their card says **Blocked** too.
 - Games that already have OptiScaler from another install, until you press **Remove old OptiScaler** on the Now playing card. It moves that install's files into the plugin's folder (`~/homebrew/data/FSR4Lite/old-optiscaler`), so nothing is deleted, and leaves the game's own files alone.
 - Games with only FSR 1, or no upscaler at all. OptiScaler needs FSR 2 or newer, DLSS or XeSS to take over. A game that builds FSR 2 or 3 in without separate files can still be set up from Now playing.
 
