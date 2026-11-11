@@ -384,9 +384,11 @@ export const Content: FC = () => {
         disabled={!current.installed && !state.assets_ready} onClick={() => toggle(current, !current.installed)}>
         {busy === current.appid ? "Working…" : current.installed ? "Uninstall FSR 4.1 Lite" : "Install FSR 4.1 Lite"}
       </DialogButton>}
-      {current.manual_optiscaler && !current.installed && <DialogButton onGamepadFocus={keepInView} className="sml-primary"
+      {current.manual_optiscaler && !current.installed && <DialogButton onGamepadFocus={keepInView}
+        className={`sml-primary${blocked ? "" : " next"}`}
         onClick={() => removeOld(current)}>{busy === current.appid ? "Working…" : "Remove old OptiScaler"}</DialogButton>}
-      {current.installed && now?.status === "restart" && <DialogButton onGamepadFocus={keepInView} className="sml-primary"
+      {current.installed && now?.status === "restart" && <DialogButton onGamepadFocus={keepInView}
+        className={`sml-primary${blocked ? "" : " next"}`}
         onClick={() => restartNow(current)}>{restarting ? "Restarting…" : "Restart now"}</DialogButton>}
       {failed[current.appid] && <div className="sml-note bad">{failed[current.appid]}</div>}
       <div className={`sml-note${now?.status === "inactive" || (!current.installed && current.turned_off) ? " bad" : ""}`}>{note}</div>

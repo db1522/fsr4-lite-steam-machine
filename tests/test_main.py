@@ -144,8 +144,10 @@ class Flow(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dxgi=n,b %command%")
         self.assertEqual(data("ReShade64.dll"), reshade)
-        self.run_(self.p.disable_game(42, r["launch_options"]))
+        r = self.run_(self.p.disable_game(42, r["launch_options"]))
         self.assertEqual(data("dxgi.dll"), reshade)
+        # ReShade is back as dxgi.dll and needs the same override, so it stays (it was taken out before 2.2.41)
+        self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dxgi=n,b %command%")
 
         touch(os.path.join(self.game, "dxgi.dll"), b"MZ Special K by Kaldaien")
         self.run_(self.p.scan_games())
@@ -678,6 +680,24 @@ class Flow(unittest.TestCase):
         self.run_(self.p.session_ended(4115450, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
         self.assertEqual(self.p.launchers, {})
         self.assertEqual(self.p._game(4115450)["exe_dir"], exe_dir)
+
+    def test_a_big_exe_that_crashed_is_never_taken_for_a_launcher(self):
+        # GTA SA, 2026-11-10: its 89 MB SanAndreas.exe closed at start with OptiScaler loaded, the Rockstar error kept
+        # the session open past a minute, and the log never showed a device: it was marked a launcher
+        root = self.pbz()
+        self.run_(self.p.enable_game(4115450, ""))
+        game = self.p._game(4115450)
+        exe_dir = game["exe_dir"]
+        with open(os.path.join(exe_dir, game["exe_name"]), "wb") as f:
+            f.truncate(main.sml_opti.LAUNCHER_MAX_MB << 20)  # sparse: no real 50 MB written
+        self.p.registry["4115450"]["installed_at"] = time.time() - 600
+        self.run_(self.p.session_started(4115450))
+        self.p.sessions[4115450] = time.time() - 120
+        touch(os.path.join(exe_dir, "OptiScaler.log"), b"Init done\n")
+        self.run_(self.p.session_ended(4115450, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+        self.assertEqual(self.p.launchers, {})
+        self.assertEqual(self.p._game(4115450)["exe_dir"], exe_dir)
+        self.assertTrue(main.sml_opti.small_exe(os.path.join(exe_dir, "missing.exe")))
 
     def test_games_set_up_by_an_older_version_get_the_pinned_folder_at_load(self):
         self.run_(self.p.enable_game(42, ""))

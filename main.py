@@ -564,10 +564,14 @@ class Plugin:
         log = await asyncio.to_thread(sml_opti.read_log, entry["exe_dir"])
         if sml_opti.lite_ran(log):
             return None  # Lite runs from where it is: never move a working setup
-        # a whole session (a minute or more) with OptiScaler loaded and no device, swapchain or upscaler: a launcher
+        # a whole session (a minute or more) with OptiScaler loaded and no device, swapchain or upscaler: a launcher.
+        # Only a small exe: a game that crashes at start leaves the same log (GTA SA's 89 MB SanAndreas.exe closed at
+        # launch with OptiScaler and ReShade, 2026-11-10, and was taken for a launcher); launchers are tiny (Phantom
+        # Blade Zero's steam/PBZ.exe is 1 MB).
         if (started and time.time() - started >= 60 and log and not sml_opti.renders(log)
                 and sml_opti.log_time(entry["exe_dir"]) >= started - 2
-                and os.path.normpath(game["exe_dir"]) == os.path.normpath(entry["exe_dir"])):
+                and os.path.normpath(game["exe_dir"]) == os.path.normpath(entry["exe_dir"])
+                and sml_opti.small_exe(os.path.join(game["exe_dir"], game["exe_name"]))):
             await self._not_the_game(appid, os.path.join(game["exe_dir"], game["exe_name"]))
         logged = sml_opti.logged_exe(log)
         if logged and logged.lower() != game["exe_name"].lower():
@@ -690,7 +694,11 @@ class Plugin:
         await asyncio.to_thread(sml_opti.uninstall, entry["exe_dir"])
         if entry.get("reframework"):
             launch_options = sml_opti.without_override(launch_options, "dinput8.dll")
-        restored = sml_opti.without_override(launch_options, entry["proxy"], entry.get("launch_original"))
+        hdr = await asyncio.to_thread(sml_opti.hdr_tool, entry["exe_dir"])
+        if hdr and hdr[1].lower() == entry["proxy"].lower():
+            restored = launch_options  # ReShade got the name back and loads through the same override
+        else:
+            restored = sml_opti.without_override(launch_options, entry["proxy"], entry.get("launch_original"))
         if keep_retry:
             self.registry[key] = {"tried": entry.get("tried", []), "launch_original": entry.get("launch_original"),
                                   "exe_dir": entry["exe_dir"], "reframework": entry.get("reframework", False)}

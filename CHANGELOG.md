@@ -2,6 +2,20 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.41] - 2026-11-10
+
+### 🔧 Changed
+- **Games:** the GTA Definitive Edition games (GTA III, Vice City and San Andreas) are blocked, with the reason on the
+  card. On my Steam Machine San Andreas closed at start every time OptiScaler loaded, on its own, next to ReShade and
+  with NVIDIA spoofing off. HDR mods like RenoDX still work in them on their own.
+- **Game cards:** two buttons on the card, like Uninstall and Restart now, have space between them.
+
+### 🐛 Fixed
+- **Launch options:** uninstalling FSR 4.1 Lite no longer takes out a dxgi=n,b you had before, or one ReShade needs
+  once it gets dxgi.dll back. Before, uninstalling Lite could quietly turn off HDR in that game.
+- **Games:** a game that crashes at start is no longer taken for a launcher. GTA San Andreas crashed with OptiScaler,
+  and the plugin then avoided its real exe. Only a small exe, under 50 MB, can count as a launcher now.
+
 ## [2.2.40] - 2026-11-10
 
 ### 🔧 Changed

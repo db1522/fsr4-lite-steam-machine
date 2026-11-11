@@ -874,6 +874,15 @@ class HdrSharing(unittest.TestCase):
         self.assertNotIn("ReShade", O.tips("game.exe", ["FSR 3.1"]))
 
 
+class NotWorking(unittest.TestCase):
+    def test_games_that_close_with_optiscaler_on_steamos_are_blocked(self):
+        self.assertIn("closes itself", O.not_working("DOA6LR.exe"))
+        for exe in ("SanAndreas.exe", "ViceCity.exe", "LibertyCity.exe"):  # the whole Definitive Edition trilogy
+            self.assertIn("GTA Definitive Edition", O.not_working(exe))
+        self.assertFalse(O.not_working("GTAIV.exe"))
+        self.assertEqual(O.tested_text("Grand Theft Auto: San Andreas - The Definitive Edition", "SanAndreas.exe"), "")
+
+
 class Tested(unittest.TestCase):
     """The card's "Tested by Steam Machine Life" line, matched on Steam's store names."""
 
@@ -975,6 +984,16 @@ class LaunchOptions(unittest.TestCase):
         self.assertEqual(merged, "WINEDLLOVERRIDES=foo=n;winmm=n,b %command%")
         self.assertEqual(O.without_override(merged, "winmm.dll"), "WINEDLLOVERRIDES=foo=n %command%")
         self.assertEqual(O.without_override("WINEDLLOVERRIDES=dxgi=n,b %command%", "dxgi.dll", ""), "")
+
+    def test_an_override_the_player_already_had_stays(self):
+        # GTA SA, 2026-11-10: the player's own dxgi=n,b (for ReShade) was taken out when FSR 4.1 Lite was uninstalled
+        for theirs in ('WINEDLLOVERRIDES="dxgi=n,b" DXVK_HDR=1 %command%', "WINEDLLOVERRIDES=dxgi=n,b DXVK_HDR=1 %command%",
+                       'WINEDLLOVERRIDES="d3dcompiler_47=n;DXGI=n,b" %command%'):
+            ours = O.with_override(theirs, "dxgi.dll")
+            self.assertEqual(O.without_override(ours, "dxgi.dll", theirs), ours, theirs)
+        # someone else's override with a name that only ends in "dxgi" isn't the player's dxgi
+        self.assertEqual(O.without_override("WINEDLLOVERRIDES=xdxgi=n;dxgi=n,b %command%", "dxgi.dll",
+                                            "WINEDLLOVERRIDES=xdxgi=n %command%"), "WINEDLLOVERRIDES=xdxgi=n %command%")
 
 
 class Verdict(unittest.TestCase):

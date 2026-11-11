@@ -264,6 +264,13 @@ NOT_WORKING = {
     # input hooks, NVIDIA spoofing and DLSS inputs each turned off. Without OptiScaler it runs.
     "doa6lr.exe": "This game closes itself a few seconds after it starts whenever OptiScaler is loaded on SteamOS, "
                   "so installs are blocked.",
+    # 2026-11-10, GTA San Andreas - The Definitive Edition (Unreal Engine 4, DX11): OptiScaler (Nov 10 nightly) loads
+    # as dxgi.dll, logs "Init done", and the game exits before it creates a device, then Rockstar's "exited
+    # unexpectedly" box. The same alone, next to ReShade (LoadReshade) and with NVIDIA spoofing off. Its Trilogy
+    # siblings (GTA III and Vice City, the same engine and launcher) are blocked with it, Steam Machine Life's call.
+    **dict.fromkeys(("sanandreas.exe", "vicecity.exe", "libertycity.exe"),
+                    "The GTA Definitive Edition games close at start whenever OptiScaler is loaded on SteamOS, so "
+                    "installs are blocked. HDR mods like RenoDX still work in them on their own."),
 }
 
 
@@ -1120,8 +1127,11 @@ def with_override(options, proxy):
 
 
 def without_override(options, proxy, original=None):
-    """Takes our override back out; returns the user's own options (the original when nothing else changed)."""
+    """Takes our override back out; returns the user's own options (the original when nothing else changed). An
+    override the player's own options already had before the install stays (ReShade for HDR loads as dxgi.dll too)."""
     name = os.path.splitext(proxy)[0]
+    if original and re.search(rf"""WINEDLLOVERRIDES=["']?([^\s"']*;)?{re.escape(name)}=""", original, re.I):
+        return options
     out = []
     for w in (options or "").split():
         if w.startswith("WINEDLLOVERRIDES="):
@@ -1295,6 +1305,17 @@ def logged_exe(log):
 
 RENDER_MARKERS = ("hkD3D12CreateDevice", "hkD3D11CreateDevice", "hkvkCreateDevice", "WrappedIDXGISwapChain",
                   "CreateRenderTargetDx12", "Render Resolution:")
+
+
+LAUNCHER_MAX_MB = 50  # analyze's "far bigger exe is the game" line, used the other way round
+
+
+def small_exe(path):
+    """Whether an exe is small enough to be a launcher (under LAUNCHER_MAX_MB). An unreadable one counts as small."""
+    try:
+        return os.path.getsize(path) < LAUNCHER_MAX_MB << 20
+    except OSError:
+        return True
 
 
 def renders(log):
