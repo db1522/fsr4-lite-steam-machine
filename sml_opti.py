@@ -402,6 +402,39 @@ def analyze(install_dir, exe_path=None):
     }
 
 
+LINUX_BUILD = ("This is the game's Linux version. FSR 4.1 Lite only works in a game's Windows version, through "
+               "Proton. In Steam, open the game's Properties > Compatibility, force Proton Experimental and let Steam "
+               "download the Windows version. Then rescan your library under More.")
+
+
+def linux_build(install_dir, limit=400):
+    """Whether a game folder holds a native Linux build: a Linux program (ELF) or Unity's UnityPlayer.so within two
+    folders of the top. Only asked about games analyze found no Windows exe in (Over The Hill, Hollow Knight: Silksong:
+    a Steam Deck installs the Linux version when a game has one). At most limit files are looked at."""
+    base = install_dir.rstrip(os.sep).count(os.sep)
+    seen = 0
+    for dirpath, dirs, files in os.walk(install_dir):
+        if dirpath.count(os.sep) - base >= 2:
+            dirs[:] = []
+        dirs[:] = [d for d in dirs if d.lower() not in SKIP_DIRS]
+        for f in files:
+            low = f.lower()
+            if low == "unityplayer.so" or low.endswith((".x86_64", ".x86")):
+                return True
+            if "." in f:  # Linux programs usually have no extension; this keeps the reads few
+                continue
+            seen += 1
+            if seen > limit:
+                return False
+            try:
+                with open(os.path.join(dirpath, f), "rb") as fh:
+                    if fh.read(4) == b"\x7fELF":
+                        return True
+            except OSError:
+                continue
+    return False
+
+
 def _manual_optiscaler(exe_dir):
     """OptiScaler already there from somewhere else (not our install): left alone until the player removes it
     (remove_manual). Any part of it counts (its loader DLL, its ini, its folder), except a log left on its own."""
@@ -599,7 +632,7 @@ def compat_text(game_name, exe_name, path=COMPAT_PATH):
     return "Works with: " + ", ".join(inputs) if inputs else ""
 
 
-# Games Steam Machine Life saw run FSR 4.1.2 Lite on a Steam Machine (its OptiScaler log, 2026-11-07 to 11-11; the
+# Games Steam Machine Life saw run FSR 4.1.2 Lite on a Steam Machine (its OptiScaler log, 2026-11-07 to 11-12; the
 # README's "Tested on my Steam Machine"), with the upscaler picked in the game ("" = not noted).
 # Store names; find_name matches them like the Compatibility List (editions, trademark signs, numbers).
 TESTED = {
@@ -607,7 +640,7 @@ TESTED = {
     "Baldur's Gate 3": "DLSS on DirectX 11", "Black Myth: Wukong": "FSR 4", "Borderlands 4": "FSR", "Control": "DLSS",
     "Crimson Desert": "AMD FSR Upscaling 4.1", "Cyberpunk 2077": "FSR 4", "Dying Light: The Beast": "FSR",
     "God of War": "DLSS", "Grand Theft Auto IV: The Complete Edition": "DLSS-IV's DLSS or FSR",
-    "Kingdom Come: Deliverance II": "FSR", "Monster Hunter Wilds": "FSR", "Palworld": "DLSS",
+    "Kingdom Come: Deliverance II": "FSR", "Monster Hunter Wilds": "FSR", "over the hill": "FSR", "Palworld": "DLSS",
     "Palworld / パルワールド": "DLSS", "PAYDAY 3": "FSR", "Phantom Blade Zero": "FSR",
     "Ratchet & Clank: Rift Apart": "FSR", "Red Dead Redemption 2": "FSR 2.0 on DirectX 12",
     "Resident Evil Requiem": "FSR", "STAR WARS Jedi: Survivor": "DLSS", "StupidNeverDies": "DLSS",

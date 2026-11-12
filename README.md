@@ -79,7 +79,7 @@ Every game here showed FSR 4.1.2 Lite running in its OptiScaler log, on my own S
 
 Assassin's Creed Black Flag Resynced, Assassin's Creed Mirage, Baldur's Gate 3, Black Myth: Wukong, Borderlands 4,
 Control, Crimson Desert, Cyberpunk 2077, 007 First Light, God of War, GTA IV with DLSS-IV, Kingdom Come: Deliverance II,
-Monster Hunter Wilds, Palworld, Payday 3, Phantom Blade Zero, Ratchet & Clank: Rift Apart, Red Dead Redemption 2,
+Monster Hunter Wilds, Over The Hill, Palworld, Payday 3, Phantom Blade Zero, Ratchet & Clank: Rift Apart, Red Dead Redemption 2,
 Resident Evil Requiem, STAR WARS Jedi: Survivor, StupidNeverDies, The Witcher 3, Uncharted: Legacy of Thieves
 Collection and VOID/BREAKER.
 

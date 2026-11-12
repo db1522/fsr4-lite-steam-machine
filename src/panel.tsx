@@ -390,6 +390,10 @@ export const Content: FC = () => {
       {head("No game running", null, true)}
       <div className="sml-note">Start a game, then open this menu to set it up.</div>
     </div>;
+    if (!current && !scanning && state.linux?.includes(runningAppid)) return <div className="sml-now warn">
+      {head(running.display_name, ["warn", "Linux version"])}
+      <div className="sml-note">{state.linux_note}</div>
+    </div>;
     if (!current) return <div className="sml-now">
       {head(running.display_name, scanning ? ["", "Looking"] : ["", "Not found"])}
       <div className="sml-note">{scanning ? "Looking for this game in your library…"

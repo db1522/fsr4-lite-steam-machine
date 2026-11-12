@@ -80,11 +80,12 @@ def _with_overrides(options, manifest):
     return sml_opti.with_override(options, "dinput8.dll") if manifest.get("reframework") else options
 
 
-def scan_library(steam_root, exes=None):
+def scan_library(steam_root, exes=None, linux=None):
     """Every Steam game and non-Steam shortcut with a game exe. Games without upscaler files stay in the scan, like
     in the widget (many build FSR 2 or 3 in, which OptiScaler can search for); the panel offers them only while they
     run, not in the library list. exes: str(appid) -> the exe the game was seen running (relative to its folder),
-    used instead of the folder guess."""
+    used instead of the folder guess. linux: a list that gets the app id of every Steam game installed as its native
+    Linux version (no Windows exe), so the card can say to force Proton instead of "Not found"."""
     games = []
     for lib in fsr4_games.libraries(steam_root):
         apps = os.path.join(lib, "steamapps")
@@ -117,6 +118,8 @@ def scan_library(steam_root, exes=None):
     for appid, name, root, exe, nonsteam in games:
         info = sml_opti.analyze(root, exe)
         if not info:
+            if linux is not None and not nonsteam and sml_opti.linux_build(root):
+                linux.append(appid)
             continue
         out.append({"appid": appid, "name": name, "install_dir": root, "nonsteam": nonsteam, **info,
                     **({"launch_exe": exe} if nonsteam else {})})
@@ -159,6 +162,7 @@ class Plugin:
             self.loaders = {}
             self.sharpness = {}
             self.games, self.scanned, self._scan_task = [], False, None
+            self.linux = []  # app ids of games installed as their Linux version (scan_library)
             self.download = {"state": "idle", "done": 0, "total": sml_assets.TOTAL, "error": ""}
             self.assets_ok = False
             self.lock = asyncio.Lock()
@@ -239,6 +243,7 @@ class Plugin:
             "version": VERSION, "home": _home(), "assets_ready": self.assets_ok,
             "download": dict(self.download), "settings": dict(self.settings), "scanned": self.scanned,
             "games": [self._view(g) for g in self.games], "legacy": list(self.legacy),
+            "linux": list(self.linux), "linux_note": sml_opti.LINUX_BUILD,
             "optiscaler": sml_assets.label(build or sml_assets.OPTISCALER["name"]), "opti_note": self.opti_note,
         }
 
@@ -458,7 +463,9 @@ class Plugin:
 
     @rpc
     async def scan_games(self) -> dict:
-        self.games = await asyncio.to_thread(scan_library, _steam_root(), dict(self.exes))
+        linux = []
+        self.games = await asyncio.to_thread(scan_library, _steam_root(), dict(self.exes), linux)
+        self.linux = linux
         self.scanned = True
         return dk_rpc.ok(await self._state())
 

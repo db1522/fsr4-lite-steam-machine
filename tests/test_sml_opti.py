@@ -283,6 +283,23 @@ class GameIni(unittest.TestCase):
         self.assertNotIn("Ubisoft", O.tips("game.exe", ["FSR 3.1"], "Game", False))
 
 
+class LinuxBuild(unittest.TestCase):
+    """A game installed as its native Linux version has no Windows exe; the card says to force Proton."""
+
+    def test_unity_and_elf_programs_are_linux_versions_and_an_empty_folder_is_not(self):
+        t = temp_dir(self)
+        unity, elf, other = (os.path.join(t, n) for n in ("unity", "elf", "other"))
+        touch(os.path.join(unity, "over the hill.x86_64"), b"\x7fELF")
+        touch(os.path.join(unity, "UnityPlayer.so"), b"\x7fELF")
+        touch(os.path.join(elf, "bin", "Hollow Knight Silksong"), b"\x7fELF\x02\x01")
+        touch(os.path.join(other, "readme"), b"text")
+        touch(os.path.join(other, "data.pak"), b"\x7fELF")  # an extension: not read
+        self.assertTrue(O.linux_build(unity))
+        self.assertTrue(O.linux_build(elf))
+        self.assertFalse(O.linux_build(other))
+        self.assertIsNone(O.analyze(unity), "no Windows exe, so not a game the plugin can set up")
+
+
 class Sharpness(unittest.TestCase):
     def setUp(self):
         t = temp_dir(self)
@@ -938,6 +955,7 @@ class Tested(unittest.TestCase):
         self.assertIn("DLSS-IV", O.tested_text("Grand Theft Auto IV: The Complete Edition", "dlssiv-helper.exe"))
         self.assertIn("with FSR picked", O.tested_text("Monster Hunter Wilds", "MonsterHunterWilds.exe"))
         self.assertIn("with DLSS on DirectX 11 picked", O.tested_text("Baldur's Gate 3", "bg3_dx11.exe"))
+        self.assertIn("with FSR picked", O.tested_text("over the hill", "over the hill.exe"))
         self.assertTrue(all(TESTED_PICK for TESTED_PICK in O.TESTED.values()), "every tested game names its pick")
 
     def test_other_games_and_their_sequels_get_nothing(self):

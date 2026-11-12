@@ -106,6 +106,16 @@ class Flow(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
         self.assertFalse(self.run_(self.p.get_state())["state"]["games"][0]["installed"])
 
+    def test_a_game_installed_as_its_linux_version_is_named_so_the_card_can_say_to_force_proton(self):
+        apps = os.path.join(self.home, ".local", "share", "Steam", "steamapps")
+        touch(os.path.join(apps, "appmanifest_2929250.acf"),
+              b'"AppState"\n{\n"appid" "2929250"\n"name" "over the hill"\n"installdir" "over the hill"\n}\n')
+        touch(os.path.join(apps, "common", "over the hill", "over the hill.x86_64"), b"\x7fELF")
+        state = self.run_(self.p.scan_games())["state"]
+        self.assertEqual(state["linux"], [2929250])
+        self.assertEqual([g["name"] for g in state["games"]], ["Test Game"])
+        self.assertIn("Properties > Compatibility", state["linux_note"])
+
     def test_a_games_sharpness_reaches_its_ini_and_stays_through_a_reinstall_and_a_restart(self):
         ini = os.path.join(self.game, "OptiScaler.ini")
 

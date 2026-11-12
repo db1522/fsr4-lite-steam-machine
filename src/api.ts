@@ -41,6 +41,8 @@ export interface State {
   scanned: boolean;
   games: Game[];
   legacy: number[];  // games still set up by FSR 4.1 Lite 1.x
+  linux?: number[];  // Steam games installed as their native Linux version: they need Proton forced first
+  linux_note?: string;  // what the card says for them
   optiscaler: string;  // the OptiScaler build new setups get, "OptiScaler v10.0.0-pre1 (Nov 7, 2026)"
   opti_note: string;   // why the last check for a newer build failed, if it did
 }

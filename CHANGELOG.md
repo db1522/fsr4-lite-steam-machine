@@ -2,6 +2,16 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.44] - 2026-11-12
+
+### ✨ Added
+- **Game cards:** a game installed as its Linux version gets a Linux version badge and says how to fix it, instead of
+  Not found. FSR 4.1 Lite only works in a game's Windows version through Proton, and a Steam Deck installs the Linux
+  version when a game has one (Over The Hill, Hollow Knight: Silksong). Force Proton Experimental in the game's
+  Properties > Compatibility, let Steam download the Windows version and rescan. Thanks to buffaloseven for the report.
+- **Game cards:** Over The Hill says it's tested. On my Steam Machine FSR ran as FSR 4.1 Lite. It sets up its upscaler
+  once you're in a race, so give it a minute.
+
 ## [2.2.43] - 2026-11-11
 
 ### 🐛 Fixed

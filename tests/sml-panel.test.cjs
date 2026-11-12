@@ -63,6 +63,14 @@ test('a set-up game gets a sharpness switch and slider; only the value the slide
   assert.deepEqual(h.calls.filter(c => c.name === 'set_sharpness').map(c => c.args).at(-1), [1091500, null]);
 });
 
+test('a running game installed as its Linux version says to force Proton, not Not found', async () => {
+  const h = panel({ appid: '2929250', display_name: 'over the hill' });
+  const tree = await open(h, state({ linux: [2929250], linux_note: "This is the game's Linux version. Force Proton." }));
+  assert.match(strings(tree), /Linux version/);
+  assert.doesNotMatch(strings(tree), /Not found/);
+  assert.ok(!dialogButton(tree, 'Install FSR 4.1 Lite'));
+});
+
 test('a game that is not set up has no sharpness controls', async () => {
   const tree = await open(panel({ appid: '1091500', display_name: 'Cyberpunk 2077' }));
   assert.ok(!all(tree).some(n => n.type === 'SliderField' || (n.type === 'ToggleField' && n.props.label === 'Set sharpness')));
