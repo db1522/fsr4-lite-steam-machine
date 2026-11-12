@@ -136,6 +136,9 @@ class Plugin:
             # str(appid) -> the exe the game was seen running, relative to its folder (the widget installs next to
             # the running game's exe; folder layouts like Phantom Blade Zero's platform/steam/PBZ.exe fool a guess)
             self.exes_path = os.path.join(settings_dir, "exes.json")
+            # str(appid) -> the sharpness the player set for that game (0 to 1). Kept apart from the registry, whose
+            # entries are rebuilt at every install, so a game keeps its sharpness through a reinstall.
+            self.sharpness_path = os.path.join(settings_dir, "sharpness.json")
             # the OptiScaler build the last "games updated" notification named (one notification per build)
             self.notice_path = os.path.join(settings_dir, "optiscaler.json")
             self.opti_note = ""  # the last check's outcome for the panel
@@ -154,6 +157,7 @@ class Plugin:
             self.settings = dict(DEFAULT_SETTINGS)
             self.registry = {}  # str(appid) -> {exe_dir, proxy, tried, launch_original, launch_applied, installed_at}
             self.loaders = {}
+            self.sharpness = {}
             self.games, self.scanned, self._scan_task = [], False, None
             self.download = {"state": "idle", "done": 0, "total": sml_assets.TOTAL, "error": ""}
             self.assets_ok = False
@@ -172,6 +176,9 @@ class Plugin:
             self.registry = {k: v for k, v in reg.items() if isinstance(v, dict) and isinstance(v.get("exe_dir"), str)}
             loaders = await asyncio.to_thread(_read, self.loaders_path, {})
             self.loaders = {k: v for k, v in loaders.items() if v in sml_opti.PROXY_NAMES}
+            sharp = await asyncio.to_thread(_read, self.sharpness_path, {})
+            self.sharpness = {k: sml_opti.clean_sharpness(v) for k, v in sharp.items()
+                              if k.isdigit() and sml_opti.clean_sharpness(v) is not None}
             exes = await asyncio.to_thread(_read, self.exes_path, {})
 
             def _rel_ok(v):
@@ -212,6 +219,7 @@ class Plugin:
         view = {k: g[k] for k in ("appid", "name", "exe_name", "upscalers", "anticheat", "nonsteam",
                                   "manual_optiscaler")}
         view["installed"] = bool(entry and entry.get("proxy"))
+        view["sharpness"] = self.sharpness.get(str(g["appid"]))
         view["broken"] = sml_opti.not_working(g["exe_name"]) or (sml_opti.BITS32 if g.get("bits32") else "")
         blocked = view["broken"] or g["anticheat"]
         view["tip"] = " ".join(filter(None, [
@@ -286,7 +294,7 @@ class Plugin:
         try:
             fixed = await asyncio.to_thread(
                 sml_opti.repair, entry["exe_dir"], sml_assets.package_dir(data), sml_assets.fsr4_paths(data),
-                self._settings_for_ini(entry.get("height")), sml_assets.reframework_path(data),
+                self._settings_for_ini(entry.get("height"), appid), sml_assets.reframework_path(data),
                 sml_assets.optipatcher_path(data))
         except OSError as e:
             decky.logger.warning(f"repair failed in {entry['exe_dir']} ({dk_fs.shown(e)})")
@@ -547,10 +555,10 @@ class Plugin:
 
     def _refresh_settings(self):
         """Every set-up game's OptiScaler.ini brought up to this version's settings (OptiDllPath, 2.2.9)."""
-        for entry in list(self.registry.values()):
+        for key, entry in list(self.registry.items()):
             if entry.get("proxy"):
                 try:
-                    sml_opti.apply_settings(entry["exe_dir"], self._settings_for_ini(entry.get("height")))
+                    sml_opti.apply_settings(entry["exe_dir"], self._settings_for_ini(entry.get("height"), key))
                 except OSError as e:
                     decky.logger.warning(f"settings not refreshed in {entry['exe_dir']} ({dk_fs.shown(e)})")
 
@@ -586,7 +594,7 @@ class Plugin:
         try:
             manifest = await asyncio.to_thread(
                 sml_opti.install, game["exe_dir"], game["exe_name"], sml_assets.package_dir(_data_dir()),
-                sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), proxy, game["upscalers"], None,
+                sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(appid=appid), proxy, game["upscalers"], None,
                 ref if entry.get("reframework") and os.path.isfile(ref) else None, **self._builds())
         except sml_opti.InstallError as e:
             await asyncio.to_thread(self._save_registry)
@@ -617,10 +625,11 @@ class Plugin:
             decky.logger.warning(f"OptiPatcher not added in {exe_dir} ({e})")
             return False
 
-    def _settings_for_ini(self, height=None):
+    def _settings_for_ini(self, height=None, appid=None):
+        """The OptiScaler.ini settings for one game: the panel's settings plus that game's sharpness (appid)."""
         return {"watermark": self.settings["watermark"], "overlay": self.settings["overlay"],
                 "overlay_size": self.settings["overlay_size"], "overlay_pos": self.settings["overlay_pos"],
-                "height": height}
+                "height": height, "sharpness": self.sharpness.get(str(appid)) if appid is not None else None}
 
     @rpc
     async def enable_game(self, appid: int, launch_options: str) -> dict:
@@ -670,7 +679,7 @@ class Plugin:
             try:
                 manifest = await asyncio.to_thread(
                     sml_opti.install, game["exe_dir"], game["exe_name"], sml_assets.package_dir(_data_dir()),
-                    sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), entry.get("next_proxy"),
+                    sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(appid=appid), entry.get("next_proxy"),
                     game["upscalers"], self.loaders.get(game["exe_name"].lower()), reframework, **self._builds())
             except sml_opti.InstallError as e:
                 return dk_rpc.fail(str(e), await self._state())
@@ -747,10 +756,33 @@ class Plugin:
             self.settings[key] = value
             await asyncio.to_thread(dk_fs.write_json, self.settings_path, self.settings)
             if key not in NOT_INI:
-                for entry in self.registry.values():
+                for k, entry in self.registry.items():
                     if entry.get("proxy"):
                         await asyncio.to_thread(sml_opti.apply_settings, entry["exe_dir"],
-                                                self._settings_for_ini(entry.get("height")))
+                                                self._settings_for_ini(entry.get("height"), k))
+        return dk_rpc.ok(await self._state())
+
+    @rpc
+    async def set_sharpness(self, appid: int, value=None) -> dict:
+        """One game's sharpness: a number from 0 to 1, or None for the game's own. Written into its OptiScaler.ini
+        right away; OptiScaler reads it when the game starts."""
+        if value is not None and sml_opti.clean_sharpness(value) is None:
+            return dk_rpc.fail("Unknown sharpness.", await self._state())
+        async with self.lock:
+            key = str(appid)
+            if value is None:
+                self.sharpness.pop(key, None)
+            else:
+                self.sharpness[key] = sml_opti.clean_sharpness(value)
+            await asyncio.to_thread(dk_fs.write_json, self.sharpness_path, self.sharpness)
+            entry = self.registry.get(key, {})
+            if entry.get("proxy"):
+                try:
+                    await asyncio.to_thread(sml_opti.apply_settings, entry["exe_dir"],
+                                            self._settings_for_ini(entry.get("height"), key))
+                except OSError as e:
+                    return dk_rpc.fail(f"Couldn't change the game's settings ({dk_fs.shown(e)}).",
+                                       await self._state())
         return dk_rpc.ok(await self._state())
 
     # ---- sessions ----
@@ -862,7 +894,7 @@ class Plugin:
             height = sml_opti.display_height(log) if log else None
             if height and height != entry.get("height"):
                 entry["height"] = height  # the overlay is sized for what the game really draws at
-                await asyncio.to_thread(sml_opti.apply_settings, exe_dir, self._settings_for_ini(height))
+                await asyncio.to_thread(sml_opti.apply_settings, exe_dir, self._settings_for_ini(height, appid))
             result = {"managed": True, "verdict": verdict, "detail": detail}
             game = self._game(appid)
             off = await self._quick_exit(appid, entry, verdict, fresh, started, launch_options, game)
@@ -896,8 +928,8 @@ class Plugin:
                     try:
                         manifest = await asyncio.to_thread(
                             sml_opti.install, exe_dir, game["exe_name"], sml_assets.package_dir(_data_dir()),
-                            sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(), nxt, game["upscalers"],
-                            None, ref if ref and os.path.isfile(ref) else None, **self._builds())
+                            sml_assets.fsr4_paths(_data_dir()), self._settings_for_ini(appid=appid), nxt,
+                            game["upscalers"], None, ref if ref and os.path.isfile(ref) else None, **self._builds())
                     except sml_opti.InstallError as e:
                         await asyncio.to_thread(self._save_registry)
                         return dk_rpc.ok(managed=True, verdict="none", detail=str(e), launch_options=restored)
@@ -1056,6 +1088,8 @@ class Plugin:
             f"Files in place: {d['files_ok']} {d['missing']}", f"Last verdict: {d['verdict']} {d['detail']}",
             f"HDR mod: {(hdr[0] + ' as ' + hdr[1]) if hdr else 'none'}"
             + (f" (moved from {shared}, OptiScaler loads it)" if shared else ""),
+            "Sharpness: " + (f"{round(self.sharpness[str(appid)] * 100)}% (set in the plugin)"
+                             if str(appid) in self.sharpness else "the game's own"),
             "", "== OptiScaler.ini (set values) ==", *ini, "",
             f"== OptiScaler.log (start and end{'; ' + note if note else ''}) ==",
             *(self._log_ends(log) or ["(no log: OptiScaler hasn't run in this game yet)"]),

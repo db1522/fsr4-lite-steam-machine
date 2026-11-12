@@ -2,6 +2,20 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.42] - 2026-11-11
+
+### ✨ Added
+- **Sharpness:** each game you set up gets a Set sharpness switch on the Now playing card, with a slider from 0 to 100%.
+  It works whatever you pick in the game, even in DLSS games that have no sharpness slider of their own, because
+  OptiScaler's own sharpening does it. Leave it off and the game keeps its own sharpness. A change shows the next time
+  the game starts. Thanks to J0TK for asking.
+- **Game cards:** Baldur's Gate 3 says it's tested. On my Steam Machine DLSS ran as FSR 4.1 Lite in the DirectX 11
+  version. Its own FSR 2.2 is built into the game, so pick DLSS.
+
+### 🔧 Changed
+- **Decky store:** the description says FSR 4.1 Lite works on the Steam Machine, the Steam Deck and any other SteamOS
+  device.
+
 ## [2.2.41] - 2026-11-10
 
 ### 🔧 Changed

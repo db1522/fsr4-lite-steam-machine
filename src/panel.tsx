@@ -6,7 +6,7 @@
 // widget for Windows. Status line, a one-time setup card, the game you're playing with one button, every compatible
 // game in one list, then options, library tools and About.
 import { useQuickAccessVisible } from "@decky/api";
-import { DialogButton, DropdownItem, Field, Focusable, PanelSection, PanelSectionRow, Router, ToggleField } from "@decky/ui";
+import { DialogButton, DropdownItem, Field, Focusable, PanelSection, PanelSectionRow, Router, SliderField, ToggleField } from "@decky/ui";
 import { FC, Fragment, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { INSTALL_HINT, UpdateController, UpdateDownload, UpdateSection } from "./about";
 import { CSS, steamCss } from "./style";
@@ -15,7 +15,7 @@ import { canInstallUpdates, installUpdate } from "./installer";
 import { keepInView, onFocusReveal, openWeb, restartGame, toTop } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, removeManual, downloadAssets, downloadProgress, enableGame, Game,
-  checkOptiscaler, getState, Live, liveStatus, resolveRunning, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, State,
+  checkOptiscaler, getState, Live, liveStatus, resolveRunning, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, setSharpness, State,
   StateResult,
 } from "./api";
 import { errorText } from "./result";
@@ -27,6 +27,8 @@ const OVERLAY_SIZES: Array<[string, string]> = [["small", "Small"], ["medium", "
   ["xlarge", "Extra large"], ["huge", "Huge"], ["max", "Maximum"]];
 const OVERLAY_CORNERS: Array<[string, string]> = [["topleft", "Top left"], ["topright", "Top right"],
   ["bottomleft", "Bottom left"], ["bottomright", "Bottom right"]];
+// OptiScaler's own default strength (0.3), where the slider starts when a player turns sharpness on
+const SHARPNESS_START = 0.3;
 const MB = (b: number) => `${(b / 2 ** 20).toFixed(0)} MB`;
 
 let lastState: State | null = null;
@@ -269,6 +271,19 @@ export const Content: FC = () => {
   // Restart now: right after an install the game needs a restart before OptiScaler loads; one press does it, after
   // a warning, since closing a game loses what isn't saved.
   const [restarting, setRestarting] = useState(false);
+  // One game's sharpness: the slider moves at once, and the value is saved once it stops moving (a d-pad press or a
+  // drag sends many values; only the last one is written to the game's OptiScaler.ini).
+  const [sharpMoving, setSharpMoving] = useState<{ appid: number; value: number } | null>(null);
+  const sharpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sharpen = (g: Game, value: number | null, wait = 0) => {
+    if (sharpTimer.current) clearTimeout(sharpTimer.current);
+    setSharpMoving(value === null ? null : { appid: g.appid, value });
+    sharpTimer.current = setTimeout(async () => {
+      sharpTimer.current = null;
+      take(await setSharpness(g.appid, value), g.appid);
+      setSharpMoving(m => (m && m.appid === g.appid && m.value === value ? null : m));
+    }, wait);
+  };
   const restartNow = (g: Game) => confirmAction(`Restart ${g.name}?`,
     "Save your game first. Anything not saved is lost when it closes.", "Restart", async () => {
       setRestarting(true);
@@ -341,6 +356,20 @@ export const Content: FC = () => {
 
   const activeCount = state.games.filter(g => g.installed && g.verdict === "lite").length;
 
+  /** Sharpness for one set-up game: off leaves the game's own, on sets a strength that works whatever the game picks. */
+  const sharpnessRows = (g: Game) => {
+    const moving = sharpMoving?.appid === g.appid ? sharpMoving.value : undefined;
+    const value = moving ?? g.sharpness ?? null;
+    return <div className="sml-sharp">
+      <ToggleField label="Set sharpness" checked={value !== null}
+        description={value === null ? "Off: the game's own sharpness. Turn it on to pick it yourself, even in DLSS games that have no slider."
+          : "0% is no sharpening. Restart the game to see a change."}
+        onChange={on => sharpen(g, on ? SHARPNESS_START : null)} />
+      {value !== null && <SliderField label="Sharpness" value={Math.round(value * 100)} min={0} max={100} step={5}
+        showValue valueSuffix="%" onChange={v => sharpen(g, v / 100, 400)} />}
+    </div>;
+  };
+
   const gameCard = () => {
     // One calm card: what's playing, its status, one button. No artwork (not every game has it, and each image is a
     // load); the card's edge takes the status colour instead.
@@ -394,6 +423,7 @@ export const Content: FC = () => {
       <div className={`sml-note${now?.status === "inactive" || (!current.installed && current.turned_off) ? " bad" : ""}`}>{note}</div>
       {!blocked && current.tip && <div className="sml-note soft">{current.tip}</div>}
       {current.compat && <div className={`sml-note soft${current.compat.startsWith("OptiScaler community") ? " bad" : ""}`}>{current.compat}</div>}
+      {current.installed && sharpnessRows(current)}
       {current.installed && <DialogButton onGamepadFocus={keepInView} className="sml-textbtn"
         onClick={() => { setCheckId(current.appid); navigate("check"); }}>Check setup ›</DialogButton>}
     </div>;

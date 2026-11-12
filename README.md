@@ -77,8 +77,8 @@ change, and the plugin never edits that file.
 
 Every game here showed FSR 4.1.2 Lite running in its OptiScaler log, on my own Steam Machine:
 
-Assassin's Creed Black Flag Resynced, Assassin's Creed Mirage, Black Myth: Wukong, Borderlands 4, Control,
-Crimson Desert, Cyberpunk 2077, 007 First Light, God of War, GTA IV with DLSS-IV, Kingdom Come: Deliverance II,
+Assassin's Creed Black Flag Resynced, Assassin's Creed Mirage, Baldur's Gate 3, Black Myth: Wukong, Borderlands 4,
+Control, Crimson Desert, Cyberpunk 2077, 007 First Light, God of War, GTA IV with DLSS-IV, Kingdom Come: Deliverance II,
 Monster Hunter Wilds, Palworld, Payday 3, Phantom Blade Zero, Ratchet & Clank: Rift Apart, Red Dead Redemption 2,
 Resident Evil Requiem, STAR WARS Jedi: Survivor, StupidNeverDies, The Witcher 3, Uncharted: Legacy of Thieves
 Collection and VOID/BREAKER.
@@ -97,6 +97,7 @@ Connect games run with OptiScaler's overlay off, because next to Ubisoft's overl
 - It sorts itself out. If OptiScaler doesn't load in a game, the plugin sets it up under the next file name OptiScaler can load as and asks for one more session. If a game update or Steam's file check removes OptiScaler, the plugin puts it back and tells you.
 - Check setup, a page per game that checks the files, the launch option, Proton and the last session, with a Fix setup button and a report you can save to Downloads.
 - OptiScaler's newest nightly, always. The plugin checks for a new build every 6 hours, the same as the Windows widget, and puts it in every game you set up that isn't running. Each game keeps its settings, and one notification tells you. Turn it off in Settings if you'd rather stay put.
+- Sharpness per game. Turn on Set sharpness on the Now playing card and pick a strength from 0 to 100%. It works whatever the game picks, even in DLSS games that have no sharpness slider of their own. Leave it off and the game keeps its own sharpness.
 - OptiScaler's FPS and resolution overlay, in six sizes from Small to Maximum, the same as the Windows widget, and AMD's watermark. Each one is a single switch for every game. The overlay is also where you see the live render resolution: some games change quality without telling OptiScaler.
 - Light on the Steam Machine. Idle, the plugin used 0.006% of one CPU core in my test, and it only reads what it needs.
 

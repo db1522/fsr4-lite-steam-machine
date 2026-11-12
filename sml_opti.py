@@ -81,9 +81,30 @@ def overlay_font_known(exe_dir):
     return known
 
 
+def clean_sharpness(value):
+    """A sharpness the plugin keeps: a number from 0 to 1 in steps of 0.05, or None for the game's own."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        return None
+    return round(min(max(float(value), 0.0), 1.0) * 20) / 20
+
+
+def sharpness_ini(sharpness=None):
+    """OptiScaler's sharpening for one game. None: the game's own (whatever it sends, all keys back to auto). A number
+    from 0 to 1: that strength whichever upscaler the game picks. OptiScaler's own RCAS pass does it (CAS Enabled), so
+    it works the same in games that send DLSS, which has had no sharpening of its own since 2.5.1, and in FSR and XeSS
+    ones; OverrideSharpness makes it ignore the game's value. 0 is no sharpening at all. OptiScaler caps it at 1.0
+    (IFeature_Dx12::Evaluate)."""
+    if clean_sharpness(sharpness) is None:
+        return [("CAS", "Enabled", "auto"), ("Sharpness", "OverrideSharpness", "auto"),
+                ("Sharpness", "Sharpness", "auto")]
+    return [("CAS", "Enabled", "true"), ("Sharpness", "OverrideSharpness", "true"),
+            ("Sharpness", "Sharpness", f"{clean_sharpness(sharpness):.2f}")]
+
+
 def ini_settings(watermark=False, overlay=False, overlay_size="large", overlay_pos="topleft", height=None,
-                 font_known=True):
+                 font_known=True, sharpness=None):
     values = list(INI_BASE) + [("FSR", "Fsr4EnableWatermark", "true" if watermark else "false")]
+    values += sharpness_ini(sharpness)
     # OptiScaler's FPS overlay, "Simple" layout: FPS with the upscaler ("FSR3 -> FSR 4.1.2") and render -> output
     font, scale = overlay_look(overlay_size, height, font_known)
     values += [
@@ -578,12 +599,12 @@ def compat_text(game_name, exe_name, path=COMPAT_PATH):
     return "Works with: " + ", ".join(inputs) if inputs else ""
 
 
-# Games Steam Machine Life saw run FSR 4.1.2 Lite on a Steam Machine (its OptiScaler log, 2026-11-07 to 11-10; the
+# Games Steam Machine Life saw run FSR 4.1.2 Lite on a Steam Machine (its OptiScaler log, 2026-11-07 to 11-11; the
 # README's "Tested on my Steam Machine"), with the upscaler picked in the game ("" = not noted).
 # Store names; find_name matches them like the Compatibility List (editions, trademark signs, numbers).
 TESTED = {
     "007 First Light": "FSR", "Assassin's Creed Black Flag Resynced": "FSR", "Assassin's Creed Mirage": "FSR or XeSS",
-    "Black Myth: Wukong": "FSR 4", "Borderlands 4": "FSR", "Control": "DLSS",
+    "Baldur's Gate 3": "DLSS on DirectX 11", "Black Myth: Wukong": "FSR 4", "Borderlands 4": "FSR", "Control": "DLSS",
     "Crimson Desert": "AMD FSR Upscaling 4.1", "Cyberpunk 2077": "FSR 4", "Dying Light: The Beast": "FSR",
     "God of War": "DLSS", "Grand Theft Auto IV: The Complete Edition": "DLSS-IV's DLSS or FSR",
     "Kingdom Come: Deliverance II": "FSR", "Monster Hunter Wilds": "FSR", "Palworld": "DLSS",

@@ -26,6 +26,7 @@ export interface Game {
   detail: string;
   proxy?: string;  // the name OptiScaler loads under
   turned_off?: string;  // why crash protection turned FSR 4.1 Lite off for this game ("" when it didn't)
+  sharpness?: number | null;  // 0 to 1, set in the plugin for this game; null: the game's own
 }
 
 export interface Download { state: "idle" | "running" | "done" | "error"; done: number; total: number; error: string }
@@ -70,6 +71,7 @@ export const cleanupLegacy = rpc<[number, string], ToggleResult>("cleanup_legacy
 /** OptiScaler from another install moved out of the game's folder (into the plugin's data, nothing deleted). */
 export const removeManual = rpc<[number], StateResult & { moved?: string[]; backup?: string }>("remove_manual");
 export const setSetting = rpc<[string, boolean | string], StateResult>("set_setting");
+export const setSharpness = rpc<[number, number | null], StateResult>("set_sharpness");
 // The game in the library list a running app id is: a non-Steam shortcut can run under its game's own Steam id.
 export const resolveRunning = rpc<[number], Result<never> & { appid?: number }>("resolve_running");
 export const checkOptiscaler = rpc<[], StateResult & { message?: string }>("check_optiscaler");

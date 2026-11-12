@@ -283,6 +283,39 @@ class GameIni(unittest.TestCase):
         self.assertNotIn("Ubisoft", O.tips("game.exe", ["FSR 3.1"], "Game", False))
 
 
+class Sharpness(unittest.TestCase):
+    def setUp(self):
+        t = temp_dir(self)
+        self.pkg, self.game = os.path.join(t, "pkg"), os.path.join(t, "game")
+        touch(os.path.join(self.pkg, "OptiScaler.dll"), b"opti")
+        touch(os.path.join(self.pkg, "OptiScaler.ini"),
+              b"[Sharpness]\r\nOverrideSharpness=auto\r\nSharpness=auto\r\n[CAS]\r\nEnabled=auto\r\n")
+        touch(os.path.join(self.game, "game.exe"), b"game")
+        self.ini = os.path.join(self.game, "OptiScaler.ini")
+
+    def test_a_set_sharpness_turns_on_optiscalers_rcas_and_overrides_the_game(self):
+        O.install(self.game, "game.exe", self.pkg, [], {"sharpness": 0.4})
+        ini = read(self.ini)
+        for line in ("OverrideSharpness=true", "Sharpness=0.40", "[CAS]\nEnabled=true"):
+            self.assertIn(line, ini)
+
+    def test_the_games_own_sharpness_leaves_every_key_on_auto(self):
+        O.install(self.game, "game.exe", self.pkg, [], {"sharpness": 0.4})
+        O.apply_settings(self.game, {"sharpness": None})  # back to the game's own
+        ini = read(self.ini)
+        for line in ("OverrideSharpness=auto", "Sharpness=auto", "[CAS]\nEnabled=auto"):
+            self.assertIn(line, ini)
+
+    def test_zero_is_no_sharpening_and_values_are_kept_in_range(self):
+        self.assertIn(("Sharpness", "Sharpness", "0.00"), O.sharpness_ini(0))
+        self.assertEqual(O.clean_sharpness(1.7), 1.0)
+        self.assertEqual(O.clean_sharpness(-1), 0.0)
+        self.assertEqual(O.clean_sharpness(0.33), 0.35)
+        for bad in (None, True, "0.5", float("nan")):
+            self.assertIsNone(O.clean_sharpness(bad))
+        self.assertIn(("Sharpness", "Sharpness", "auto"), O.sharpness_ini("0.5"))
+
+
 class OptiPatcher(unittest.TestCase):
     def test_the_tip_says_dlss_is_the_way_only_when_the_game_has_nothing_else(self):
         only = O.tips("Palworld-Win64-Shipping.exe", ["DLSS"], "Palworld")
@@ -893,6 +926,7 @@ class Tested(unittest.TestCase):
         self.assertIn("with DLSS picked", O.tested_text("STAR WARS Jedi: Survivor™", "JediSurvivor.exe"))
         self.assertIn("DLSS-IV", O.tested_text("Grand Theft Auto IV: The Complete Edition", "dlssiv-helper.exe"))
         self.assertIn("with FSR picked", O.tested_text("Monster Hunter Wilds", "MonsterHunterWilds.exe"))
+        self.assertIn("with DLSS on DirectX 11 picked", O.tested_text("Baldur's Gate 3", "bg3_dx11.exe"))
         self.assertTrue(all(TESTED_PICK for TESTED_PICK in O.TESTED.values()), "every tested game names its pick")
 
     def test_other_games_and_their_sequels_get_nothing(self):

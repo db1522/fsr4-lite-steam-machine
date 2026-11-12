@@ -106,6 +106,34 @@ class Flow(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
         self.assertFalse(self.run_(self.p.get_state())["state"]["games"][0]["installed"])
 
+    def test_a_games_sharpness_reaches_its_ini_and_stays_through_a_reinstall_and_a_restart(self):
+        ini = os.path.join(self.game, "OptiScaler.ini")
+
+        def text():
+            with open(ini, encoding="utf-8") as f:
+                return f.read()
+        self.assertTrue(self.run_(self.p.set_sharpness(42, 0.5))["ok"])  # set before the game is set up: kept
+        r = self.run_(self.p.enable_game(42, ""))
+        self.assertEqual(r["state"]["games"][0]["sharpness"], 0.5)
+        self.assertIn("Sharpness=0.50", text())
+        self.run_(self.p.set_sharpness(42, 0.25))
+        self.assertIn("Sharpness=0.25", text())
+        self.run_(self.p.set_setting("overlay", True))  # another setting's refresh keeps it
+        self.assertIn("Sharpness=0.25", text())
+        self.assertFalse(self.run_(self.p.set_sharpness(42, "max"))["ok"])
+        self.run_(self.p.disable_game(42, r["launch_options"]))
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        self.assertIn("Sharpness=0.25", text())
+        again = main.Plugin()  # the plugin loading again reads it back
+        self.run_(again._main())
+        for task in (again._scan_task, again._updater, again._log_guard):
+            task.cancel()
+        self.assertEqual(again.sharpness, {"42": 0.25})
+        r = self.run_(self.p.set_sharpness(42, None))
+        self.assertIsNone(r["state"]["games"][0]["sharpness"])
+        self.assertIn("OverrideSharpness=auto", text())
+        self.assertIn("Sharpness=auto", text())
+
     def test_an_old_manual_optiscaler_is_moved_out_and_then_lite_installs(self):
         touch(os.path.join(self.game, "dxgi.dll"), b"MZ OptiScaler")
         touch(os.path.join(self.game, "OptiScaler.ini"), b"[Upscalers]\n")

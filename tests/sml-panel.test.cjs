@@ -37,6 +37,37 @@ const strings = tree => all(tree).flatMap(n => [n.props?.label, typeof n.props?.
 const dialogButton = (tree, label) => all(tree).find(n => n.type === 'DialogButton' && [].concat(n.props.children).join('').includes(label));
 async function open(h, s = state()) { h.render(); h.respond('get_state', ok(s)); await settle(); return h.render(); }
 
+test('a set-up game gets a sharpness switch and slider; only the value the slider stops at is saved', async () => {
+  const h = panel({ appid: '1091500', display_name: 'Cyberpunk 2077' });
+  const set = { ...game, installed: true, verdict: 'lite', proxy: 'dxgi.dll', sharpness: null };
+  let tree = await open(h, state({ games: [set] }));
+  const toggle = t => all(t).find(n => n.type === 'ToggleField' && n.props.label === 'Set sharpness');
+  const slider = t => all(t).find(n => n.type === 'SliderField');
+  assert.match(String(toggle(tree).props.description), /game's own sharpness/);
+  assert.ok(!slider(tree), 'no slider while the game keeps its own');
+  toggle(tree).props.onChange(true);
+  h.fire(0); await settle();
+  assert.deepEqual(h.calls.filter(c => c.name === 'set_sharpness').map(c => c.args), [[1091500, 0.3]]);
+  h.respond('set_sharpness', ok(state({ games: [{ ...set, sharpness: 0.3 }] }))); await settle();
+  tree = h.render();
+  assert.equal(slider(tree).props.value, 30);
+  slider(tree).props.onChange(35); slider(h.render()).props.onChange(40); slider(h.render()).props.onChange(45);
+  assert.equal(slider(h.render()).props.value, 45, 'the slider follows at once');
+  assert.equal(h.calls.filter(c => c.name === 'set_sharpness').length, 1, 'nothing saved while it moves');
+  h.fire(400); await settle();
+  assert.deepEqual(h.calls.filter(c => c.name === 'set_sharpness').map(c => c.args).at(-1), [1091500, 0.45]);
+  assert.equal(h.calls.filter(c => c.name === 'set_sharpness').length, 2);
+  h.respond('set_sharpness', ok(state({ games: [{ ...set, sharpness: 0.45 }] }))); await settle();
+  toggle(h.render()).props.onChange(false);
+  h.fire(0); await settle();
+  assert.deepEqual(h.calls.filter(c => c.name === 'set_sharpness').map(c => c.args).at(-1), [1091500, null]);
+});
+
+test('a game that is not set up has no sharpness controls', async () => {
+  const tree = await open(panel({ appid: '1091500', display_name: 'Cyberpunk 2077' }));
+  assert.ok(!all(tree).some(n => n.type === 'SliderField' || (n.type === 'ToggleField' && n.props.label === 'Set sharpness')));
+});
+
 test('without OptiScaler and FSR 4 the setup card downloads them', async () => {
   const h = panel(undefined);
   const tree = await open(h, state({ assets_ready: false }));
