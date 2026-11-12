@@ -844,8 +844,9 @@ class Plugin:
         log = await asyncio.to_thread(sml_opti.read_log, exe_dir)
         verdict, detail = sml_opti.verdict(log)
         if verdict == "lite":
-            # no resolution here: OptiScaler logs it only when the game builds its upscaler, and some games change
-            # quality without that (The Witcher 3), so the card would show an old mode. The FPS overlay is live.
+            # no resolution or upscaler name here: OptiScaler logs them only when the game builds its upscaler, and
+            # some games change quality without that (The Witcher 3), and a switch from FSR to DLSS mid-session still
+            # shows the FSR call, so the card could show an old one. The FPS overlay is live.
             return dk_rpc.ok(status="active", detail="FSR 4.1 Lite is running.")
         if verdict == "waiting" and time.time() - started < 120:
             return dk_rpc.ok(status="starting", detail="Waiting for the game to start its upscaler.")

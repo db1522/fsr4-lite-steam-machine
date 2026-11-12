@@ -58,7 +58,6 @@ export const CSS = `
 .sml-root .sml-primary.quiet.gpfocus, .sml-root .sml-primary.quiet:focus { background: rgba(255,255,255,.16) !important; }
 .sml-root .sml-primary:disabled { opacity: .45 !important; }
 .sml-root .sml-primary.next { margin-top: 8px !important; }
-.sml-root .sml-sharp { margin-top: 10px; padding-top: 2px; border-top: 1px solid var(--line); }
 .sml-sect { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--soft); padding: 14px 14px 2px; letter-spacing: .02em; }
 .sml-count { color: #fff; }
 .sml-foot { padding: 12px 14px 0; font-size: 12px; color: var(--mute); line-height: 1.4; }

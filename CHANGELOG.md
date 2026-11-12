@@ -2,6 +2,15 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.43] - 2026-11-11
+
+### 🐛 Fixed
+- **Sharpness:** the Set sharpness switch and the slider sit in their own rows under the Now playing card, lined up
+  with the switches in Settings. In 2.2.42 they were inside the card and the slider ran past its edge.
+- **Notifications:** the "FSR 4.1 Lite is running" notification names what the game sent again: DLSS, FSR, FSR 2 or
+  XeSS. It never named DLSS before, and left it out in FSR 2 games, because OptiScaler doesn't log those calls by
+  the names the plugin looked for. I matched it to the logs from my Steam Machine.
+
 ## [2.2.42] - 2026-11-11
 
 ### ✨ Added

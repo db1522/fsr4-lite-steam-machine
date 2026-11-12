@@ -780,6 +780,17 @@ class Summary(unittest.TestCase):
         self.assertEqual(O.summary(res.format("1000x500", "3840x2160")), "FSR 4.1.2 Lite, 1000×500 → 3840×2160 (3.84x)")
         self.assertEqual(O.summary(""), "FSR 4.1.2 Lite")
 
+    def test_the_notification_names_what_the_game_sent(self):
+        res = "Render Resolution: 1920x1080, Display Resolution 3840x2160\n"
+        ngx = "[I] NVSDK_NGX_D3D12_Init_Ext AppId: 4919\n"  # in every game's log, FSR ones too
+        self.assertEqual(O.upscaler_input(ngx + res), "DLSS")  # Palworld
+        self.assertEqual(O.upscaler_input("NVSDK_NGX_VULKAN_Init\n"), "DLSS")
+        self.assertEqual(O.upscaler_input(ngx + "ffxCreateContext_Dx12\n"), "FSR")
+        self.assertEqual(O.upscaler_input(ngx + "ffxFsr2ContextCreate_Dx12\n"), "FSR 2")
+        self.assertEqual(O.upscaler_input("hk_xessD3D12CreateContext\n"), "XeSS")
+        self.assertEqual(O.upscaler_input(res), "")
+        self.assertTrue(O.summary(ngx + res).startswith("DLSS → FSR 4.1.2 Lite"))
+
 
 class HdrSharing(unittest.TestCase):
     """ReShade (RenoDX's loader, from HDR for Every Game or set up by hand) and OptiScaler both load as dxgi.dll. Like

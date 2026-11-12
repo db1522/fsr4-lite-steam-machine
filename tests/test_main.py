@@ -128,6 +128,7 @@ class Flow(unittest.TestCase):
         self.run_(again._main())
         for task in (again._scan_task, again._updater, again._log_guard):
             task.cancel()
+        self.run_(asyncio.gather(again._scan_task, again._updater, again._log_guard, return_exceptions=True))
         self.assertEqual(again.sharpness, {"42": 0.25})
         r = self.run_(self.p.set_sharpness(42, None))
         self.assertIsNone(r["state"]["games"][0]["sharpness"])

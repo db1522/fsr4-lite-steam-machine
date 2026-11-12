@@ -360,14 +360,20 @@ export const Content: FC = () => {
   const sharpnessRows = (g: Game) => {
     const moving = sharpMoving?.appid === g.appid ? sharpMoving.value : undefined;
     const value = moving ?? g.sharpness ?? null;
-    return <div className="sml-sharp">
-      <ToggleField label="Set sharpness" checked={value !== null}
-        description={value === null ? "Off: the game's own sharpness. Turn it on to pick it yourself, even in DLSS games that have no slider."
-          : "0% is no sharpening. Restart the game to see a change."}
-        onChange={on => sharpen(g, on ? SHARPNESS_START : null)} />
-      {value !== null && <SliderField label="Sharpness" value={Math.round(value * 100)} min={0} max={100} step={5}
-        showValue valueSuffix="%" onChange={v => sharpen(g, v / 100, 400)} />}
-    </div>;
+    // Rows of their own under the card, not inside it: Steam lays its switches and sliders out for full-width rows
+    // (inside the card the slider ran past its edge, 2.2.42).
+    return <PanelSection>
+      <PanelSectionRow>
+        <ToggleField label="Set sharpness" checked={value !== null}
+          description={value === null ? "Off: the game's own sharpness. Turn it on to pick it yourself, even in DLSS games that have no slider."
+            : "0% is no sharpening. Restart the game to see a change."}
+          onChange={on => sharpen(g, on ? SHARPNESS_START : null)} />
+      </PanelSectionRow>
+      {value !== null && <PanelSectionRow>
+        <SliderField label="Sharpness" value={Math.round(value * 100)} min={0} max={100} step={5}
+          showValue valueSuffix="%" onChange={v => sharpen(g, v / 100, 400)} />
+      </PanelSectionRow>}
+    </PanelSection>;
   };
 
   const gameCard = () => {
@@ -423,7 +429,6 @@ export const Content: FC = () => {
       <div className={`sml-note${now?.status === "inactive" || (!current.installed && current.turned_off) ? " bad" : ""}`}>{note}</div>
       {!blocked && current.tip && <div className="sml-note soft">{current.tip}</div>}
       {current.compat && <div className={`sml-note soft${current.compat.startsWith("OptiScaler community") ? " bad" : ""}`}>{current.compat}</div>}
-      {current.installed && sharpnessRows(current)}
       {current.installed && <DialogButton onGamepadFocus={keepInView} className="sml-textbtn"
         onClick={() => { setCheckId(current.appid); navigate("check"); }}>Check setup ›</DialogButton>}
     </div>;
@@ -516,6 +521,7 @@ export const Content: FC = () => {
       </div></PanelSectionRow></PanelSection>}
 
       <PanelSection><PanelSectionRow>{gameCard()}</PanelSectionRow></PanelSection>
+      {current?.installed && sharpnessRows(current)}
 
       {/* First use: how it goes, until the first game is set up */}
       {state.assets_ready && installed.length === 0 && <PanelSection><PanelSectionRow><div className="sml-card sml-howto">
