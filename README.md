@@ -18,6 +18,23 @@ It does it one way for every game, the same way my [FSR 4.1 Lite widget for Wind
 
 The full guide, with how I tested and what to pick in each game, is on Steam Machine Life: [FSR 4.1.2 Lite on the Steam Machine](https://steammachinelife.com/fsr-4-1-2-lite-steam-machine/).
 
+## How it looks
+
+Start a game, open the plugin from the Quick Access menu and press one button. These are from my Steam Machine in Cyberpunk 2077.
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="assets/panel-install.png" alt="The Now playing card with the Install FSR 4.1 Lite button" width="260"></td>
+    <td align="center" width="33%"><img src="assets/panel-restart.png" alt="The card after installing, asking to restart the game" width="260"></td>
+    <td align="center" width="33%"><img src="assets/panel-active.png" alt="The card showing FSR 4.1 Lite active in the game" width="260"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>1. Install</b><br>Press Install FSR 4.1 Lite while the game runs.</td>
+    <td align="center"><b>2. Restart</b><br>Press Restart now, then pick FSR, DLSS or XeSS in the game.</td>
+    <td align="center"><b>3. Active</b><br>The card turns green once Lite is running.</td>
+  </tr>
+</table>
+
 ## Steam Deck and any other SteamOS device
 
 You don't need a Steam Machine. FSR 4.1 Lite works on any device running SteamOS with Decky Loader, the Steam Deck included. You install it the same way and press the same button.
