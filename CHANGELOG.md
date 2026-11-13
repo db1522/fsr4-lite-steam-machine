@@ -2,6 +2,15 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.45] - 2026-11-13
+
+### 🐛 Fixed
+- **Games:** a game moved to another drive is set up where Steam runs it. When Steam left the old copy behind (an SD
+  card move, say), the plugin set FSR 4.1 Lite up in the first copy it found, and OptiScaler never loaded in the game
+  you play. It now uses the drive Steam lists the game on. Thanks to GrapheneRimshot for the report (Stellar Blade).
+- **Game cards:** a game an older version set up in the wrong copy shows Needs fix and says to uninstall and install
+  again. Uninstalling cleans the old copy.
+
 ## [2.2.44] - 2026-11-12
 
 ### ✨ Added

@@ -402,6 +402,8 @@ def analyze(install_dir, exe_path=None):
     }
 
 
+ELSEWHERE = ("FSR 4.1 Lite is set up in another copy of this game, not the one Steam runs (it was moved to another "
+             "drive). Uninstall FSR 4.1 Lite, then install it again to set up the right one.")
 LINUX_BUILD = ("This is the game's Linux version. FSR 4.1 Lite only works in a game's Windows version, through "
                "Proton. In Steam, open the game's Properties > Compatibility, force Proton Experimental and let Steam "
                "download the Windows version. Then rescan your library under More.")

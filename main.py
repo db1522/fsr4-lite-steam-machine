@@ -87,6 +87,8 @@ def scan_library(steam_root, exes=None, linux=None):
     used instead of the folder guess. linux: a list that gets the app id of every Steam game installed as its native
     Linux version (no Windows exe), so the card can say to force Proton instead of "Not found"."""
     games = []
+    listed = fsr4_games.library_apps(steam_root)
+    found = {}  # appid -> (Steam lists it in this library, the game's index in games)
     for lib in fsr4_games.libraries(steam_root):
         apps = os.path.join(lib, "steamapps")
         try:
@@ -109,7 +111,18 @@ def scan_library(steam_root, exes=None, linux=None):
                 seen = (exes or {}).get(appid[0])
                 exe = os.path.join(root, *seen.split("/")) if seen else None
                 exe = exe if exe and os.path.isfile(exe) else None
-                games.append((int(appid[0]), title[0] if title else installdir[0], root, exe, False))
+                entry = (int(appid[0]), title[0] if title else installdir[0], root, exe, False)
+                here = appid[0] in listed.get(os.path.realpath(lib), ())
+                # The same game in two libraries (moved to an SD card, the old copy left behind): the one Steam lists
+                # in libraryfolders.vdf is where it runs from (Stellar Blade, issue 4). Else the first, as before.
+                if appid[0] in found:
+                    was_listed, i = found[appid[0]]
+                    if here and not was_listed:
+                        games[i] = entry
+                        found[appid[0]] = (True, i)
+                    continue
+                found[appid[0]] = (here, len(games))
+                games.append(entry)
     for appid, name, exe in fsr4_games.shortcuts(steam_root):
         root = os.path.dirname(exe)
         if os.path.isdir(root):
@@ -218,6 +231,15 @@ class Plugin:
     def _save_registry(self):
         dk_fs.write_json(self.registry_path, self.registry)
 
+    def _elsewhere(self, g, entry):
+        """A setup in another copy of the game than the one Steam runs (made before 2.2.45 picked the library Steam
+        lists, Stellar Blade): its folder isn't inside the game's. Uninstalling cleans that copy, installing again
+        sets up the right one."""
+        if not entry or not entry.get("proxy") or g.get("nonsteam"):
+            return False
+        inside = os.path.normcase(os.path.realpath(g["install_dir"])) + os.sep
+        return not (os.path.normcase(os.path.realpath(entry["exe_dir"])) + os.sep).startswith(inside)
+
     def _view(self, g):
         entry = self.registry.get(str(g["appid"]))
         view = {k: g[k] for k in ("appid", "name", "exe_name", "upscalers", "anticheat", "nonsteam",
@@ -235,6 +257,8 @@ class Plugin:
         if view["installed"]:
             view["verdict"], view["detail"] = entry.get("verdict", "unplayed"), entry.get("detail", "")
             view["proxy"] = entry.get("proxy", "")
+            if self._elsewhere(g, entry):
+                view["verdict"], view["detail"] = "none", sml_opti.ELSEWHERE
         return view
 
     async def _state(self):
@@ -842,6 +866,9 @@ class Plugin:
             return dk_rpc.ok(status="off")
         if entry.get("installed_at", 0) > started:
             return dk_rpc.ok(status="restart", detail="Set up while the game was running. Restart the game.")
+        game = self._game(appid)
+        if game and self._elsewhere(game, entry):
+            return dk_rpc.ok(status="inactive", detail=sml_opti.ELSEWHERE)
         exe_dir = entry["exe_dir"]
         if sml_opti.log_time(exe_dir) < started - 2:
             waited = time.time() - started

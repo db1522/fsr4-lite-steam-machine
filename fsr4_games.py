@@ -44,6 +44,26 @@ def libraries(steam_root):
     return roots
 
 
+def library_apps(steam_root):
+    """Library root -> the app ids Steam lists in it ("apps" in libraryfolders.vdf), by real path. When a game's
+    manifest is in two libraries (moved to an SD card, with the old one left behind), this says which one Steam runs
+    it from. Empty when the file can't be read."""
+    try:
+        with open(os.path.join(steam_root, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return {}
+    out = {}
+    # each library block: "path" "<root>" ... "apps" { "<appid>" "<size>" ... }
+    for block in re.split(r'(?=^\s*"path"\s)', text, flags=re.M)[1:]:
+        path = _values(block, "path")
+        apps = re.search(r'"apps"\s*\{([^}]*)\}', block, re.I)
+        if path and apps:
+            out[os.path.realpath(path[0].replace("\\\\", "\\"))] = {k for k, _ in _KV.findall(apps.group(1))
+                                                                    if k.isdigit()}
+    return out
+
+
 def _find_ffx(install_dir):
     """(directory with the FFX DLL, its name, anti-cheat seen) for one game.
 

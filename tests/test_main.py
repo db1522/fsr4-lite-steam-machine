@@ -106,6 +106,48 @@ class Flow(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
         self.assertFalse(self.run_(self.p.get_state())["state"]["games"][0]["installed"])
 
+    def test_a_game_in_two_libraries_is_set_up_where_steam_runs_it(self):
+        # Stellar Blade (issue 4): moved to an SD card, its old manifest and folder left on internal storage. Steam's
+        # libraryfolders.vdf lists it under the SD card, which is where it runs from.
+        steam = os.path.join(self.home, ".local", "share", "Steam")
+        sd = os.path.join(self.home, "sdcard")
+        touch(os.path.join(sd, "steamapps", "appmanifest_42.acf"),
+              b'"AppState"\n{\n"appid" "42"\n"name" "Test Game"\n"installdir" "Test Game"\n}\n')
+        sd_game = os.path.join(sd, "steamapps", "common", "Test Game")
+        touch(os.path.join(sd_game, "game.exe"), b"game" * 50)
+        vdf = os.path.join(steam, "steamapps", "libraryfolders.vdf")
+
+        def libraries(apps_main, apps_sd):
+            touch(vdf, ('"libraryfolders"\n{\n"0"\n{\n"path" "%s"\n"apps"\n{\n%s}\n}\n'
+                        '"1"\n{\n"path" "%s"\n"apps"\n{\n%s}\n}\n}\n' % (
+                            steam.replace("\\", "\\\\"), apps_main, sd.replace("\\", "\\\\"), apps_sd)).encode())
+        libraries("", '"42" "1000"\n')
+        games = self.run_(self.p.scan_games())["state"]["games"]
+        self.assertEqual(len(games), 1, "one card, not two")
+        self.assertEqual(os.path.normpath(self.p._game(42)["install_dir"]), os.path.normpath(sd_game))
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        self.assertTrue(os.path.isfile(os.path.join(sd_game, "dxgi.dll")))
+        self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")))
+        self.run_(self.p.disable_game(42, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+        # a setup an older version made in the copy Steam doesn't run: the card says to set it up again
+        libraries('"42" "1000"\n', "")
+        self.run_(self.p.scan_games())
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])  # in the main library's copy
+        libraries("", '"42" "1000"\n')
+        g = self.run_(self.p.scan_games())["state"]["games"][0]
+        self.assertEqual((g["installed"], g["verdict"]), (True, "none"))
+        self.assertIn("another copy", g["detail"])
+        self.run_(self.p.session_started(42))
+        self.assertIn("another copy", self.run_(self.p.live_status(42))["detail"])
+        self.run_(self.p.disable_game(42, "WINEDLLOVERRIDES=dxgi=n,b %command%"))
+        self.assertFalse(os.path.exists(os.path.join(self.game, "dxgi.dll")), "uninstall cleans the old copy")
+        libraries('"42" "1000"\n', "")  # listed under the main library: that one
+        self.run_(self.p.scan_games())
+        self.assertEqual(os.path.normpath(self.p._game(42)["install_dir"]), os.path.normpath(self.game))
+        libraries("", "")  # listed nowhere: the first library, as before
+        self.run_(self.p.scan_games())
+        self.assertEqual(os.path.normpath(self.p._game(42)["install_dir"]), os.path.normpath(self.game))
+
     def test_a_game_installed_as_its_linux_version_is_named_so_the_card_can_say_to_force_proton(self):
         apps = os.path.join(self.home, ".local", "share", "Steam", "steamapps")
         touch(os.path.join(apps, "appmanifest_2929250.acf"),
