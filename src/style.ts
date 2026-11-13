@@ -137,7 +137,7 @@ export const CSS = `
 .sml-now.good::before { background: var(--good); }
 .sml-now.warn::before { background: var(--warn); }
 .sml-now.bad::before { background: var(--bad); }
-.sml-nowtop { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.sml-nowtop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; min-height: 24px; }
 .sml-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
 .sml-now .sml-live { position: static; backdrop-filter: none; padding: 3px 10px 3px 8px; font-size: 12px; background: rgba(255,255,255,.04); }
 .sml-now .sml-nowtitle { margin: 6px 0 0; font-family: var(--display); font-weight: 700; font-size: 25px; line-height: 1.05; color: #fff; word-break: break-word; }
@@ -178,7 +178,8 @@ export const CSS = `
   background: linear-gradient(180deg, rgba(255,138,149,.24), rgba(255,138,149,.08)); border-color: rgba(255,138,149,.42); }
 .sml-root .sml-live .sml-dot { width: 7px; height: 7px; background: currentColor; box-shadow: 0 0 8px currentColor; }
 .sml-root .sml-live svg { width: 13px; height: 13px; flex-shrink: 0; }
-.sml-nowtop .sml-eyebrow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* never cut short: a badge too wide to sit beside it ("Restart needed") wraps onto its own line instead */
+.sml-nowtop .sml-eyebrow { white-space: nowrap; }
 .sml-gamesub { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 2px; }
 .sml-extra { color: var(--soft); }
 .sml-chev { display: inline-block; font-size: 22px; line-height: 1; color: var(--mute); transition: transform .15s; }

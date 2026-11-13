@@ -2,6 +2,12 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.46] - 2026-11-13
+
+### 🐛 Fixed
+- **Game cards:** "Now playing" is no longer cut short next to a wide badge like Restart needed. The badge moves onto
+  its own line under it when both don't fit.
+
 ## [2.2.45] - 2026-11-13
 
 ### 🐛 Fixed
