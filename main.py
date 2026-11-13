@@ -11,6 +11,7 @@ Every RPC answers {ok, error?, state?} (DeckyKit D2, dk_rpc).
 """
 
 import asyncio
+import collections
 import json
 import os
 import sys
@@ -29,6 +30,7 @@ import dk_update  # noqa: E402
 import fsr4_games  # noqa: E402  (Steam library and shortcut parsing)
 import sml_assets  # noqa: E402
 import sml_opti  # noqa: E402
+import sml_watch  # noqa: E402  (catches Steam's interface freezing)
 
 REPOSITORY = "db1522/fsr4-lite-steam-machine"
 SEVENZIP = os.path.join(PLUGIN_DIR, "bin", "7zz")
@@ -46,6 +48,8 @@ NOT_INI = ("session_toast", "auto_update")  # settings that don't go into OptiSc
 QUICK_EXIT = 90  # a session this short, with OptiScaler loaded and no Lite, counts as the game closing at launch
 QUICK_EXITS_OFF = 2  # that many in a row and FSR 4.1 Lite is turned off for the game
 LOG_LOOK_EVERY = 30  # a running game's OptiScaler.log checked for its size (sml_opti.trim_log)
+FREEZE_LOOK_EVERY = 15  # how often Steam's interface is asked whether it still answers (sml_watch.ping)
+FREEZE_WAIT = 10  # seconds without an answer that count as a freeze
 UPDATE_LOOK_EVERY = 300  # how often set-up games are compared with the current build (GitHub is asked far less)
 PLUGIN_CHECK_EVERY = 3600  # a newer FSR 4.1 Lite release looked for in the background: one small GitHub API call an hour
 CHOICES = {"overlay_size": tuple(sml_opti.OVERLAY_SIZES), "overlay_pos": tuple(sml_opti.OVERLAY_POSITIONS)}
@@ -170,6 +174,10 @@ class Plugin:
             # shortcut's, so the shortcut is found by its exe running instead.
             self.aliases = {}
             self.programs = {}  # appid -> every Windows program running at the last watch, for the support report
+            # the last things the plugin did with Steam (games set up, sessions, restarts, launch options), with the
+            # time, for a freeze report: what ran just before Steam's interface stopped answering
+            self.events = collections.deque(maxlen=40)
+            self.freeze_path = os.path.join(settings_dir, "freeze.json")
             self.settings = dict(DEFAULT_SETTINGS)
             self.registry = {}  # str(appid) -> {exe_dir, proxy, tried, launch_original, launch_applied, installed_at}
             self.loaders = {}
@@ -213,7 +221,7 @@ class Plugin:
             self.legacy = await asyncio.to_thread(self._legacy_entries)
             self._scan_task = asyncio.create_task(self.scan_games())
             self._updater = asyncio.create_task(self._update_loop())
-            self._log_guard = asyncio.create_task(self._log_loop())
+            self._log_guard = asyncio.create_task(self._background())
         finally:
             _ready.set()
 
@@ -295,6 +303,102 @@ class Plugin:
             except Exception as e:  # noqa: BLE001
                 decky.logger.warning(f"repair: {e!r}")
             await asyncio.sleep(UPDATE_LOOK_EVERY)
+
+    async def _background(self):
+        """The loops that run for the plugin's whole life, in one task (stopped together at unload)."""
+        await asyncio.gather(self._log_loop(), self._freeze_loop(), self._freeze_notice())
+
+    def _event(self, text):
+        """One line in the plugin's timeline for freeze reports, also in the log."""
+        self.events.append((time.time(), text))
+        decky.logger.info(text)
+
+    async def _freeze_loop(self):
+        """Steam's interface asked every FREEZE_LOOK_EVERY seconds whether it answers. Only on SteamOS (a debugger on
+        127.0.0.1:8080 is how Decky reaches Steam there)."""
+        if os.name != "posix":
+            return
+        frozen = None
+        while True:
+            await asyncio.sleep(FREEZE_LOOK_EVERY)
+            try:
+                frozen = await self._freeze_step(frozen)
+            except Exception as e:  # noqa: BLE001 - the loop must survive anything
+                decky.logger.warning(f"freeze check: {e!r}")
+
+    async def _freeze_step(self, frozen):
+        """One check. frozen: (report path, since) while a freeze is reported, else None; returns the new value. A
+        freeze is reported once, right away (a minute later even the debugger can stop answering), and the report
+        gets one more line when Steam answers again."""
+        state = await asyncio.to_thread(sml_watch.ping, FREEZE_WAIT)
+        if state in ("hung", "debugger hung") and frozen is None:
+            where = (await asyncio.to_thread(sml_watch.stack, FREEZE_WAIT) if state == "hung" else
+                     ["(Steam's debugger didn't answer either, so no script can be named: Steam's process itself was "
+                      "stuck)"])
+            path = await asyncio.to_thread(self._save_freeze, state, where)
+            decky.logger.warning(f"Steam's interface stopped answering ({state}); report saved to {path}")
+            return (path, time.time() - FREEZE_WAIT)
+        if state == "ok" and frozen is not None:
+            path, since = frozen
+            try:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(f"\nSteam answered again {round(time.time() - since)} s after it stopped.\n")
+            except OSError:
+                pass
+            decky.logger.info("Steam's interface answers again")
+            return None
+        return frozen
+
+    def _save_freeze(self, state, where):
+        """The freeze report, in Downloads (it outlives the restart the player does next), plus a note to tell them
+        about it once the plugin loads again."""
+        now = time.time()
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
+        events = [time.strftime("%H:%M:%S", time.localtime(t)) + "  " + text for t, text in self.events]
+        running = [f"{appid}: {(self._game(appid) or {}).get('name', '?')}, started "
+                   + time.strftime("%H:%M:%S", time.localtime(t)) for appid, t in self.sessions.items()]
+        text = "\n".join([
+            f"FSR 4.1 Lite {VERSION}: Steam's interface stopped answering, {stamp}",
+            f"State: {state} (no answer from Steam's background page for {FREEZE_WAIT} s)",
+            "", "== Where Steam's background page was (call stack, innermost first) ==",
+            "Script names under /plugins/<name>/ are that Decky plugin's code; others are Decky's or Steam's own.",
+            *where,
+            "", "== What FSR 4.1 Lite did last ==", *(events or ["(nothing since the plugin loaded)"]),
+            "", "== Games running ==", *(running or ["(none)"]),
+            "", *sml_watch.system_lines(_home()),
+        ])
+        downloads = os.path.join(_home(), "Downloads")
+        os.makedirs(downloads, exist_ok=True)
+        path = os.path.join(downloads, f"fsr4lite-freeze-{time.strftime('%Y%m%d-%H%M%S', time.localtime(now))}.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text + "\n")
+        dk_fs.write_json(self.freeze_path, {"path": path, "at": now, "told": False})
+        return path
+
+    async def _freeze_notice(self):
+        """After a freeze the player restarts: once Steam is back, one notification says where the report is."""
+        seen = await asyncio.to_thread(_read, self.freeze_path, {})
+        if not isinstance(seen, dict) or seen.get("told") is not False or not isinstance(seen.get("path"), str):
+            return
+        await asyncio.sleep(30)  # the panel's notification listener is up by then
+        when = time.strftime("%b %d at %H:%M", time.localtime(seen.get("at") or time.time()))
+        await decky.emit("freeze_report", "Steam froze last time",
+                         f"FSR 4.1 Lite saved what was running when Steam stopped answering ({when}) to "
+                         f"Downloads/{os.path.basename(seen['path'])}. Send it to Steam Machine Life.")
+        seen["told"] = True
+        await asyncio.to_thread(dk_fs.write_json, self.freeze_path, seen)
+
+    def _last_freeze(self):
+        seen = _read(self.freeze_path, {})
+        if not isinstance(seen, dict) or not isinstance(seen.get("path"), str):
+            return "none caught"
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(seen.get("at") or 0)) + ", report " + seen["path"]
+
+    @rpc
+    async def note(self, text: str) -> dict:
+        """A line from the panel for the freeze timeline (Restart now, launch options saved)."""
+        self._event("panel: " + str(text)[:200])
+        return dk_rpc.ok()
 
     async def _log_loop(self):
         """While set-up games run: an OptiScaler.log past sml_opti.LOG_TRIM is emptied (007 First Light fills one with
@@ -723,7 +827,7 @@ class Plugin:
                                   "reframework": bool(manifest.get("reframework")),
                                   "installed_at": time.time(), "verdict": "unplayed", "detail": ""}
             await asyncio.to_thread(self._save_registry)
-            decky.logger.info(f"enabled {appid} in {game['exe_dir']} as {manifest['proxy']}")
+            self._event(f"enabled {appid} in {game['exe_dir']} as {manifest['proxy']}")
             return dk_rpc.ok(await self._state(), launch_options=new)
 
     async def _disable(self, appid, launch_options, keep_retry=False):
@@ -843,6 +947,7 @@ class Plugin:
         # Every game's start is kept: setting a game up while it runs needs a restart, and the panel says so.
         appid = await self._resolve(appid)
         self.sessions[appid] = time.time()
+        self._event(f"game {appid} started")
         if appid not in self._watchers:
             self._watchers[appid] = asyncio.create_task(self._watch_exe(appid, self.sessions[appid]))
         entry = self.registry.get(str(appid))
@@ -909,6 +1014,7 @@ class Plugin:
     @rpc
     async def session_ended(self, appid: int, launch_options: str = "") -> dict:
         appid = self.aliases.pop(appid, appid)
+        self._event(f"game {appid} ended")
         key = str(appid)
         async with self.lock:
             entry = self.registry.get(key)
@@ -1125,6 +1231,7 @@ class Plugin:
             + (f" (moved from {shared}, OptiScaler loads it)" if shared else ""),
             "Sharpness: " + (f"{round(self.sharpness[str(appid)] * 100)}% (set in the plugin)"
                              if str(appid) in self.sharpness else "the game's own"),
+            "Last Steam freeze: " + self._last_freeze(),
             "", "== OptiScaler.ini (set values) ==", *ini, "",
             f"== OptiScaler.log (start and end{'; ' + note if note else ''}) ==",
             *(self._log_ends(log) or ["(no log: OptiScaler hasn't run in this game yet)"]),

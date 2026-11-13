@@ -15,7 +15,7 @@ import { canInstallUpdates, installUpdate } from "./installer";
 import { keepInView, onFocusReveal, openWeb, restartGame, toTop } from "./steamx";
 import {
   cancelDownload, checkForUpdates, cleanupLegacy, disableGame, removeManual, downloadAssets, downloadProgress, enableGame, Game,
-  checkOptiscaler, getState, Live, liveStatus, resolveRunning, performUpdate, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, setSharpness, State,
+  checkOptiscaler, getState, Live, liveStatus, resolveRunning, performUpdate, note, readLaunchOptions, saveLaunchOptions, scanGames, setSetting, setSharpness, State,
   StateResult,
 } from "./api";
 import { errorText } from "./result";
@@ -287,7 +287,9 @@ export const Content: FC = () => {
   const restartNow = (g: Game) => confirmAction(`Restart ${g.name}?`,
     "Save your game first. Anything not saved is lost when it closes.", "Restart", async () => {
       setRestarting(true);
+      note(`Restart now: closing ${g.appid}`);
       const ok = await restartGame(g.appid, () => !!Router.MainRunningApp);
+      note(ok ? `Restart now: started ${g.appid} again` : `Restart now: ${g.appid} didn't close`);
       setRestarting(false);
       if (!ok) notify("FSR 4.1 Lite", `Couldn't restart ${g.name}. Close it and start it again yourself.`);
     });

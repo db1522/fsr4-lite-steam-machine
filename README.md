@@ -116,6 +116,7 @@ Connect games run with OptiScaler's overlay off, because next to Ubisoft's overl
 - OptiScaler's newest nightly, always. The plugin checks for a new build every 6 hours, the same as the Windows widget, and puts it in every game you set up that isn't running. Each game keeps its settings, and one notification tells you. Turn it off in Settings if you'd rather stay put.
 - Sharpness per game. Turn on Set sharpness on the Now playing card and pick a strength from 0 to 100%. It works whatever the game picks, even in DLSS games that have no sharpness slider of their own. Leave it off and the game keeps its own sharpness.
 - OptiScaler's FPS and resolution overlay, in six sizes from Small to Maximum, the same as the Windows widget, and AMD's watermark. Each one is a single switch for every game. The overlay is also where you see the live render resolution: some games change quality without telling OptiScaler.
+- A freeze catcher. If Steam's interface stops answering, the plugin saves a report to Downloads right away, before you restart: which code was stuck (a plugin, Decky or Steam itself), what FSR 4.1 Lite did last and what the system was doing. After the restart a notification tells you where it is. Checking costs 0.003% of one CPU core.
 - Light on the Steam Machine. Idle, the plugin used 0.006% of one CPU core in my test, and it only reads what it needs.
 
 ## Requirements

@@ -106,6 +106,45 @@ class Flow(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.game)), ["game.exe", "nvngx_dlss.dll"])
         self.assertFalse(self.run_(self.p.get_state())["state"]["games"][0]["installed"])
 
+    def test_a_steam_freeze_is_caught_with_its_stack_and_told_after_the_restart(self):
+        watch = main.sml_watch
+        self.assertTrue(self.run_(self.p.enable_game(42, ""))["ok"])
+        self.run_(self.p.note("Restart now: closing 42"))
+        self.run_(self.p.session_started(42))
+        state = {"ping": "hung"}
+        with mock.patch.object(watch, "ping", lambda timeout: state["ping"]), \
+                mock.patch.object(watch, "stack", lambda timeout: ["spin  http://127.0.0.1:1337/plugins/X/index.js:42:10"]), \
+                mock.patch.object(watch, "system_lines", lambda home: ["== Busiest processes =="]):
+            state["ping"] = "ok"
+            self.assertIsNone(self.run_(self.p._freeze_step(None)), "answering: nothing to report")
+            state["ping"] = "hung"
+            frozen = self.run_(self.p._freeze_step(None))
+            path = frozen[0]
+            self.assertTrue(path.startswith(os.path.join(self.home, "Downloads", "fsr4lite-freeze-")))
+            with open(path, encoding="utf-8") as f:
+                report = f.read()
+            for line in ("spin  http://127.0.0.1:1337/plugins/X/index.js:42:10", "panel: Restart now: closing 42",
+                         "game 42 started", "enabled 42 in", "42: Test Game, started", "== Busiest processes =="):
+                self.assertIn(line, report)
+            self.assertEqual(self.run_(self.p._freeze_step(frozen)), frozen, "one report per freeze")
+            state["ping"] = "ok"
+            self.assertIsNone(self.run_(self.p._freeze_step(frozen)))
+            with open(path, encoding="utf-8") as f:
+                self.assertIn("Steam answered again", f.read())
+        with open(self.p._save_report(42)["saved"], encoding="utf-8") as f:
+            self.assertIn("Last Steam freeze: ", f.read())  # the support report points at it too
+        later = main.Plugin()  # after the player restarts: one notification saying where the report is
+        self.run_(later._main())
+        for task in (later._scan_task, later._updater, later._log_guard):
+            task.cancel()
+        self.run_(asyncio.gather(later._scan_task, later._updater, later._log_guard, return_exceptions=True))
+        with mock.patch.object(main.asyncio, "sleep", mock.AsyncMock()):
+            self.run_(later._freeze_notice())
+            self.run_(later._freeze_notice())
+        told = [e for e in decky.emitted if e[0] == "freeze_report"]
+        self.assertEqual(len(told), 1, "told once")
+        self.assertIn(os.path.basename(path), told[0][2])
+
     def test_a_game_in_two_libraries_is_set_up_where_steam_runs_it(self):
         # Stellar Blade (issue 4): moved to an SD card, its old manifest and folder left on internal storage. Steam's
         # libraryfolders.vdf lists it under the SD card, which is where it runs from.

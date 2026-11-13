@@ -2,6 +2,16 @@
 
 All notable changes to FSR 4.1 Lite, newest first.
 
+## [2.2.47] - 2026-11-13
+
+### ✨ Added
+- **Freeze catcher:** if Steam's interface stops answering for 10 seconds, FSR 4.1 Lite saves a report to Downloads
+  while it's still frozen: which code was stuck (a Decky plugin, Decky or Steam itself, down to the script and line),
+  what the plugin did last (Restart now, games starting and closing, launch options) and what the system was doing.
+  After you restart, a notification says where it is, and the support report points at it. My Steam Machine froze
+  once today right after a game closed, and by the time I looked even Steam's debugger was stuck. The check runs every
+  15 seconds and costs 0.003% of one CPU core.
+
 ## [2.2.46] - 2026-11-13
 
 ### 🐛 Fixed

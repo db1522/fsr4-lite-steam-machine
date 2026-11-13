@@ -74,6 +74,8 @@ export const cleanupLegacy = rpc<[number, string], ToggleResult>("cleanup_legacy
 export const removeManual = rpc<[number], StateResult & { moved?: string[]; backup?: string }>("remove_manual");
 export const setSetting = rpc<[string, boolean | string], StateResult>("set_setting");
 export const setSharpness = rpc<[number, number | null], StateResult>("set_sharpness");
+// A line in the backend's timeline for freeze reports (what the panel asked Steam to do, and when)
+export const note = rpc<[string], Result<never>>("note");
 // The game in the library list a running app id is: a non-Steam shortcut can run under its game's own Steam id.
 export const resolveRunning = rpc<[number], Result<never> & { appid?: number }>("resolve_running");
 export const checkOptiscaler = rpc<[], StateResult & { message?: string }>("check_optiscaler");
@@ -118,6 +120,7 @@ export const readLaunchOptions = (appid: number, expected?: string) =>
 
 // Writes launch options to Steam and reads back what Steam kept. Resolves true when Steam kept exactly them.
 export const saveLaunchOptions = async (appid: number, options: string) => {
+  note(`saving launch options for ${appid}`);
   SteamClient.Apps.SetAppLaunchOptions(appid, options);
   return (await readLaunchOptions(appid, options).catch(() => "")) === options;
 };

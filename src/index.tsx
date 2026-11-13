@@ -4,7 +4,7 @@
 
 import { addEventListener, definePlugin, removeEventListener } from "@decky/api";
 import { staticClasses } from "@decky/ui";
-import { getState, off, readLaunchOptions, resolveRunning, saveLaunchOptions, sessionCheck, sessionEnded, sessionStarted } from "./api";
+import { getState, note, off, readLaunchOptions, resolveRunning, saveLaunchOptions, sessionCheck, sessionEnded, sessionStarted } from "./api";
 import { closeUpdates, Content } from "./panel";
 import { notify } from "./ui";
 
@@ -58,6 +58,7 @@ export default definePlugin(() => {
     const id = games.get(n.unAppID) ?? (await resolveRunning(n.unAppID)).appid ?? n.unAppID;
     games.delete(n.unAppID);
     unwatch(id);
+    note(`game ${id} closed: reading its launch options`);
     const options = await readLaunchOptions(id).catch(() => "");
     const res = await sessionEnded(n.unAppID, options);
     if (!res.managed) return;
@@ -80,6 +81,8 @@ export default definePlugin(() => {
   addEventListener<[string, string]>("plugin_update", gamesUpdated);
   // A game update or Steam's file check removed OptiScaler and the backend put it back.
   addEventListener<[string, string]>("game_repaired", gamesUpdated);
+  // Steam's interface froze last session and the backend saved what was running (sml_watch): where the report is.
+  addEventListener<[string, string]>("freeze_report", gamesUpdated);
 
   return {
     name: NAME,
@@ -91,6 +94,7 @@ export default definePlugin(() => {
       removeEventListener("games_updated", gamesUpdated);
       removeEventListener("plugin_update", gamesUpdated);
       removeEventListener("game_repaired", gamesUpdated);
+      removeEventListener("freeze_report", gamesUpdated);
       [...watching.keys()].forEach(unwatch);
       closeUpdates();
     },
